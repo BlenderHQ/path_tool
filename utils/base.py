@@ -4,15 +4,15 @@ from enum import Enum
 import bpy
 import bmesh
 
-from . import path
+from . import unified_path
 
 if "_rc" in locals():
     import importlib
-    importlib.reload(path)
+    importlib.reload(unified_path)
 
 _rc = None
 
-Path = path.Path
+Path = unified_path.Path
 
 
 class InteractEvent(Enum):
@@ -31,9 +31,11 @@ class PathUtils:
     def __init__(self):
         self.path_seq = []
         self.mesh_islands = []
-        self.drag_elem = None
+        self.drag_elem_index = None
 
         self._active_path_index = None
+        self._drag_elem = None
+        self._just_closed_path = False
 
     @property
     def active_path(self):
@@ -111,11 +113,6 @@ class PathUtils:
         for ob in context.objects_in_mode:
             bmesh.update_edit_mesh(ob.data, False, False)
 
-    def get_path_by_control_element(self, elem):
-        for path in self.path_seq:
-            if elem in path.control_elements:
-                return path
-
     def update_path_beetween(self, context, elem_0, elem_1):
         tool_settings = context.scene.tool_settings
         initial_select_mode = tuple(tool_settings.mesh_select_mode)
@@ -138,8 +135,8 @@ class PathUtils:
         tool_settings.mesh_select_mode = initial_select_mode
         return fill_seq
 
-    def update_fills_by_element(self, context, elem):
-        pairs_items = self.active_path.get_pairs_items(elem)
+    def update_fills_by_element_index(self, context, elem_index):
+        pairs_items = self.active_path.get_pairs_items(elem_index)
         for item in pairs_items:
             elem_0, elem_1, fill_index = item
             fill_seq = self.update_path_beetween(context, elem_0, elem_1)
@@ -155,75 +152,134 @@ class PathUtils:
                 self.interact_control_element(context, elem, matrix_world, InteractEvent.ADD_NEW_PATH)
                 return
 
-            # Check is element in any existing path, if so - make this path active
-            existing_path = self.get_path_by_control_element(elem)
-            if existing_path:
-                self.active_path = existing_path
+            new_elem_index = None
 
-            if elem not in self.active_path.control_elements:
-                # Check mesh island before appending new control element to active path
+            elem_index = self.active_path.is_in_control_elements(elem)
+            if elem_index is None:
+                new_elem_index = len(self.active_path.control_elements)
+
+                fill_index = self.active_path.is_in_fill_elements(elem)
+                if fill_index is None:
+                    is_found_in_other_path = False
+                    for path in self.path_seq:
+                        if path == self.active_path:
+                            continue
+                        other_elem_index = path.is_in_control_elements(elem)
+                        if other_elem_index is None:
+                            other_fill_index = path.is_in_fill_elements(elem)
+                            if other_fill_index is not None:
+                                is_found_in_other_path = True
+                        else:
+                            is_found_in_other_path = True
+
+                        if is_found_in_other_path:
+                            self.active_path = path
+                            self._just_closed_path = False
+                            self.interact_control_element(context, elem, matrix_world, InteractEvent.ADD)
+                            return
+                else:
+                    new_elem_index = fill_index + 1
+                    self._just_closed_path = False
+
+            elif len(self.active_path.control_elements) == 1:
+                batch = self.gen_batch_control_elements(context, self.active_path)  # Draw
+                self.active_path.batch_control_elements = batch
+
+            if elem_index is not None:
+                self.drag_elem_index = elem_index
+                self._just_closed_path = False
+            self._drag_elem = elem
+
+            if self._just_closed_path:
+                self.interact_control_element(context, elem, matrix_world, InteractEvent.ADD_NEW_PATH)
+                return
+
+            if new_elem_index is not None:
+                self.drag_elem_index = new_elem_index
+                # Add a new control element to active path
                 linked_island_index = self.get_linked_island_index(context, elem)
                 if self.active_path.island_index != linked_island_index:
                     self.interact_control_element(context, elem, matrix_world, InteractEvent.ADD_NEW_PATH)
                     return
-                new_elem_index = len(self.active_path.control_elements)
-                # Add a new control element to active path
+                #new_elem_index = len(self.active_path.control_elements)
+
                 self.active_path.insert_control_element(new_elem_index, elem)
-                self.update_fills_by_element(context, elem)
+                self.update_fills_by_element_index(context, new_elem_index)
 
-            batch = self.gen_batch_control_elements(context, self.active_path)  # Draw
-            self.active_path.batch_control_elements = batch
-
-            self.drag_elem = elem  # Before mouse released element can be dragged
+                batch = self.gen_batch_control_elements(context, self.active_path)  # Draw
+                self.active_path.batch_control_elements = batch
 
         elif interact_event is InteractEvent.ADD_NEW_PATH:
             # Adding new path
             linked_island_index = self.get_linked_island_index(context, elem)
             self.active_path = Path(elem, linked_island_index, matrix_world)
             # Recursion used to add new control element to newly created path
+            self._just_closed_path = False
             self.interact_control_element(context, elem, matrix_world, InteractEvent.ADD)
+            self.report(type={'INFO'}, message="Created new path")
             return
 
         elif interact_event is InteractEvent.REMOVE:
             # Remove control element
-            existing_path = self.get_path_by_control_element(elem)
-            if existing_path:
-                self.active_path = existing_path
-                self.active_path.remove_control_element(elem)
+            self._just_closed_path = False
+
+            elem_index = self.active_path.is_in_control_elements(elem)
+            if elem_index is None:
+                for path in self.path_seq:
+                    other_elem_index = path.is_in_control_elements(elem)
+                    if other_elem_index is not None:
+                        self.active_path = path
+                        self.interact_control_element(context, elem, matrix_world, InteractEvent.REMOVE)
+                        return
+            else:
+                self.active_path.pop_control_element(elem_index)
 
                 # Remove the last control element from path
                 if not len(self.active_path.control_elements):
                     self.path_seq.remove(self.active_path)
                     if len(self.path_seq):
                         self.active_path = self.path_seq[-1]
-
-                batch = self.gen_batch_control_elements(context, self.active_path)  # Draw
-                self.active_path.batch_control_elements = batch
+                else:
+                    self.update_fills_by_element_index(context, elem_index)
+                    batch = self.gen_batch_control_elements(context, self.active_path)  # Draw
+                    self.active_path.batch_control_elements = batch
 
         elif interact_event is InteractEvent.DRAG:
             # Drag control element
-            if not self.drag_elem:
+            if not self._drag_elem:
                 return
+            self._just_closed_path = False
+
             linked_island_index = self.get_linked_island_index(context, elem)
             if self.active_path.island_index == linked_island_index:
-                drag_elem_index = self.active_path.control_elements.index(self.drag_elem)
-                self.active_path.control_elements[drag_elem_index] = elem
-                self.drag_elem = elem
-                self.update_fills_by_element(context, elem)
+                self.active_path.control_elements[self.drag_elem_index] = elem
+                self._drag_elem = elem
+                self.update_fills_by_element_index(context, self.drag_elem_index)
                 batch = self.gen_batch_control_elements(context, self.active_path)  # Draw
                 self.active_path.batch_control_elements = batch
 
         # Switch active path direction
         elif interact_event is InteractEvent.CHDIR:
             self.active_path.reverse()
+            self._just_closed_path = False
 
         # Close active path
         elif interact_event is InteractEvent.CLOSE:
-            self.active_path
+            self.active_path.close = not self.active_path.close
+
+            if self.active_path.close:
+                self.update_fills_by_element_index(context, 0)
+                if len(self.active_path.control_elements) > 2:
+                    self._just_closed_path = True
+            else:
+                self.active_path.fill_elements[-1] = []
+                self.active_path.batch_seq_fills[-1] = None
+                self._just_closed_path = False
 
             # Release interact event event
         elif interact_event is InteractEvent.RELEASE:
-            self.drag_elem = None
+            self.drag_elem_index = None
+            self._drag_elem = None
 
             # Check and handle duplicated control elements
             non_doubles = []
@@ -242,9 +298,17 @@ class PathUtils:
                                     if other_control_element == control_element:
                                         # First-last control element same path
                                         if i == 0 and j == len(path.control_elements) - 1:
+                                            self.active_path.pop_control_element(-1)
+                                            self.interact_control_element(
+                                                context, elem, matrix_world, InteractEvent.CLOSE)
                                             self.report(type={'INFO'}, message="Closed active path")
+                                        elif i in (j - 1, j + 1):
+                                            self.active_path.pop_control_element(j)
+                                            batch = self.gen_batch_control_elements(context, self.active_path)  # Draw
+                                            self.active_path.batch_control_elements = batch
+                                            self.report(type={'INFO'}, message="Merged adjacent control elements")
                                         else:
-                                            print("Same path. Not interesting moment. just undo here")
+                                            pass
                         elif doubles_count >= 1:  # Double different path
                             for j, other_control_element in enumerate(other_path.control_elements):
                                 if other_control_element == control_element:
@@ -259,4 +323,4 @@ class PathUtils:
                                         self.report(type={'INFO'}, message="Joined two paths")
                         else:
                             non_doubles.append(control_element)
-        print(self.active_path)
+        # print(self.active_path)

@@ -7,28 +7,28 @@ class PathToolPreferences(bpy.types.AddonPreferences):
 
     color_control_element: FloatVectorProperty(
         name="Control Element",
-        default=[1.0, 1.0, 1.0, 1.0],
+        default=[0.969922, 0.969922, 0.969922, 1.000000],
         subtype="COLOR", size=4, min=0.0, max=1.0,
         description="Control element color"
     )
 
     color_active_control_element: FloatVectorProperty(
         name="Active Control Element",
-        default=[1.0, 0.0, 0.5, 1.0],
+        default=[0.039087, 0.331906, 0.940392, 1.000000],
         subtype="COLOR", size=4, min=0.0, max=1.0,
         description="Control element color"
     )
 
     color_path: FloatVectorProperty(
         name="Path",
-        default=[0.0, 0.7, 1.0, 0.7],
+        default=[0.000000, 0.700000, 1.000000, 1.000000],
         subtype="COLOR", size=4, min=0.0, max=1.0,
         description="Path color"
     )
 
     color_active_path: FloatVectorProperty(
         name="Active Path",
-        default=[1.0, 0.1, 0.1, 1.0],
+        default=[1.000000, 0.100000, 0.100000, 1.000000],
         subtype="COLOR", size=4, min=0.0, max=1.0,
         description="Path color"
     )

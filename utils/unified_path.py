@@ -2,6 +2,19 @@ import bmesh
 
 
 class Path:
+    """
+    Clear python container for elements in single path.
+    Structure:
+
+     [0]        [1]        [2]        [3]        [n]
+      |  \\      |  \\      |  \\      |  \\      |
+    ce_0 [...] ce_1 [...] ce_2 [...] ce_3 [...] ce_n   [...]
+           |          |          |          |            |
+        (fill_0)  (fill_1)   (fill_2)   (fill_3)   (fill_close)
+           |          |          |          |            |
+        (fba_0)    (fba_0)    (fba_0)    (fba_0)    (fba_close)
+    """
+
     def __init__(self, elem, linked_island_index, matrix_world):
         self.control_elements = [elem]
         # self.fill_elements[-1] reserved for fill seq from first to the last control element(if path.close)
@@ -17,6 +30,7 @@ class Path:
         self.batch_seq_fills = [None]
 
         self.close = False
+        self.direction = True
 
     def __repr__(self):
         batch_seq_fills_formatted = []
@@ -37,40 +51,63 @@ class Path:
     def __add__(self, other):
         assert self.island_index == other.island_index
 
-        for control_element in (self.control_elements[0], self.control_elements[-1]):
-            if control_element in (other.control_elements[0], other.control_elements[-1]):
-                if len(self.control_elements) > len(other.control_elements):
-                    self.control_elements.remove(control_element)
-                else:
-                    other.control_elements.remove(control_element)
+        is_found_merged_elements = False
+        for i in (0, -1):
+            elem = self.control_elements[i]
+            for j in (0, -1):
+                other_elem = other.control_elements[j]
+                if elem == other_elem:
+                    self.control_elements.pop(i)
+                    if i == j:
+                        other.reverse()
+                    is_found_merged_elements = True
+                    break
+            if is_found_merged_elements:
+                break
+
+        self.fill_elements.pop(-1)
+        self.batch_seq_fills.pop(-1)
 
         self.control_elements.extend(other.control_elements)
+        self.fill_elements.extend(other.fill_elements)
+        self.batch_seq_fills.extend(other.batch_seq_fills)
 
         return self
+
+    def __len__(self):
+        return len(self.control_elements)
 
     def reverse(self):
         self.control_elements.reverse()
         close_path_fill = self.fill_elements.pop(-1)
+        close_path_batch = self.batch_seq_fills.pop(-1)
         self.fill_elements.reverse()
+        self.batch_seq_fills.reverse()
         self.fill_elements.append(close_path_fill)
+        self.batch_seq_fills.append(close_path_batch)
+        self.direction = not self.direction
         return self
 
-    def is_element_in_fill(self, elem):
+    def is_in_control_elements(self, elem):
         """
-        Return's tuple
-        (index of fill, index of first element that equal or contains given elem(for edges when given vert))
-        in self.fill_elements if element in any fill, otherwise None
+        Return's element index in self.control_elements if exist, otherwise None
+        """
+        if elem in self.control_elements:
+            return self.control_elements.index(elem)
+
+    def is_in_fill_elements(self, elem):
+        """
+        Return's index of fill in self.fill_elements if element exist in any fill, otherwise None
         """
         for fill_index, fill_seq in enumerate(self.fill_elements):
             if isinstance(elem, bmesh.types.BMVert):
-                for i, edge in enumerate(fill_seq):
+                for edge in fill_seq:
                     for vert in edge.verts:
                         if elem == vert:
-                            return fill_index, i
+                            return fill_index
             elif isinstance(elem, bmesh.types.BMFace):
-                for i, face in enumerate(fill_seq):
-                    if elem == face:
-                        return fill_index, i
+                if elem in fill_seq:
+                    return fill_index
 
     def insert_control_element(self, elem_index, elem):
         """
@@ -89,22 +126,29 @@ class Path:
 
     def pop_control_element(self, elem_index):
         elem = self.control_elements.pop(elem_index)
-        self.fill_elements.pop(elem_index - 1)
-        self.batch_seq_fills.pop(elem_index - 1)
+        pop_index = elem_index - 1
+        if elem_index == 0:
+            pop_index = 0
+        self.fill_elements.pop(pop_index)
+        self.batch_seq_fills.pop(pop_index)
         return elem
 
-    def get_pairs_items(self, elem):
+    def get_pairs_items(self, elem_index):
         """
         Return's pairs_items list in format:
         pairs_items = [[elem_0, elem_1, fill_index_0],
                        (optional)[elem_0, elem_2, fill_index_1]]
         Used to update fill elements from and to given element
         """
-        assert elem in self.control_elements
         pairs_items = []
-        if len(self.control_elements) < 2:
+        control_elements_count = len(self.control_elements)
+        if control_elements_count < 2:
             return pairs_items
-        elem_index = self.control_elements.index(elem)
+
+        if elem_index > control_elements_count - 1:
+            elem_index = control_elements_count - 1
+
+        elem = self.control_elements[elem_index]
 
         if elem_index == 0:
             # First control element
@@ -116,5 +160,8 @@ class Path:
             # At least 3 control elements
             pairs_items = [[elem, self.control_elements[elem_index - 1], elem_index - 1],
                            [elem, self.control_elements[elem_index + 1], elem_index]]
+        
+        if self.close and (control_elements_count > 2) and (elem_index in (0, control_elements_count - 1)):
+            pairs_items.extend([[self.control_elements[0], self.control_elements[-1], -1]])
 
         return pairs_items

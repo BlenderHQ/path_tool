@@ -3,6 +3,7 @@ from . import draw
 from . import inputs
 from . import props
 from . import ui
+from . import unified_path
 
 if "_rc" in locals():
     import importlib
@@ -12,5 +13,6 @@ if "_rc" in locals():
     importlib.reload(inputs)
     importlib.reload(props)
     importlib.reload(ui)
+    importlib.reload(unified_path)
 
 _rc = None

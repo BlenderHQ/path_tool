@@ -167,12 +167,15 @@ class MESH_OT_select_path(utils.base.PathUtils, utils.draw.DrawUtils, bpy.types.
             if evkey[0] == 'MOUSEMOVE':
                 interact_event = InteractEvent.DRAG
 
-        if interact_event:
+        if interact_event in (InteractEvent.ADD, InteractEvent.ADD_NEW_PATH, InteractEvent.DRAG,
+                              InteractEvent.REMOVE, InteractEvent.RELEASE):
             elem, matrix_world = self.get_element_by_mouse(context, event)
             if elem:
                 self.interact_control_element(context, elem, matrix_world, interact_event)
                 if self.view_center_pick and (interact_event == InteractEvent.RELEASE):
                     bpy.ops.view3d.view_center_pick('INVOKE_DEFAULT')
+        elif interact_event is not None:
+            self.interact_control_element(context, None, None, interact_event)
 
         self.set_selection_state(self.initial_select, True)
         self.update_meshes(context)

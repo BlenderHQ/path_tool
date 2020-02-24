@@ -57,20 +57,32 @@ class DrawUtils:
         bgl.glEnable(bgl.GL_POLYGON_SMOOTH)
         bgl.glHint(bgl.GL_POLYGON_SMOOTH_HINT, bgl.GL_NICEST)
 
-        bgl.glEnable(bgl.GL_DEPTH_TEST)
+        # bgl.glEnable(bgl.GL_DEPTH_TEST)
 
-        bgl.glEnable(bgl.GL_POLYGON_OFFSET_FILL)
-        bgl.glPolygonOffset(1.0, 1.0)
-
-        color = preferences.color_control_element
-        color_active = color
-        color_path = preferences.color_path
+        # bgl.glEnable(bgl.GL_POLYGON_OFFSET_FILL)
+        # bgl.glPolygonOffset(1.0, 1.0)
 
         for path in self.path_seq:
-            active_index = len(path.control_elements) - 1
+            active_index = 0
+            color = preferences.color_control_element
+            color_active = color
+            color_path = preferences.color_path
+
             if path == self.active_path:
+                if path.direction:
+                    active_index = len(path.control_elements) - 1
                 color = preferences.color_control_element
                 color_active = preferences.color_active_control_element
+                color_path = preferences.color_active_path
+
+            shader_path = shaders.shader.path_uniform_color
+            shader_path.bind()
+
+            for batch in path.batch_seq_fills:
+                if batch:
+                    shader_path.uniform_float("ModelMatrix", path.matrix_world)
+                    shader_path.uniform_float("color", color_path)
+                    batch.draw(shader_path)
 
             shader_ce = shaders.shader.vert_uniform_color
             shader_ce.bind()
@@ -82,15 +94,6 @@ class DrawUtils:
                 shader_ce.uniform_int("active_index", (active_index,))
 
                 path.batch_control_elements.draw(shader_ce)
-
-            shader_path = shaders.shader.path_uniform_color
-            shader_path.bind()
-
-            for batch in path.batch_seq_fills:
-                if batch:
-                    shader_path.uniform_float("ModelMatrix", path.matrix_world)
-                    shader_path.uniform_float("color", color_path)
-                    batch.draw(shader_path)
 
         bgl.glDisable(bgl.GL_BLEND)
         # bgl.glDisable(bgl.GL_DEPTH_TEST)
