@@ -1,10 +1,10 @@
-from collections import deque
 from enum import Enum
 
 import bpy
 import bmesh
 
 from . import unified_path
+from . import draw
 
 if "_rc" in locals():
     import importlib
@@ -27,16 +27,6 @@ class InteractEvent(Enum):
 
 
 class PathUtils:
-
-    def __init__(self):
-        self.path_seq = []
-        self.mesh_islands = []
-        self.drag_elem_index = None
-
-        self._active_path_index = None
-        self._drag_elem = None
-        self._just_closed_path = False
-
     @property
     def active_path(self):
         if (self._active_path_index is not None) and (self._active_path_index <= len(self.path_seq) - 1):
@@ -142,10 +132,11 @@ class PathUtils:
             fill_seq = self.update_path_beetween(context, elem_0, elem_1)
 
             self.active_path.fill_elements[fill_index] = fill_seq
-            batch = self.gen_batch_fill_elements(context, fill_seq)
+            batch = draw.gen_batch_fill_elements(context, fill_seq)
             self.active_path.batch_seq_fills[fill_index] = batch
 
     def interact_control_element(self, context, elem, matrix_world, interact_event):
+        """Main method of interacting with all pathes"""
         if interact_event is InteractEvent.ADD:
             # Only the first click
             if not self.path_seq:
@@ -182,7 +173,7 @@ class PathUtils:
                     self._just_closed_path = False
 
             elif len(self.active_path.control_elements) == 1:
-                batch = self.gen_batch_control_elements(context, self.active_path)  # Draw
+                batch = draw.gen_batch_control_elements(context, self.active_path)  # Draw
                 self.active_path.batch_control_elements = batch
 
             if elem_index is not None:
@@ -201,12 +192,11 @@ class PathUtils:
                 if self.active_path.island_index != linked_island_index:
                     self.interact_control_element(context, elem, matrix_world, InteractEvent.ADD_NEW_PATH)
                     return
-                #new_elem_index = len(self.active_path.control_elements)
 
                 self.active_path.insert_control_element(new_elem_index, elem)
                 self.update_fills_by_element_index(context, new_elem_index)
 
-                batch = self.gen_batch_control_elements(context, self.active_path)  # Draw
+                batch = draw.gen_batch_control_elements(context, self.active_path)  # Draw
                 self.active_path.batch_control_elements = batch
 
         elif interact_event is InteractEvent.ADD_NEW_PATH:
@@ -241,7 +231,7 @@ class PathUtils:
                         self.active_path = self.path_seq[-1]
                 else:
                     self.update_fills_by_element_index(context, elem_index)
-                    batch = self.gen_batch_control_elements(context, self.active_path)  # Draw
+                    batch = draw.gen_batch_control_elements(context, self.active_path)  # Draw
                     self.active_path.batch_control_elements = batch
 
         elif interact_event is InteractEvent.DRAG:
@@ -255,7 +245,7 @@ class PathUtils:
                 self.active_path.control_elements[self.drag_elem_index] = elem
                 self._drag_elem = elem
                 self.update_fills_by_element_index(context, self.drag_elem_index)
-                batch = self.gen_batch_control_elements(context, self.active_path)  # Draw
+                batch = draw.gen_batch_control_elements(context, self.active_path)  # Draw
                 self.active_path.batch_control_elements = batch
 
         # Switch active path direction
@@ -276,51 +266,70 @@ class PathUtils:
                 self.active_path.batch_seq_fills[-1] = None
                 self._just_closed_path = False
 
-            # Release interact event event
+        # Release interact event event
         elif interact_event is InteractEvent.RELEASE:
             self.drag_elem_index = None
             self._drag_elem = None
 
-            # Check and handle duplicated control elements
-            non_doubles = []
-            for path in self.path_seq:
-                for i, control_element in enumerate(path.control_elements):
-                    if control_element in non_doubles:
-                        continue
-                    for other_path in self.path_seq:
-                        doubles_count = other_path.control_elements.count(control_element)
+            if self.view_center_pick:
+                bpy.ops.view3d.view_center_pick('INVOKE_DEFAULT')
 
-                        if other_path == path:
-                            if doubles_count > 1:  # Double same path
-                                for j, other_control_element in enumerate(path.control_elements):
-                                    if i == j:  # Skip current control element
-                                        continue
-                                    if other_control_element == control_element:
-                                        # First-last control element same path
-                                        if i == 0 and j == len(path.control_elements) - 1:
-                                            self.active_path.pop_control_element(-1)
-                                            self.interact_control_element(
-                                                context, elem, matrix_world, InteractEvent.CLOSE)
-                                            self.report(type={'INFO'}, message="Closed active path")
-                                        elif i in (j - 1, j + 1):
-                                            self.active_path.pop_control_element(j)
-                                            batch = self.gen_batch_control_elements(context, self.active_path)  # Draw
-                                            self.active_path.batch_control_elements = batch
-                                            self.report(type={'INFO'}, message="Merged adjacent control elements")
-                                        else:
-                                            pass
-                        elif doubles_count >= 1:  # Double different path
-                            for j, other_control_element in enumerate(other_path.control_elements):
+            # # Check and handle duplicated control elements
+            non_doubles = []
+
+            check_list = [self.active_path]
+            check_list.extend([n for n in self.path_seq if n != self.active_path])
+
+            control_elements = self.active_path.control_elements
+
+            for i, control_element in enumerate(control_elements):
+                if control_element in non_doubles:
+                    continue
+                for other_path in check_list:
+                    doubles_count = other_path.control_elements.count(control_element)
+
+                    if other_path == self.active_path:
+                        # Double same path
+                        if doubles_count > 1:
+                            for j, other_control_element in enumerate(control_elements):
+                                if i == j:  # Skip current control element
+                                    continue
                                 if other_control_element == control_element:
-                                    # Endpoint control element different path
-                                    if ((i in (0, len(path.control_elements) - 1)) and
-                                            (j in (0, len(other_path.control_elements) - 1))):
-                                        path += other_path
-                                        self.path_seq.remove(other_path)
-                                        self.active_path = path
-                                        batch = self.gen_batch_control_elements(context, self.active_path)  # Draw
+                                    # First-last control element same path
+                                    if i == 0 and j == len(control_elements) - 1:
+                                        self.active_path.pop_control_element(-1)
+                                        self.interact_control_element(
+                                            context, elem, matrix_world, InteractEvent.CLOSE)
+                                        self.report(type={'INFO'}, message="Closed active path")
+                                    elif i in (j - 1, j + 1):
+                                        self.active_path.pop_control_element(j)
+                                        batch = draw.gen_batch_control_elements(context, self.active_path)  # Draw
                                         self.active_path.batch_control_elements = batch
-                                        self.report(type={'INFO'}, message="Joined two paths")
-                        else:
-                            non_doubles.append(control_element)
+                                        self.report(type={'INFO'}, message="Merged adjacent control elements")
+                                    else:
+                                        pass
+
+                                    return
+                    # Double control element in another path
+                    elif doubles_count >= 1:
+                        for j, other_control_element in enumerate(other_path.control_elements):
+                            if other_control_element == control_element:
+                                # Endpoint control element different path
+                                if (
+                                    (not self.active_path.close) and
+                                    (not other_path.close) and
+                                    (i in (0, len(self.active_path.control_elements) - 1)) and
+                                        (j in (0, len(other_path.control_elements) - 1))):
+
+                                    self.active_path += other_path
+                                    _path = self.active_path
+                                    self.path_seq.remove(other_path)
+                                    self.active_path = _path
+
+                                    batch = draw.gen_batch_control_elements(context, self.active_path)  # Draw
+                                    self.active_path.batch_control_elements = batch
+                                    self.report(type={'INFO'}, message="Joined two paths")
+                                    return
+                    else:
+                        non_doubles.append(control_element)
         # print(self.active_path)

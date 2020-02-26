@@ -1,12 +1,12 @@
 uniform vec4 color;
 uniform vec4 color_active;
+uniform int active_index;
 
 #ifdef USE_CLIP_PLANES
 uniform bool use_clip_planes;
 in vec4 clip_distance;
 #endif
 
-flat in int is_active_vert;
 out vec4 fragColor;
 
 void main()
@@ -21,7 +21,7 @@ void main()
 		discard;
 	}
 #endif
-	if (is_active_vert == 1) {
+	if (gl_PrimitiveID == active_index) {
 		fragColor = linearrgb_to_srgb(color_active);
 	}
 	else {

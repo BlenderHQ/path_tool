@@ -1,6 +1,5 @@
 uniform mat4 ModelViewProjectionMatrix;
 uniform mat4 ModelMatrix;
-uniform int active_index;
 
 #ifdef USE_CLIP_PLANES
 uniform mat4 ModelViewMatrix;
@@ -10,7 +9,6 @@ out vec4 clip_distance;
 #endif
 
 in vec3 pos;
-flat out int is_active_vert;
 
 void main()
 {
@@ -23,9 +21,7 @@ void main()
 		}
 	}
 #endif
-	is_active_vert = 0;
-	if (gl_VertexID == active_index) {
-		is_active_vert = 1;
-	}
 	gl_Position = ModelViewProjectionMatrix * ModelMatrix * vec4(pos, 1.0);
+	
+	//gl_PointSize = (30.0 / gl_Position.z) + 1.0;
 }

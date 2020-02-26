@@ -13,26 +13,50 @@ class Path:
         (fill_0)  (fill_1)   (fill_2)   (fill_3)   (fill_close)
            |          |          |          |            |
         (fba_0)    (fba_0)    (fba_0)    (fba_0)    (fba_close)
+
+    Note:
+        If elem parameter passed at instance initialization,
+        will be added placeholders to fill_elements and batch_seq_fills.
     """
 
-    def __init__(self, elem, linked_island_index, matrix_world):
-        self.control_elements = [elem]
-        # self.fill_elements[-1] reserved for fill seq from first to the last control element(if path.close)
-        self.fill_elements = [[]]
+    def __init__(self, elem=None, linked_island_index=0, matrix_world=None):
         # Index of mesh elements island in operator
         self.island_index = linked_island_index
-
         # Model matrix of object on which path is
         self.matrix_world = matrix_world
         # One batch for all control elements
         self.batch_control_elements = None
+
+        self.control_elements = []
+        self.fill_elements = []
         # And separate batches for each fill seq. self.batch_seq_fills[-1] reserved for
-        self.batch_seq_fills = [None]
+        self.batch_seq_fills = []
+
+        if elem is not None:
+            self.control_elements.append(elem)
+            # Placeholders for fill seq and it's batch from first to the last control element(if path.close)
+            self.fill_elements.append([])
+            self.batch_seq_fills.append(None)
 
         self.close = False
         self.direction = True
 
+    def copy(self):
+        new_path = Path()
+        new_path.control_elements = self.control_elements.copy()
+        new_path.fill_elements = self.fill_elements.copy()
+        new_path.batch_seq_fills = self.batch_seq_fills.copy()
+
+        new_path.batch_control_elements = self.batch_control_elements
+        new_path.island_index = self.island_index
+        new_path.matrix_world = self.matrix_world
+        new_path.close = self.close
+        new_path.direction = self.direction
+
+        return new_path
+
     def __repr__(self):
+        # For development purposes only
         batch_seq_fills_formatted = []
         for i, batch in enumerate(self.batch_seq_fills):
             if batch:
@@ -41,7 +65,7 @@ class Path:
             batch_seq_fills_formatted.append(batch)
 
         ["fb_%d" % i for i in range(len(self.batch_seq_fills))]
-        return "Path[%d]:\n    ce: %s\n    fe: %s\n    fb: %s" % (
+        return "\nPath[%d]:\n    ce: %s\n    fe: %s\n    fb: %s" % (
             id(self),
             str([n.index for n in self.control_elements]),
             str([len(n) for n in self.fill_elements]),
@@ -57,25 +81,68 @@ class Path:
             for j in (0, -1):
                 other_elem = other.control_elements[j]
                 if elem == other_elem:
-                    self.control_elements.pop(i)
-                    if i == j:
-                        other.reverse()
                     is_found_merged_elements = True
-                    break
+
+                    if i == -1 and j == 0:
+                        # End-First
+                        self.control_elements.pop(-1)
+                        self.fill_elements.pop(-1)
+                        self.batch_seq_fills.pop(-1)
+
+                        self.control_elements.extend(other.control_elements)
+                        self.fill_elements.extend(other.fill_elements)
+                        self.batch_seq_fills.extend(other.batch_seq_fills)
+
+                    elif i == 0 and j == -1:
+                        # First-End
+
+                        self.control_elements.pop(0)
+
+                        other.fill_elements.pop(-1)
+                        other.batch_seq_fills.pop(-1)
+
+                        other.control_elements.extend(self.control_elements)
+                        other.fill_elements.extend(self.fill_elements)
+                        other.batch_seq_fills.extend(self.batch_seq_fills)
+
+                        self.control_elements = other.control_elements
+                        self.fill_elements = other.fill_elements
+                        self.batch_seq_fills = other.batch_seq_fills
+
+                    elif i == 0 and j == 0:
+                        # First-First
+                        self.control_elements.pop(0)
+
+                        other.control_elements.reverse()
+                        other.fill_elements.reverse()
+                        other.batch_seq_fills.reverse()
+
+                        other.fill_elements.pop(0)
+                        other.batch_seq_fills.pop(0)
+
+                        other.control_elements.extend(self.control_elements)
+                        other.fill_elements.extend(self.fill_elements)
+                        other.batch_seq_fills.extend(self.batch_seq_fills)
+
+                        self.control_elements = other.control_elements
+                        self.fill_elements = other.fill_elements
+                        self.batch_seq_fills = other.batch_seq_fills
+
+                    elif i == -1 and j == -1:
+                        # End-End
+                        other.reverse()
+                        self.control_elements.pop(-1)
+                        self.fill_elements.pop(-1)
+                        self.batch_seq_fills.pop(-1)
+
+                        self.control_elements.extend(other.control_elements)
+                        self.fill_elements.extend(other.fill_elements)
+                        self.batch_seq_fills.extend(other.batch_seq_fills)
+
             if is_found_merged_elements:
                 break
 
-        self.fill_elements.pop(-1)
-        self.batch_seq_fills.pop(-1)
-
-        self.control_elements.extend(other.control_elements)
-        self.fill_elements.extend(other.fill_elements)
-        self.batch_seq_fills.extend(other.batch_seq_fills)
-
         return self
-
-    def __len__(self):
-        return len(self.control_elements)
 
     def reverse(self):
         self.control_elements.reverse()
@@ -160,7 +227,7 @@ class Path:
             # At least 3 control elements
             pairs_items = [[elem, self.control_elements[elem_index - 1], elem_index - 1],
                            [elem, self.control_elements[elem_index + 1], elem_index]]
-        
+
         if self.close and (control_elements_count > 2) and (elem_index in (0, control_elements_count - 1)):
             pairs_items.extend([[self.control_elements[0], self.control_elements[-1], -1]])
 

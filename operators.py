@@ -1,3 +1,5 @@
+from collections import deque
+
 import bpy
 import bmesh
 
@@ -13,7 +15,7 @@ _rc = None
 InteractEvent = utils.base.InteractEvent
 
 
-class MESH_OT_select_path(utils.base.PathUtils, utils.draw.DrawUtils, bpy.types.Operator):
+class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
     """
     Operator class only handle events.
     Methods of path creation and interaction with mesh elements exist inside parent PathUtils class.
@@ -56,8 +58,8 @@ class MESH_OT_select_path(utils.base.PathUtils, utils.draw.DrawUtils, bpy.types.
             header_text_mode = "Face Selection Mode"
         tool_settings.mesh_select_mode = mesh_mode
 
-        # Bmesh
-        self.bm_seq = []  # (object - bmesh) pairs
+        # Bmesh (bpy.types.Object - bmesh.Bmesh) pairs
+        self.bm_seq = []
         for ob in context.objects_in_mode:
             self.bm_seq.append((ob, bmesh.from_edit_mesh(ob.data)))
 
@@ -68,21 +70,31 @@ class MESH_OT_select_path(utils.base.PathUtils, utils.draw.DrawUtils, bpy.types.
         else:
             mesh_elements = "faces"
         self.initial_select = self.get_selected_elements(mesh_elements)
-        self.draw_handle_3d = bpy.types.SpaceView3D.draw_handler_add(self.draw_callback_3d, (), 'WINDOW', 'POST_VIEW')
+        self.draw_handle_3d = bpy.types.SpaceView3D.draw_handler_add(
+            utils.draw.draw_callback_3d, (self,), 'WINDOW', 'POST_VIEW')
         # Prevent first click empty space
         elem, elem_bm = self.get_element_by_mouse(context, event)
         if not elem:
             tool_settings.mesh_select_mode = initial_select_mode
             self.cancel(context)
             return {'CANCELLED'}
-
         #
         self.is_mouse_pressed = False
         #
         context.area.header_text_set("Path Tool (%s)" % header_text_mode)
         wm.modal_handler_add(self)
 
-        super().__init__()
+        self.path_seq = []
+        self.mesh_islands = []
+        self.drag_elem_index = None
+
+        self._active_path_index = None
+        self._drag_elem = None
+        self._just_closed_path = False
+
+        undo_steps = context.preferences.edit.undo_steps
+        self.undo_history = deque(maxlen=undo_steps)
+        self.redo_history = deque(maxlen=undo_steps)
 
         self.modal(context, event)
         return {'RUNNING_MODAL'}
@@ -130,10 +142,12 @@ class MESH_OT_select_path(utils.base.PathUtils, utils.draw.DrawUtils, bpy.types.
         # Undo
         elif (undo_redo_action == 'UNDO') or ('UNDO' in self.context_undo):
             self.context_undo = set()
+            return utils.redo.undo(self, context)
 
         # Redo
         elif (undo_redo_action == 'REDO') or ('REDO' in self.context_undo):
             self.context_undo = set()
+            utils.redo.redo(self, context)
 
         # Open context pie menu
         elif evkey == (context_mb, 'PRESS', False, False, False):  # Context menu mouse button
@@ -167,15 +181,26 @@ class MESH_OT_select_path(utils.base.PathUtils, utils.draw.DrawUtils, bpy.types.
             if evkey[0] == 'MOUSEMOVE':
                 interact_event = InteractEvent.DRAG
 
-        if interact_event in (InteractEvent.ADD, InteractEvent.ADD_NEW_PATH, InteractEvent.DRAG,
-                              InteractEvent.REMOVE, InteractEvent.RELEASE):
-            elem, matrix_world = self.get_element_by_mouse(context, event)
-            if elem:
-                self.interact_control_element(context, elem, matrix_world, interact_event)
-                if self.view_center_pick and (interact_event == InteractEvent.RELEASE):
-                    bpy.ops.view3d.view_center_pick('INVOKE_DEFAULT')
-        elif interact_event is not None:
-            self.interact_control_element(context, None, None, interact_event)
+        if interact_event is not None:
+            if interact_event in (
+                    InteractEvent.ADD,
+                    InteractEvent.ADD_NEW_PATH,
+                    InteractEvent.DRAG,
+                    InteractEvent.REMOVE):
+                elem, matrix_world = self.get_element_by_mouse(context, event)
+                if elem:
+                    self.interact_control_element(context, elem, matrix_world, interact_event)
+
+            elif interact_event in (
+                    InteractEvent.RELEASE,
+                    InteractEvent.CHDIR,
+                    InteractEvent.CLOSE):
+
+                self.interact_control_element(context, None, None, interact_event)
+                
+                # Register current state after adding new, dragging or removing control elements, pathes
+                # or when toggle open/close path or changed path direction
+                utils.redo.register_undo_step(self)
 
         self.set_selection_state(self.initial_select, True)
         self.update_meshes(context)
