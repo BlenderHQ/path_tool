@@ -73,7 +73,7 @@ class PathUtils:
                 matrix_world = ob.matrix_world
                 break
         tool_settings.mesh_select_mode = initial_select_mode
-        bpy.ops.mesh.select_all(action='DESELECT')  # ---------
+        # bpy.ops.mesh.select_all(action='DESELECT')  # ---------
         return elem, matrix_world
 
     def get_linked_island_index(self, context, elem):
@@ -90,7 +90,7 @@ class PathUtils:
 
         bpy.ops.mesh.select_all(action='DESELECT')
         elem.select_set(True)
-        bpy.ops.mesh.select_linked(delimit={'SEAM'})
+        bpy.ops.mesh.select_linked(delimit={'NORMAL'})
         linked_island = self.get_selected_elements(mesh_elements)
         tool_settings.mesh_select_mode = initial_select_mode
         bpy.ops.mesh.select_all(action='DESELECT')
@@ -134,6 +134,28 @@ class PathUtils:
             self.active_path.fill_elements[fill_index] = fill_seq
             batch = draw.gen_batch_fill_elements(context, fill_seq)
             self.active_path.batch_seq_fills[fill_index] = batch
+
+    def gen_final_elements_seq(self, context):
+        tool_settings = context.scene.tool_settings
+        select_mode = tuple(tool_settings.mesh_select_mode)
+        self.final_elements_select_only_seq = []
+        self.final_elements_markup_seq = []
+        for path in self.path_seq:
+            if select_mode[1]:
+                for fill_seq in path.fill_elements:
+                    self.final_elements_select_only_seq.extend(fill_seq)
+                    self.final_elements_markup_seq.extend(fill_seq)
+            # For face selection mode control elements are required too
+            if select_mode[2]:
+                for fill_seq in path.fill_elements:
+                    self.final_elements_select_only_seq.extend(fill_seq)
+                self.final_elements_select_only_seq.extend(path.control_elements)
+                for face in self.final_elements_select_only_seq:
+                    self.final_elements_markup_seq.extend(face.edges)
+
+        # Remove duplicates
+        self.final_elements_select_only_seq = list(dict.fromkeys(self.final_elements_select_only_seq))
+        self.final_elements_markup_seq = list(dict.fromkeys(self.final_elements_markup_seq))
 
     def interact_control_element(self, context, elem, matrix_world, interact_event):
         """Main method of interacting with all pathes"""

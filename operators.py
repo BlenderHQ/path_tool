@@ -96,6 +96,9 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
         self.undo_history = deque(maxlen=undo_steps)
         self.redo_history = deque(maxlen=undo_steps)
 
+        self.final_elements_select_only_seq = []
+        self.final_elements_markup_seq = []
+
         self.modal(context, event)
         return {'RUNNING_MODAL'}
 
@@ -125,9 +128,12 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
         # Apply all
         elif (modal_action == 'APPLY') or ('APPLY' in self.context_action):
             self.context_action = set()
+
+            self.gen_final_elements_seq(context)
+
             context.area.header_text_set(None)
             bpy.types.SpaceView3D.draw_handler_remove(self.draw_handle_3d, 'WINDOW')
-            return {'FINISHED'}
+            return self.execute(context)
 
         # Close path
         elif 'TCLPATH' in self.context_action:
@@ -197,7 +203,7 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
                     InteractEvent.CLOSE):
 
                 self.interact_control_element(context, None, None, interact_event)
-                
+
                 # Register current state after adding new, dragging or removing control elements, pathes
                 # or when toggle open/close path or changed path direction
                 utils.redo.register_undo_step(self)
@@ -213,4 +219,43 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
         return {'RUNNING_MODAL'}
 
     def execute(self, context):
+        select_only_seq = self.final_elements_select_only_seq
+
+        if self.mark_select != 'NONE':
+            if self.mark_select == 'EXTEND':
+                for elem in select_only_seq:
+                    elem.select_set(True)
+            elif self.mark_select == 'SUBTRACT':
+                for elem in select_only_seq:
+                    elem.select_set(False)
+            elif self.mark_select == 'INVERT':
+                for elem in select_only_seq:
+                    elem.select_set(not elem.select)
+
+        markup_seq = self.final_elements_markup_seq
+
+        if self.mark_seam != 'NONE':
+            if self.mark_seam == 'MARK':
+                for elem in markup_seq:
+                    elem.seam = True
+            elif self.mark_seam == 'CLEAR':
+                for elem in markup_seq:
+                    elem.seam = False
+            elif self.mark_seam == 'TOGGLE':
+                for elem in markup_seq:
+                    elem.seam = not elem.seam
+
+        if self.mark_sharp != 'NONE':
+            if self.mark_sharp == 'MARK':
+                for elem in markup_seq:
+                    elem.smooth = False
+            elif self.mark_sharp == 'CLEAR':
+                for elem in markup_seq:
+                    elem.smooth = True
+            elif self.mark_sharp == 'TOGGLE':
+                for elem in markup_seq:
+                    elem.smooth = not elem.smooth
+
+        self.update_meshes(context)
+
         return {'FINISHED'}
