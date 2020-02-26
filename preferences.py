@@ -7,6 +7,13 @@ class PathToolPreferences(bpy.types.AddonPreferences):
 
     color_control_element: FloatVectorProperty(
         name="Control Element",
+        default=[0.284864, 0.482067, 0.638284, 1.000000],
+        subtype="COLOR", size=4, min=0.0, max=1.0,
+        description="Control element color"
+    )
+
+    color_active_path_control_element: FloatVectorProperty(
+        name="Active Path Control Element",
         default=[0.969922, 0.969922, 0.969922, 1.000000],
         subtype="COLOR", size=4, min=0.0, max=1.0,
         description="Control element color"
@@ -48,14 +55,17 @@ class PathToolPreferences(bpy.types.AddonPreferences):
         layout.use_property_split = True
         layout.use_property_decorate = False
 
-        col_flow = layout.column_flow(columns=2, align=True)
+        # col_flow = layout.column_flow(columns=2, align=True)
 
-        col_flow.use_property_split = True
-        col_flow.use_property_decorate = False
+        col = layout.column(align=True)
+        col.use_property_split = True
+        col.use_property_decorate = False
 
-        col_flow.prop(self, "color_control_element")
-        col_flow.prop(self, "color_active_control_element")
-        col_flow.prop(self, "color_path")
-        col_flow.prop(self, "color_active_path")
-        col_flow.prop(self, "point_size")
-        col_flow.prop(self, "line_width")
+        col.prop(self, "color_control_element")
+        col.prop(self, "color_active_path_control_element")
+        col.prop(self, "color_active_control_element")
+        col.prop(self, "color_path")
+        col.prop(self, "color_active_path")
+        col.separator()
+        col.prop(self, "point_size")
+        col.prop(self, "line_width")

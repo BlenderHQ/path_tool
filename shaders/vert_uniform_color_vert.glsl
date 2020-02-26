@@ -22,6 +22,4 @@ void main()
 	}
 #endif
 	gl_Position = ModelViewProjectionMatrix * ModelMatrix * vec4(pos, 1.0);
-	
-	//gl_PointSize = (30.0 / gl_Position.z) + 1.0;
 }

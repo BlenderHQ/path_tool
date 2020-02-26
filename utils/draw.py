@@ -60,7 +60,7 @@ def draw_callback_3d(self):
     bgl.glPointSize(preferences.point_size)
     bgl.glLineWidth(preferences.line_width)
 
-    bgl.glEnable(bgl.GL_PROGRAM_POINT_SIZE)
+    # bgl.glEnable(bgl.GL_PROGRAM_POINT_SIZE)
 
     bgl.glEnable(bgl.GL_MULTISAMPLE)
     bgl.glEnable(bgl.GL_LINE_SMOOTH)
@@ -79,7 +79,10 @@ def draw_callback_3d(self):
     # bgl.glDisable(bgl.GL_POLYGON_OFFSET_FILL)
     #bgl.glPolygonOffset(1.0, 0.0)
 
-    for path in self.path_seq:
+    draw_list = [n for n in self.path_seq if n != self.active_path]
+    draw_list.append(self.active_path)
+
+    for path in draw_list:
         active_index = 0
         color = preferences.color_control_element
         color_active = color
@@ -88,7 +91,7 @@ def draw_callback_3d(self):
         if path == self.active_path:
             if path.direction:
                 active_index = len(path.control_elements) - 1
-            color = preferences.color_control_element
+            color = preferences.color_active_path_control_element
             color_active = preferences.color_active_control_element
             color_path = preferences.color_active_path
 

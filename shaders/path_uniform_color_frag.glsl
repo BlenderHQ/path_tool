@@ -14,10 +14,10 @@ void main()
 	   ((clip_distance[0] < 0) ||
 	    (clip_distance[1] < 0) ||
 	    (clip_distance[2] < 0) ||
-	    (clip_distance[3] < 0)))
+	    (clip_distance[3] < 0.1)))
 	{
 		discard;
 	}
 #endif
-    fragColor = linearrgb_to_srgb(color);
+	fragColor = linearrgb_to_srgb(color);
 }

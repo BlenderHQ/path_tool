@@ -125,15 +125,15 @@ class PathUtils:
         tool_settings.mesh_select_mode = initial_select_mode
         return fill_seq
 
-    def update_fills_by_element_index(self, context, elem_index):
-        pairs_items = self.active_path.get_pairs_items(elem_index)
+    def update_fills_by_element_index(self, context, path, elem_index):
+        pairs_items = path.get_pairs_items(elem_index)
         for item in pairs_items:
             elem_0, elem_1, fill_index = item
             fill_seq = self.update_path_beetween(context, elem_0, elem_1)
 
-            self.active_path.fill_elements[fill_index] = fill_seq
+            path.fill_elements[fill_index] = fill_seq
             batch = draw.gen_batch_fill_elements(context, fill_seq)
-            self.active_path.batch_seq_fills[fill_index] = batch
+            path.batch_seq_fills[fill_index] = batch
 
     def gen_final_elements_seq(self, context):
         tool_settings = context.scene.tool_settings
@@ -199,7 +199,7 @@ class PathUtils:
                 self.active_path.batch_control_elements = batch
 
             if elem_index is not None:
-                self.drag_elem_index = elem_index
+                self.drag_elem_indices = [path.is_in_control_elements(elem) for path in self.path_seq]
                 self._just_closed_path = False
             self._drag_elem = elem
 
@@ -208,7 +208,6 @@ class PathUtils:
                 return
 
             if new_elem_index is not None:
-                self.drag_elem_index = new_elem_index
                 # Add a new control element to active path
                 linked_island_index = self.get_linked_island_index(context, elem)
                 if self.active_path.island_index != linked_island_index:
@@ -216,10 +215,12 @@ class PathUtils:
                     return
 
                 self.active_path.insert_control_element(new_elem_index, elem)
-                self.update_fills_by_element_index(context, new_elem_index)
+                self.update_fills_by_element_index(context, self.active_path, new_elem_index)
 
                 batch = draw.gen_batch_control_elements(context, self.active_path)  # Draw
                 self.active_path.batch_control_elements = batch
+
+                self.drag_elem_indices = [path.is_in_control_elements(elem) for path in self.path_seq]
 
         elif interact_event is InteractEvent.ADD_NEW_PATH:
             # Adding new path
@@ -252,23 +253,28 @@ class PathUtils:
                     if len(self.path_seq):
                         self.active_path = self.path_seq[-1]
                 else:
-                    self.update_fills_by_element_index(context, elem_index)
+                    self.update_fills_by_element_index(context, self.active_path, elem_index)
                     batch = draw.gen_batch_control_elements(context, self.active_path)  # Draw
                     self.active_path.batch_control_elements = batch
 
         elif interact_event is InteractEvent.DRAG:
             # Drag control element
-            if not self._drag_elem:
+            if (not self._drag_elem) or (len(self.drag_elem_indices) != len(self.path_seq)):
                 return
             self._just_closed_path = False
 
             linked_island_index = self.get_linked_island_index(context, elem)
             if self.active_path.island_index == linked_island_index:
-                self.active_path.control_elements[self.drag_elem_index] = elem
                 self._drag_elem = elem
-                self.update_fills_by_element_index(context, self.drag_elem_index)
-                batch = draw.gen_batch_control_elements(context, self.active_path)  # Draw
-                self.active_path.batch_control_elements = batch
+
+                for i, path in enumerate(self.path_seq):
+                    j = self.drag_elem_indices[i]
+                    if j is not None:
+                        path.control_elements[j] = elem
+
+                        self.update_fills_by_element_index(context, path, j)
+                        batch = draw.gen_batch_control_elements(context, path)  # Draw
+                        path.batch_control_elements = batch
 
         # Switch active path direction
         elif interact_event is InteractEvent.CHDIR:
@@ -280,7 +286,7 @@ class PathUtils:
             self.active_path.close = not self.active_path.close
 
             if self.active_path.close:
-                self.update_fills_by_element_index(context, 0)
+                self.update_fills_by_element_index(context, self.active_path, 0)
                 if len(self.active_path.control_elements) > 2:
                     self._just_closed_path = True
             else:
@@ -290,7 +296,7 @@ class PathUtils:
 
         # Release interact event event
         elif interact_event is InteractEvent.RELEASE:
-            self.drag_elem_index = None
+            self.drag_elem_indices = []
             self._drag_elem = None
 
             if self.view_center_pick:
@@ -320,20 +326,22 @@ class PathUtils:
                                     # First-last control element same path
                                     if i == 0 and j == len(control_elements) - 1:
                                         self.active_path.pop_control_element(-1)
-                                        self.interact_control_element(
-                                            context, elem, matrix_world, InteractEvent.CLOSE)
-                                        self.report(type={'INFO'}, message="Closed active path")
+                                        if not self.active_path.close:
+                                            self.interact_control_element(
+                                                context, elem, matrix_world, InteractEvent.CLOSE)
+                                            self.report(type={'INFO'}, message="Closed active path")
+                                        else:
+                                            self.update_fills_by_element_index(context, self.active_path, 0)
                                     elif i in (j - 1, j + 1):
                                         self.active_path.pop_control_element(j)
                                         batch = draw.gen_batch_control_elements(context, self.active_path)  # Draw
                                         self.active_path.batch_control_elements = batch
                                         self.report(type={'INFO'}, message="Merged adjacent control elements")
                                     else:
+                                        # Maybe, undo here?
                                         pass
-
-                                    return
                     # Double control element in another path
-                    elif doubles_count >= 1:
+                    if (other_path != self.active_path) and (doubles_count >= 1):
                         for j, other_control_element in enumerate(other_path.control_elements):
                             if other_control_element == control_element:
                                 # Endpoint control element different path
@@ -352,6 +360,16 @@ class PathUtils:
                                     self.active_path.batch_control_elements = batch
                                     self.report(type={'INFO'}, message="Joined two paths")
                                     return
+                                else:
+                                    for k, second_other_control_element in enumerate(other_path.control_elements):
+                                        if j == k:
+                                            continue
+                                        if (other_control_element == second_other_control_element) and (j == k + 1):
+                                            other_path.pop_control_element(j)
+                                            batch = draw.gen_batch_control_elements(context, other_path)  # Draw
+                                            other_path.batch_control_elements = batch
+                                            self.report(type={'INFO'}, message="Merged adjacent control elements")
+                                            break
                     else:
                         non_doubles.append(control_element)
         # print(self.active_path)

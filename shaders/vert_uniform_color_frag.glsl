@@ -1,3 +1,5 @@
+uniform mat4 ModelViewProjectionMatrix;
+
 uniform vec4 color;
 uniform vec4 color_active;
 uniform int active_index;
@@ -27,4 +29,6 @@ void main()
 	else {
 		fragColor = linearrgb_to_srgb(color);
 	}
+	//fragColor.a = clamp((1.0 - gl_FragCoord.z) * 100.0, 0.5, 1.0);
+	
 }

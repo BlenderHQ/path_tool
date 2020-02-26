@@ -86,7 +86,7 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
 
         self.path_seq = []
         self.mesh_islands = []
-        self.drag_elem_index = None
+        self.drag_elem_indices = []
 
         self._active_path_index = None
         self._drag_elem = None
@@ -208,8 +208,8 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
                 # or when toggle open/close path or changed path direction
                 utils.redo.register_undo_step(self)
 
-        self.set_selection_state(self.initial_select, True)
-        self.update_meshes(context)
+            self.set_selection_state(self.initial_select, True)
+            self.update_meshes(context)
 
         # If removed the last control element of the last path
         if not len(self.path_seq):
