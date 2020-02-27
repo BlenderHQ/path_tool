@@ -361,6 +361,7 @@ class PathUtils:
                                     self.report(type={'INFO'}, message="Joined two paths")
                                     return
                                 else:
+                                    # Merge adjacent control elements in other paths
                                     for k, second_other_control_element in enumerate(other_path.control_elements):
                                         if j == k:
                                             continue

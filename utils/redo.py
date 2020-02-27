@@ -16,6 +16,8 @@ def undo(self, context):
         self._active_path_index, self.path_seq = self.undo_history[-1]
         self._just_closed_path = False
 
+    context.area.tag_redraw()
+
     return {'RUNNING_MODAL'}
 
 
@@ -24,6 +26,7 @@ def redo(self, context):
         step = self.redo_history.pop()
         self.undo_history.append(step)
         self._active_path_index, self.path_seq = self.undo_history[-1]
+        context.area.tag_redraw()
     else:
         self.report({'WARNING'}, message="Can not redo anymore")
 
