@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Path Tool",
     "author": "Vlad Kuzmin (ssh4), Ivan Perevala (vanyOk)",
-    "version": (1, 0, 7),
+    "version": (1, 0, 8),
     "blender": (2, 80, 0),
     "location": "Toolbar",
     "description": "Tool for selecting and marking up mesh object elements (alpha)",
