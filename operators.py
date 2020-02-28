@@ -188,25 +188,8 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
                 interact_event = InteractEvent.DRAG
 
         if interact_event is not None:
-            if interact_event in (
-                    InteractEvent.ADD,
-                    InteractEvent.ADD_NEW_PATH,
-                    InteractEvent.DRAG,
-                    InteractEvent.REMOVE):
-                elem, matrix_world = self.get_element_by_mouse(context, event)
-                if elem:
-                    self.interact_control_element(context, elem, matrix_world, interact_event)
-
-            elif interact_event in (
-                    InteractEvent.RELEASE,
-                    InteractEvent.CHDIR,
-                    InteractEvent.CLOSE):
-
-                self.interact_control_element(context, None, None, interact_event)
-
-                # Register current state after adding new, dragging or removing control elements, pathes
-                # or when toggle open/close path or changed path direction
-                utils.redo.register_undo_step(self)
+            elem, matrix_world = self.get_element_by_mouse(context, event)
+            self.interact_control_element(context, elem, matrix_world, interact_event)
 
             self.set_selection_state(self.initial_select, True)
             self.update_meshes(context)

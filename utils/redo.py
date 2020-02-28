@@ -1,6 +1,3 @@
-from . import draw
-
-
 def get_current_state_copy(self):
     return [self._active_path_index, [n.copy() for n in self.path_seq]]
 
