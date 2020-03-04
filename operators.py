@@ -32,7 +32,6 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
     mark_select: utils.props.mark_select
     mark_seam: utils.props.mark_seam
     mark_sharp: utils.props.mark_sharp
-    view_center_pick: utils.props.view_center_pick
 
     # UI draw methods
     draw = utils.ui.operator_draw
@@ -47,6 +46,7 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
         self.navigation_evkeys = utils.inputs.get_navigation_evkeys(kc)
         self.modal_action_evkeys = utils.inputs.get_modal_action_evkeys(kc)
         self.undo_redo_evkeys = utils.inputs.get_undo_redo_evkeys(kc)
+        self.use_rotate_around_active = context.preferences.inputs.use_rotate_around_active
 
         # Setup mesh select mode
         tool_settings = context.scene.tool_settings
@@ -73,13 +73,16 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
         self.draw_handle_3d = bpy.types.SpaceView3D.draw_handler_add(
             utils.draw.draw_callback_3d, (self,), 'WINDOW', 'POST_VIEW')
         # Prevent first click empty space
-        elem, elem_bm = self.get_element_by_mouse(context, event)
+        elem, _ = self.get_element_by_mouse(context, event)
         if not elem:
             tool_settings.mesh_select_mode = initial_select_mode
             self.cancel(context)
             return {'CANCELLED'}
         #
+        self.navigation_element = elem
+
         self.is_mouse_pressed = False
+        self.is_navigation_active = False
         #
         context.area.header_text_set("Path Tool (%s)" % header_text_mode)
         wm.modal_handler_add(self)
@@ -107,7 +110,6 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
         self.set_selection_state(self.initial_select, True)
         self.update_meshes(context)
         context.area.header_text_set(None)
-        print("cancelled")
 
     def modal(self, context, event):
         evkey = utils.inputs.get_evkey(event)
@@ -118,7 +120,17 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
 
         # Navigation
         if evkey in self.navigation_evkeys:
+            if self.use_rotate_around_active:
+                bpy.ops.mesh.select_all(action='DESELECT')
+                self.navigation_element.select_set(True)
+                self.is_navigation_active = True
             return {'PASS_THROUGH'}
+
+        elif self.is_navigation_active and event.value == 'RELEASE':
+            self.is_navigation_active = False
+            self.set_selection_state(self.initial_select, True)
+            self.update_meshes(context)
+            return {'RUNNING_MODAL'}
 
         # Cancel
         elif modal_action == 'CANCEL':
@@ -189,6 +201,8 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
 
         if interact_event is not None:
             elem, matrix_world = self.get_element_by_mouse(context, event)
+            if elem:
+                self.navigation_element = elem
             self.interact_control_element(context, elem, matrix_world, interact_event)
 
             self.set_selection_state(self.initial_select, True)

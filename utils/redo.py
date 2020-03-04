@@ -32,5 +32,3 @@ def register_undo_step(self):
     step = get_current_state_copy(self)
     self.undo_history.append(step)
     self.redo_history.clear()
-    import time
-    print(time.time(), "reg undo")

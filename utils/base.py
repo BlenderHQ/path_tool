@@ -358,12 +358,6 @@ class PathUtils:
             self.drag_elem_indices = []
             self._drag_elem = None
 
-            if elem and self.view_center_pick:
-                bpy.ops.view3d.cursor3d('INVOKE_DEFAULT')
-
-            # if elem and self.view_center_pick:
-            #     bpy.ops.view3d.view_center_pick('INVOKE_DEFAULT')
-
             # Remove doubles from every existing path
             for path in self.path_seq:
                 self.remove_path_doubles(context, path)

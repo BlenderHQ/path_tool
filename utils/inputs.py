@@ -25,7 +25,6 @@ def get_evkey(item):
     """Formatted item (event or keymap item) attributes"""
     return item.type, item.value, item.alt, item.ctrl, item.shift
 
-
 def get_mouse_buttons(wm: bpy.types.WindowManager):
     """Tuple (Select, Open context menu) mouse button"""
     select_mouse = wm.keyconfigs.get("blender").preferences.select_mouse

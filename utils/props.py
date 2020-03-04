@@ -54,9 +54,3 @@ mark_sharp = EnumProperty(
     default="NONE",
     description="Mark sharp options"
 )
-
-view_center_pick = BoolProperty(
-    name="Focus Active",
-    default=True,
-    description="Center the view to the position of the active control point"
-)

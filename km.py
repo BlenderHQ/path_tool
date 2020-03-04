@@ -53,10 +53,8 @@ def unregister():
 
     for keyconfig_data in _generate_tool_keymap():
         km_name, km_args, km_content = keyconfig_data
-        print(km_args)
         km_addon.remove(km_addon.find(km_name, **km_args))
 
     for keyconfig_data in _generate_empty_keymap():
         km_name, km_args, km_content = keyconfig_data
-        print(km_args)
         km_default.remove(km_default.find(km_name, **km_args))

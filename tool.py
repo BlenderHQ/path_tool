@@ -33,8 +33,6 @@ def path_tool():
         row = col.row()
         row.prop(props, "mark_sharp", text="Sharp", expand=True, icon_only=True)
 
-        col.prop(props, "view_center_pick")
-
     icons_dir = os.path.join(os.path.dirname(__file__), "icons")
     icon_file = os.path.join(icons_dir, "ops.mesh.path_tool")
 

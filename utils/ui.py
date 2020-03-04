@@ -36,10 +36,7 @@ def popup_menu_pie_draw(self, popup, context):
     row.prop(self, "mark_sharp", icon_only=True, expand=True)
 
     scol = col.column()
-    scol.emboss = 'NONE'
-    scol.prop(self, "view_center_pick")
     scol.emboss = 'NORMAL'
-
     row = scol.row(align=True)
     row.prop(self, "context_undo", expand=True)
 
