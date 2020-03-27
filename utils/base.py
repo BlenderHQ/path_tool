@@ -191,8 +191,8 @@ class PathUtils:
                         for face in fill_seq:
                             index_markup_seq.extend([e.index for e in face.edges])
             # Remove duplicates
-            self.select_only_seq[ob] = list(dict.fromkeys(index_select_seq))
-            self.markup_seq[ob] = list(dict.fromkeys(index_markup_seq))
+            self.select_only_seq[ob.as_pointer()] = list(dict.fromkeys(index_select_seq))
+            self.markup_seq[ob.as_pointer()] = list(dict.fromkeys(index_markup_seq))
 
     def remove_path_doubles(self, context, path):
         for i, control_element in enumerate(path.control_elements):

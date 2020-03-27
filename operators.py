@@ -244,44 +244,52 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
         self.gen_bmeshes(context)
 
         for ob, bm in self.bm_seq:
+            ptr = ob.as_pointer()
+
             if self.mark_select != 'NONE':
-                index_select_seq = self.select_only_seq[ob]
+                if ptr not in self.select_only_seq:
+                    print("Not found object %s in self.select_only_seq!" % ob.name)
+                else:
+                    index_select_seq = self.select_only_seq[ptr]
+                    elem_seq = bm.edges
+                    if select_mode[2]:
+                        elem_seq = bm.faces
+                    if self.mark_select == 'EXTEND':
+                        for i in index_select_seq:
+                            elem_seq[i].select_set(True)
+                    elif self.mark_select == 'SUBTRACT':
+                        for i in index_select_seq:
+                            elem_seq[i].select_set(False)
+                    elif self.mark_select == 'INVERT':
+                        for i in index_select_seq:
+                            elem_seq[i].select_set(not elem_seq[i].select)
+            
+            if ptr not in self.markup_seq:
+                print("Not found object %s in self.markup_seq!" % ob.name)
+            else:
+                index_markup_seq = self.markup_seq[ptr]
                 elem_seq = bm.edges
-                if select_mode[2]:
-                    elem_seq = bm.faces
-                if self.mark_select == 'EXTEND':
-                    for i in index_select_seq:
-                        elem_seq[i].select_set(True)
-                elif self.mark_select == 'SUBTRACT':
-                    for i in index_select_seq:
-                        elem_seq[i].select_set(False)
-                elif self.mark_select == 'INVERT':
-                    for i in index_select_seq:
-                        elem_seq[i].select_set(not elem_seq[i].select)
+                if self.mark_seam != 'NONE':
+                    if self.mark_seam == 'MARK':
+                        for i in index_markup_seq:
+                            elem_seq[i].seam = True
+                    elif self.mark_seam == 'CLEAR':
+                        for i in index_markup_seq:
+                            elem_seq[i].seam = False
+                    elif self.mark_seam == 'TOGGLE':
+                        for i in index_markup_seq:
+                            elem_seq[i].seam = not elem_seq[i].seam
 
-            index_markup_seq = self.markup_seq[ob]
-            elem_seq = bm.edges
-            if self.mark_seam != 'NONE':
-                if self.mark_seam == 'MARK':
-                    for i in index_markup_seq:
-                        elem_seq[i].seam = True
-                elif self.mark_seam == 'CLEAR':
-                    for i in index_markup_seq:
-                        elem_seq[i].seam = False
-                elif self.mark_seam == 'TOGGLE':
-                    for i in index_markup_seq:
-                        elem_seq[i].seam = not elem_seq[i].seam
-
-            if self.mark_sharp != 'NONE':
-                if self.mark_sharp == 'MARK':
-                    for i in index_markup_seq:
-                        elem_seq[i].smooth = False
-                elif self.mark_sharp == 'CLEAR':
-                    for i in index_markup_seq:
-                        elem_seq[i].smooth = True
-                elif self.mark_sharp == 'TOGGLE':
-                    for i in index_markup_seq:
-                        elem_seq[i].smooth = not elem_seq[i].smooth
+                if self.mark_sharp != 'NONE':
+                    if self.mark_sharp == 'MARK':
+                        for i in index_markup_seq:
+                            elem_seq[i].smooth = False
+                    elif self.mark_sharp == 'CLEAR':
+                        for i in index_markup_seq:
+                            elem_seq[i].smooth = True
+                    elif self.mark_sharp == 'TOGGLE':
+                        for i in index_markup_seq:
+                            elem_seq[i].smooth = not elem_seq[i].smooth
 
         self.update_meshes(context)
         return {'FINISHED'}
