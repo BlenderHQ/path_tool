@@ -23,7 +23,7 @@ void main()
 		discard;
 	}
 #endif
-	if (gl_PrimitiveID == active_index) {
+	if (gl_PrimitiveID >= active_index) {
 		fragColor = linearrgb_to_srgb(color_active);
 	}
 	else {

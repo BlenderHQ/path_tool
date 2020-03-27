@@ -19,11 +19,22 @@ class Path:
         will be added placeholders to fill_elements and batch_seq_fills.
     """
 
-    def __init__(self, elem=None, linked_island_index=0, matrix_world=None):
+    __slots__ = (
+        "island_index",
+        "ob",
+        "batch_control_elements",
+        "control_elements",
+        "fill_elements",
+        "batch_seq_fills",
+        "close",
+        "direction",
+    )
+
+    def __init__(self, elem=None, linked_island_index=0, ob=None):
         # Index of mesh elements island in operator
         self.island_index = linked_island_index
         # Model matrix of object on which path is
-        self.matrix_world = matrix_world
+        self.ob = ob
         # One batch for all control elements
         self.batch_control_elements = None
 
@@ -49,7 +60,7 @@ class Path:
 
         new_path.batch_control_elements = self.batch_control_elements
         new_path.island_index = self.island_index
-        new_path.matrix_world = self.matrix_world
+        new_path.ob = self.ob
         new_path.close = self.close
         new_path.direction = self.direction
 

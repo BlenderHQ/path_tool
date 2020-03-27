@@ -13,6 +13,8 @@ def operator_draw(self, context):
     row.prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
     row = col.row()
     row.prop(self, "mark_sharp", text="Sharp", icon_only=True, expand=True)
+    row = col.row()
+    row.prop(self, "apply_tool_settings")
 
 
 def popup_menu_pie_draw(self, popup, context):
@@ -34,6 +36,10 @@ def popup_menu_pie_draw(self, popup, context):
     row = col.row(align=True)
     row.label(text="Sharp:")
     row.prop(self, "mark_sharp", icon_only=True, expand=True)
+
+    row = col.row(align=True)
+    row.emboss = 'NONE'
+    row.prop(self, "apply_tool_settings")
 
     scol = col.column()
     scol.emboss = 'NORMAL'

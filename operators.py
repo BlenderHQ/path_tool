@@ -27,6 +27,7 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     # Operator properties
+    apply_tool_settings: utils.props.apply_tool_settings
     context_action: utils.props.context_action
     context_undo: utils.props.context_undo
     mark_select: utils.props.mark_select
@@ -36,6 +37,30 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
     # UI draw methods
     draw = utils.ui.operator_draw
     popup_menu_pie_draw = utils.ui.popup_menu_pie_draw
+
+    __slots__ = (
+        "mouse_buttons",
+        "navigation_evkeys",
+        "modal_action_evkeys",
+        "undo_redo_evkeys",
+        "use_rotate_around_active",
+        "bm_seq",
+        "initial_select",
+        "draw_handle_3d",
+        "navigation_element",
+        "is_mouse_pressed",
+        "is_navigation_active",
+        "path_seq",
+        "mesh_islands",
+        "drag_elem_indices",
+        "_active_path_index",
+        "_drag_elem",
+        "_just_closed_path",
+        "undo_history",
+        "redo_history",
+        "markup_seq",
+        "active_index"
+    )
 
     def invoke(self, context, event):
         wm = context.window_manager
@@ -58,10 +83,8 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
             header_text_mode = "Face Selection Mode"
         tool_settings.mesh_select_mode = mesh_mode
 
-        # Bmesh (bpy.types.Object - bmesh.Bmesh) pairs
         self.bm_seq = []
-        for ob in context.objects_in_mode:
-            self.bm_seq.append((ob, bmesh.from_edit_mesh(ob.data)))
+        self.gen_bmeshes(context)
 
         if initial_select_mode[0]:
             mesh_elements = "verts"
@@ -99,8 +122,8 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
         self.undo_history = deque(maxlen=undo_steps)
         self.redo_history = deque(maxlen=undo_steps)
 
-        self.final_elements_select_only_seq = []
-        self.final_elements_markup_seq = []
+        self.select_only_seq = {}
+        self.markup_seq = {}
 
         self.modal(context, event)
         return {'RUNNING_MODAL'}
@@ -216,43 +239,49 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
         return {'RUNNING_MODAL'}
 
     def execute(self, context):
-        select_only_seq = self.final_elements_select_only_seq
+        tool_settings = context.scene.tool_settings
+        select_mode = tuple(tool_settings.mesh_select_mode)
+        self.gen_bmeshes(context)
 
-        if self.mark_select != 'NONE':
-            if self.mark_select == 'EXTEND':
-                for elem in select_only_seq:
-                    elem.select_set(True)
-            elif self.mark_select == 'SUBTRACT':
-                for elem in select_only_seq:
-                    elem.select_set(False)
-            elif self.mark_select == 'INVERT':
-                for elem in select_only_seq:
-                    elem.select_set(not elem.select)
+        for ob, bm in self.bm_seq:
+            if self.mark_select != 'NONE':
+                index_select_seq = self.select_only_seq[ob]
+                elem_seq = bm.edges
+                if select_mode[2]:
+                    elem_seq = bm.faces
+                if self.mark_select == 'EXTEND':
+                    for i in index_select_seq:
+                        elem_seq[i].select_set(True)
+                elif self.mark_select == 'SUBTRACT':
+                    for i in index_select_seq:
+                        elem_seq[i].select_set(False)
+                elif self.mark_select == 'INVERT':
+                    for i in index_select_seq:
+                        elem_seq[i].select_set(not elem_seq[i].select)
 
-        markup_seq = self.final_elements_markup_seq
+            index_markup_seq = self.markup_seq[ob]
+            elem_seq = bm.edges
+            if self.mark_seam != 'NONE':
+                if self.mark_seam == 'MARK':
+                    for i in index_markup_seq:
+                        elem_seq[i].seam = True
+                elif self.mark_seam == 'CLEAR':
+                    for i in index_markup_seq:
+                        elem_seq[i].seam = False
+                elif self.mark_seam == 'TOGGLE':
+                    for i in index_markup_seq:
+                        elem_seq[i].seam = not elem_seq[i].seam
 
-        if self.mark_seam != 'NONE':
-            if self.mark_seam == 'MARK':
-                for elem in markup_seq:
-                    elem.seam = True
-            elif self.mark_seam == 'CLEAR':
-                for elem in markup_seq:
-                    elem.seam = False
-            elif self.mark_seam == 'TOGGLE':
-                for elem in markup_seq:
-                    elem.seam = not elem.seam
-
-        if self.mark_sharp != 'NONE':
-            if self.mark_sharp == 'MARK':
-                for elem in markup_seq:
-                    elem.smooth = False
-            elif self.mark_sharp == 'CLEAR':
-                for elem in markup_seq:
-                    elem.smooth = True
-            elif self.mark_sharp == 'TOGGLE':
-                for elem in markup_seq:
-                    elem.smooth = not elem.smooth
+            if self.mark_sharp != 'NONE':
+                if self.mark_sharp == 'MARK':
+                    for i in index_markup_seq:
+                        elem_seq[i].smooth = False
+                elif self.mark_sharp == 'CLEAR':
+                    for i in index_markup_seq:
+                        elem_seq[i].smooth = True
+                elif self.mark_sharp == 'TOGGLE':
+                    for i in index_markup_seq:
+                        elem_seq[i].smooth = not elem_seq[i].smooth
 
         self.update_meshes(context)
-
         return {'FINISHED'}
