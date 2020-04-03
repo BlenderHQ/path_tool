@@ -240,7 +240,10 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
 
     def execute(self, context):
         tool_settings = context.scene.tool_settings
-        select_mode = tuple(tool_settings.mesh_select_mode)
+        initial_select_mode = tuple(tool_settings.mesh_select_mode)
+        if initial_select_mode[0]:
+            tool_settings.mesh_select_mode = (False, True, False)
+
         self.gen_bmeshes(context)
 
         for ob, bm in self.bm_seq:
@@ -248,11 +251,11 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
 
             if self.mark_select != 'NONE':
                 if ptr not in self.select_only_seq:
-                    print("Not found object %s in self.select_only_seq!" % ob.name)
+                    print("Not found object %s in self.select_only_seq! This should never happen." % ob.name)
                 else:
                     index_select_seq = self.select_only_seq[ptr]
                     elem_seq = bm.edges
-                    if select_mode[2]:
+                    if initial_select_mode[2]:
                         elem_seq = bm.faces
                     if self.mark_select == 'EXTEND':
                         for i in index_select_seq:
@@ -263,9 +266,9 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
                     elif self.mark_select == 'INVERT':
                         for i in index_select_seq:
                             elem_seq[i].select_set(not elem_seq[i].select)
-            
+
             if ptr not in self.markup_seq:
-                print("Not found object %s in self.markup_seq!" % ob.name)
+                print("Not found object %s in self.markup_seq! This should never happen." % ob.name)
             else:
                 index_markup_seq = self.markup_seq[ptr]
                 elem_seq = bm.edges

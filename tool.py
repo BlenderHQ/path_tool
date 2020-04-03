@@ -19,19 +19,19 @@ _rc = None
 @ToolDef.from_fn
 def path_tool():
     def draw_settings(context, layout, tool):
-        layout.use_property_split = True
-        layout.use_property_decorate = False
+        layout.use_property_split = False
 
         props = tool.operator_properties(operators.MESH_OT_select_path.bl_idname)
 
-        col = layout.column(align=True)
-
-        row = col.row()
-        row.prop(props, "mark_select", text="Select", expand=True, icon_only=True)
-        row = col.row()
-        row.prop(props, "mark_seam", text="Seam", expand=True, icon_only=True)
-        row = col.row()
-        row.prop(props, "mark_sharp", text="Sharp", expand=True, icon_only=True)
+        row = layout.row(align=True)
+        row.label(text="Select")
+        row.prop(props, "mark_select", expand=True, icon_only=True)
+        row = layout.row(align=True)
+        row.label(text="Seam")
+        row.prop(props, "mark_seam", expand=True, icon_only=True)
+        row = layout.row(align=True)
+        row.label(text="Sharp")
+        row.prop(props, "mark_sharp", expand=True, icon_only=True)
 
     icons_dir = os.path.join(os.path.dirname(__file__), "icons")
     icon_file = os.path.join(icons_dir, "ops.mesh.path_tool")

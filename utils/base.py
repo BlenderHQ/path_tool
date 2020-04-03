@@ -130,7 +130,6 @@ class PathUtils:
     def update_meshes(self, context):
         for ob, bm in self.bm_seq:
             bm.select_flush_mode()
-        for ob in context.objects_in_mode:
             bmesh.update_edit_mesh(ob.data, False, False)
 
     def update_path_beetween(self, context, elem_0, elem_1):

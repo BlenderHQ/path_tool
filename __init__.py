@@ -5,7 +5,10 @@ bl_info = {
     "blender": (2, 80, 0),
     "location": "Toolbar",
     "description": "Tool for selecting and marking up mesh object elements (alpha)",
-    "category": "3D View"}
+    "category": "3D View",
+    "wiki_url": "https://github.com/ivan-perevala/path-tool/blob/master/README.md#quick-guide",
+    "tracker_url": "https://github.com/ivan-perevala/path-tool/issues"
+}
 
 import bpy
 
@@ -18,7 +21,7 @@ from . import preferences
 if "_rc" in locals():
     import importlib
 
-    #_unregister_cls()
+    _unregister_cls()
 
     importlib.reload(km)
     importlib.reload(tool)
