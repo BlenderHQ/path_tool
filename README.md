@@ -6,5 +6,6 @@ There is support for working simultaneously with multiple objects in edit mode.
 Installation is standard for Blender (Go to `Edit > Preferences > Addons > Install` and select the downloaded archive).
 
 # Quick Guide
-So, after installing the addon, you can get to work. To do this, select one or more meshes and go into edit mode. In the toolbar, select the Path Tool. Next, select the mesh elements that serve as control elements.
->Important: For convenience, for edges, vertices act as control elements, so if you start working with vertices, you will switch to working in edges
+So, after installing the addon, you can get to work. To do this, select one or more meshes and go into edit mode. In the toolbar, select the Path Tool.
+* **Mesh elements selection.** 
+Work with the tool is carried out in the mode of selecting edges or faces. For the convenience of working with the mesh edges, vertices are used as control elements
