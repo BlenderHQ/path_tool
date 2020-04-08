@@ -11,3 +11,4 @@ So, after installing the addon, you can get to work. To do this, select one or m
 Work with the tool is carried out in the mode of selecting edges or faces. For the convenience of working with the mesh edges, vertices are used as control elements
 * **Path editing.**
 For now the addon has support of multiple path editing. Control elements of active path (the last one you interacted with) can be added (`LMB` on mesh), moved (`LMB` on element you want to move + `Drag`) and removed (`Ctrl + LMB`). To start a new path otherwise existing one, click `Shift + LMB`. Also if you just closed active path, next click on mesh will create a new path too.
+Control elements can be added after last added control element of active path and on existing segment between pair of other control elements. To add control element at start of active path, switch direction of path (`RMB` to open pie menu and select `Change direction`)
