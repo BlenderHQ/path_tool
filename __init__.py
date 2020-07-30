@@ -4,10 +4,9 @@ bl_info = {
     "version": (1, 1, 0),
     "blender": (2, 80, 0),
     "location": "Toolbar",
-    "description": "Tool for selecting and marking up mesh object elements (alpha)",
+    "description": "Tool for selecting and marking up mesh object elements",
     "category": "3D View",
-    "wiki_url": "https://github.com/ivan-perevala/path-tool/blob/master/README.md#quick-guide",
-    "tracker_url": "https://github.com/ivan-perevala/path-tool/issues"
+    "doc_url": "https://github.com/BlenderHQ/path-tool"
 }
 
 import bpy
