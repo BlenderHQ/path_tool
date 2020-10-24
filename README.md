@@ -8,3 +8,5 @@ For now the addon has support of multiple path editing. Control elements of acti
 
 When you move control element of path to adjacent of the same path, they are joined, otherwise elements are not adjacent it will just moved. If you move first-to-last element of the same path, path will be closed.
 Pathes can interact each other. If you drag endpoint of one path to endpoint of other, two pathes will be joined. Also, if the controls are not endpoints, after releasing the drag and drop, they stick together when dragging.
+## Note
+Current release(and `master` branch) - 1.2.0. For use with previous versions of Blender, please use release version 1.1.0
