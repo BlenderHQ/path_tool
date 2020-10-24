@@ -1,19 +1,18 @@
-# <pep8 compliant>
+if "bpy" in locals():
+    import importlib
+
+    if "operators" in locals():
+        importlib.reload(operators)
+    if "km" in locals():
+        importlib.reload(km)
 
 import os
 
+import bpy
 from bpy.utils.toolsystem import ToolDef
 
 from . import operators
 from . import km
-
-if "_rc" in locals():
-    import importlib
-
-    importlib.reload(operators)
-    importlib.reload(km)
-
-_rc = None
 
 
 @ToolDef.from_fn
@@ -21,7 +20,8 @@ def path_tool():
     def draw_settings(context, layout, tool):
         layout.use_property_split = False
 
-        props = tool.operator_properties(operators.MESH_OT_select_path.bl_idname)
+        props = tool.operator_properties(
+            operators.MESH_OT_select_path.bl_idname)
 
         row = layout.row(align=True)
         row.label(text="Select")

@@ -1,16 +1,15 @@
+if "bpy" in locals():
+    import importlib
+
+    if "utils" in locals():
+        importlib.reload(utils)
+
 from collections import deque
 
 import bpy
 import bmesh
 
 from . import utils
-
-if "_rc" in locals():
-    import importlib
-
-    importlib.reload(utils)
-
-_rc = None
 
 InteractEvent = utils.base.InteractEvent
 
@@ -43,7 +42,6 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
         "navigation_evkeys",
         "modal_action_evkeys",
         "undo_redo_evkeys",
-        "use_rotate_around_active",
         "bm_seq",
         "initial_select",
         "draw_handle_3d",
@@ -71,7 +69,6 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
         self.navigation_evkeys = utils.inputs.get_navigation_evkeys(kc)
         self.modal_action_evkeys = utils.inputs.get_modal_action_evkeys(kc)
         self.undo_redo_evkeys = utils.inputs.get_undo_redo_evkeys(kc)
-        self.use_rotate_around_active = context.preferences.inputs.use_rotate_around_active
 
         # Setup mesh select mode
         tool_settings = context.scene.tool_settings
@@ -143,10 +140,6 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
 
         # Navigation
         if evkey in self.navigation_evkeys:
-            if self.use_rotate_around_active:
-                bpy.ops.mesh.select_all(action='DESELECT')
-                self.navigation_element.select_set(True)
-                self.is_navigation_active = True
             return {'PASS_THROUGH'}
 
         elif self.is_navigation_active and event.value == 'RELEASE':

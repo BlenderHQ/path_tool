@@ -1,3 +1,9 @@
+if "bpy" in locals():
+    import importlib
+
+    if "shaders" in locals():
+        importlib.reload(shaders)
+
 import bpy
 import bgl
 import bmesh
@@ -5,13 +11,6 @@ from gpu_extras.batch import batch_for_shader
 
 from .. import shaders
 from .. import __package__ as addon_pkg
-
-if "_rc" in locals():
-    import importlib
-    importlib.reload(shaders)
-
-_rc = None
-
 
 def gen_batch_faces_seq(fill_seq, is_active, shader):
     temp_bmesh = bmesh.new()
@@ -98,10 +97,10 @@ def draw_callback_3d(self):
 
     bgl.glEnable(bgl.GL_DEPTH_TEST)
     bgl.glDepthFunc(bgl.GL_LEQUAL)
-    bgl.glDepthRange(0.00001, 0.99999)
+    #bgl.glDepthRange(0.001, 0.999)
 
-    # bgl.glDisable(bgl.GL_POLYGON_OFFSET_FILL)
-    #bgl.glPolygonOffset(1.0, 0.0)
+    bgl.glDisable(bgl.GL_POLYGON_OFFSET_FILL)
+    bgl.glPolygonOffset(1.0, 0.0)
 
     draw_list = [n for n in self.path_seq if n != self.active_path]
     draw_list.append(self.active_path)

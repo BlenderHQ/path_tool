@@ -1,3 +1,13 @@
+if "bpy" in locals():
+    import importlib
+
+    if "unified_path" in locals():
+        importlib.reload(unified_path)
+    if "draw" in locals():
+        importlib.reload(draw)
+    if "redo" in locals():
+        importlib.reload(redo)
+
 from enum import Enum
 
 import bpy
@@ -7,14 +17,6 @@ from mathutils import Vector
 from . import unified_path
 from . import draw
 from . import redo
-
-if "_rc" in locals():
-    import importlib
-    importlib.reload(unified_path)
-    importlib.reload(draw)
-    importlib.reload(redo)
-
-_rc = None
 
 Path = unified_path.Path
 
@@ -91,6 +93,8 @@ class PathUtils:
         tool_settings = context.scene.tool_settings
         initial_select_mode = tuple(tool_settings.mesh_select_mode)
 
+        # https://developer.blender.org/T75128 (Resolved)
+
         mesh_elements = "faces"
         if initial_select_mode[1]:  # Change select mode for edges path (select verts)
             mesh_elements = "verts"
@@ -98,34 +102,12 @@ class PathUtils:
 
         bpy.ops.mesh.select_all(action='DESELECT')
         elem.select_set(True)
-
-        if initial_select_mode[1]:
-            bpy.ops.mesh.select_linked_pick(deselect=False, delimit={'NORMAL'}, index=elem.index)
-        elif initial_select_mode[2]:
-            bpy.ops.mesh.select_linked(delimit={'NORMAL'})
-
+        bpy.ops.mesh.select_linked(delimit={'NORMAL'})
         linked_island = self.get_selected_elements(mesh_elements)
         tool_settings.mesh_select_mode = initial_select_mode
         bpy.ops.mesh.select_all(action='DESELECT')
         self.mesh_islands.append(linked_island)
         return len(self.mesh_islands) - 1
-
-        # https://developer.blender.org/T75128
-        # Commmented lines work's well but not for vertex at edge of non-manifold objects
-
-        # mesh_elements = "faces"
-        # if initial_select_mode[1]:  # Change select mode for edges path (select verts)
-        #     mesh_elements = "verts"
-        #     tool_settings.mesh_select_mode = (True, False, False)
-
-        # bpy.ops.mesh.select_all(action='DESELECT')
-        # elem.select_set(True)
-        # bpy.ops.mesh.select_linked(delimit={'NORMAL'})
-        # linked_island = self.get_selected_elements(mesh_elements)
-        # tool_settings.mesh_select_mode = initial_select_mode
-        # bpy.ops.mesh.select_all(action='DESELECT')
-        # self.mesh_islands.append(linked_island)
-        # return len(self.mesh_islands) - 1
 
     def update_meshes(self, context):
         for ob, bm in self.bm_seq:
