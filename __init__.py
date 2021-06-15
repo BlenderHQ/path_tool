@@ -17,7 +17,7 @@
 bl_info = {
     "name": "Path Tool",
     "author": "Vlad Kuzmin (ssh4), Ivan Perevala (ivpe)",
-    "version": (1, 2, 0),
+    "version": (1, 2, 1),
     "blender": (2, 91, 0),
     "location": "Toolbar",
     "description": "Tool for selecting and marking up mesh object elements",
@@ -64,8 +64,7 @@ _classes = [
     operators.MESH_OT_select_path,
 ]
 
-_register_cls, _unregister_cls = bpy.utils.register_classes_factory(
-    classes=_classes)
+_register_cls, _unregister_cls = bpy.utils.register_classes_factory(classes=_classes)
 
 
 def register():
