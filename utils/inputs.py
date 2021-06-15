@@ -25,9 +25,16 @@ def get_evkey(item):
     """Formatted item (event or keymap item) attributes"""
     return item.type, item.value, item.alt, item.ctrl, item.shift
 
+
 def get_mouse_buttons(wm: bpy.types.WindowManager):
     """Tuple (Select, Open context menu) mouse button"""
-    select_mouse = wm.keyconfigs.get("blender").preferences.select_mouse
+    blender_keyconfig_name = "blender"
+
+    # Small fix for Blender 2.93+
+    if bpy.app.version[0] == 2 and bpy.app.version[1] >= 93:
+        blender_keyconfig_name = "Blender"
+
+    select_mouse = wm.keyconfigs.get(blender_keyconfig_name).preferences.select_mouse
     if select_mouse == 'LEFT':
         return ('LEFTMOUSE', 'RIGHTMOUSE')
     return ('RIGHTMOUSE', 'LEFTMOUSE')
