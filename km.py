@@ -48,8 +48,19 @@ def register():
 
 def unregister():
     wm = bpy.context.window_manager
-    km_default = wm.keyconfigs.get("blender").keymaps
-    km_addon = wm.keyconfigs.get("blender addon").keymaps
+
+    blender_keyconfig_name = "blender"
+    blender_addon_keyconfig_name = "blender addon"
+
+    # Small fix for Blender 2.93+
+    if bpy.app.version[0] == 2 and bpy.app.version[1] >= 93:
+        blender_keyconfig_name = "Blender"
+    blender_addon_keyconfig_name = "Blender addon"
+
+    print([_.name for _ in wm.keyconfigs])
+
+    km_default = wm.keyconfigs.get(blender_keyconfig_name).keymaps
+    km_addon = wm.keyconfigs.get(blender_addon_keyconfig_name).keymaps
 
     for keyconfig_data in _generate_tool_keymap():
         km_name, km_args, km_content = keyconfig_data
