@@ -31,7 +31,7 @@ def get_mouse_buttons(wm: bpy.types.WindowManager):
     blender_keyconfig_name = "blender"
 
     # Small fix for Blender 2.93+
-    if bpy.app.version[0] == 2 and bpy.app.version[1] >= 93:
+    if bpy.app.version >= (2, 93, 0):
         blender_keyconfig_name = "Blender"
 
     select_mouse = wm.keyconfigs.get(blender_keyconfig_name).preferences.select_mouse

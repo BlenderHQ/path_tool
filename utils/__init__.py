@@ -1,20 +1,15 @@
 if "bpy" in locals():
-    import importlib
+    from importlib import reload
 
-    if "base" in locals():
-        importlib.reload(base)
-    if "draw" in locals():
-        importlib.reload(draw)
-    if "inputs" in locals():
-        importlib.reload(inputs)
-    if "props" in locals():
-        importlib.reload(props)
-    if "ui" in locals():
-        importlib.reload(ui)
-    if "redo" in locals():
-        importlib.reload(redo)
-    if "unified_path" in locals():
-        importlib.reload(unified_path)
+    reload(base)
+    reload(draw)
+    reload(inputs)
+    reload(props)
+    reload(ui)
+    reload(redo)
+    reload(unified_path)
+
+    del reload
 
 import bpy
 

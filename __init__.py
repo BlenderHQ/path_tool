@@ -1,4 +1,4 @@
-# Path Tool addon (Blender 2.91 +)
+# Path Tool addon.
 # Copyright (C) 2020  Vlad Kuzmin (ssh4), Ivan Perevala (ivpe)
 
 # This program is free software: you can redistribute it and/or modify
@@ -14,34 +14,49 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+# ____________________________________________________________________________ #
+# NOTE: Read README.md (markdown file) for details about installation and usage
+# of the addon from UI/UX user-side. Other files contains only technical
+# documentation and code comments.
+# ____________________________________________________________________________ #
+
 bl_info = {
     "name": "Path Tool",
     "author": "Vlad Kuzmin (ssh4), Ivan Perevala (ivpe)",
-    "version": (1, 2, 1),
-    "blender": (2, 91, 0),
+    # Maximal tested Blender version. Newer versions would not be stop any
+    # registration process, because (as a rule), newer versions hold older Python
+    # API for backward compatibility.
+    "version": (3, 0, 0),
+    # Minimal tested (and supported as well) Blender version. Blender Python API
+    # before this value do not guaranteed that some functions works as expected,
+    # because of found during development process bugs from Blender side, which was
+    # fixed in later versions.
+    "blender": (2, 83, 0),
     "location": "Toolbar",
     "description": "Tool for selecting and marking up mesh object elements",
     "category": "3D View",
-    "doc_url": "https://github.com/BlenderHQ/path-tool"
+    # NOTE: For compatibility reasons both keys should be kept.
+    "wiki_url": "https://github.com/BlenderHQ/path-tool",
+    "doc_url": "https://github.com/BlenderHQ/path-tool",
 }
 
 if "bpy" in locals():
-    import importlib
-
     _unregister_cls()
 
-    if "km" in locals():
-        importlib.reload(km)
-    if "tool" in locals():
-        importlib.reload(tool)
-    if "shaders" in locals():
-        importlib.reload(shaders)
-    if "operators" in locals():
-        importlib.reload(operators)
-    if "preferences" in locals():
-        importlib.reload(preferences)
+    from importlib import reload
+
+    reload(km)
+    reload(tool)
+    reload(shaders)
+    reload(operators)
+    reload(preferences)
+
+    del reload
 
     _register_cls()
+else:
+    __is_partially_registered__ = False
+    __is_completelly_registered__ = False
 
 import bpy
 
@@ -50,13 +65,6 @@ from . import tool
 from . import shaders
 from . import operators
 from . import preferences
-
-
-def _check_blender_version() -> bool:
-    for i, cv in enumerate(bpy.app.version):
-        if cv < bl_info["blender"][i]:
-            return False
-    return True
 
 
 _classes = [
@@ -68,19 +76,50 @@ _register_cls, _unregister_cls = bpy.utils.register_classes_factory(classes=_cla
 
 
 def register():
-    if _check_blender_version():
-        _register_cls()
+    global __is_partially_registered__
+    global __is_completelly_registered__
 
-        tool.register()
-        km.register()
-    else:
-        rbver = bl_info["blender"]
-        raise ImportError(
-            f"Required Blender version at least {rbver[0]}.{rbver[1]}.{rbver[2]}")
+    bver_older = preferences.tested_bver_older()
+    bver_latest = preferences.tested_bver_latest()
+
+    if bpy.app.version < bver_older:
+        bpy.utils.register_class(preferences.PathToolPreferences)  # Register just for warning message.
+        print(
+            f"WARNING: Current Blender version ({bpy.app.version_string}) "
+            f"is less than older tested ("
+            f"{bver_older[0]}.{bver_older[1]}.{bver_older[2]}"
+            f"). Registered only addon user "
+            f"preferences, which warn user about that."
+        )
+        __is_partially_registered__ = True
+        __is_completelly_registered__ = False
+        return
+
+    elif bpy.app.version > bver_latest:
+        print(
+            f"WARNING: Current Blender version ({bpy.app.version_string}) "
+            f"is greater than latest tested ("
+            f"{bver_latest[0]}.{bver_latest[1]}.{bver_latest[2]}"
+            f")."
+        )
+
+    _register_cls()
+
+    tool.register()
+    km.register()
+
+    __is_partially_registered__ = False
+    __is_completelly_registered__ = True
 
 
 def unregister():
-    km.unregister()
-    tool.unregister()
+    global __is_partially_registered__
+    global __is_completelly_registered__
 
-    _unregister_cls()
+    if __is_completelly_registered__:
+        km.unregister()
+        tool.unregister()
+
+        _unregister_cls()
+    elif __is_partially_registered__:
+        bpy.utils.unregister_class(preferences.PathToolPreferences)

@@ -1,14 +1,13 @@
 if "bpy" in locals():
-    import importlib
+    from importlib import reload
 
-    if "operators" in locals():
-        importlib.reload(operators)
-    if "km" in locals():
-        importlib.reload(km)
+    reload(operators)
+    reload(km)
+
+    del reload
 
 import os
 
-import bpy
 from bpy.utils.toolsystem import ToolDef
 
 from . import operators

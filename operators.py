@@ -1,13 +1,13 @@
 if "bpy" in locals():
-    import importlib
+    from importlib import reload
 
-    if "utils" in locals():
-        importlib.reload(utils)
+    reload(utils)
+
+    del reload
 
 from collections import deque
 
 import bpy
-import bmesh
 
 from . import utils
 
@@ -89,9 +89,12 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
             mesh_elements = "edges"
         else:
             mesh_elements = "faces"
+
         self.initial_select = self.get_selected_elements(mesh_elements)
         self.draw_handle_3d = bpy.types.SpaceView3D.draw_handler_add(
-            utils.draw.draw_callback_3d, (self,), 'WINDOW', 'POST_VIEW')
+            utils.draw.draw_callback_3d, (self,), 'WINDOW', 'POST_VIEW'
+        )
+
         # Prevent first click empty space
         elem, _ = self.get_element_by_mouse(context, event)
         if not elem:
@@ -103,8 +106,16 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
 
         self.is_mouse_pressed = False
         self.is_navigation_active = False
-        #
-        context.area.header_text_set("Path Tool (%s)" % header_text_mode)
+        # Set header and statusbar information.
+        area = context.area
+        area.header_text_set("Path Tool (%s)" % header_text_mode)
+        workspace = context.workspace
+        workspace.status_text_set(
+            f"Select Mesh Element: {self.mouse_buttons[0].capitalize()}; "
+            f"Context Menu: {self.mouse_buttons[1].capitalize()}"
+            f""
+        )
+
         wm.modal_handler_add(self)
 
         self.path_seq = []
@@ -129,9 +140,13 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
         bpy.types.SpaceView3D.draw_handler_remove(self.draw_handle_3d, 'WINDOW')
         self.set_selection_state(self.initial_select, True)
         self.update_meshes(context)
-        context.area.header_text_set(None)
+        workspace = context.workspace
+        workspace.status_text_set(text=None)
+        area = context.area
+        area.header_text_set(None)
 
     def modal(self, context, event):
+        wm = context.window_manager
         evkey = utils.inputs.get_evkey(event)
         select_mb, context_mb = self.mouse_buttons
         modal_action = self.modal_action_evkeys.get(evkey, None)
@@ -159,7 +174,12 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
 
             self.gen_final_elements_seq(context)
 
-            context.area.header_text_set(None)
+            area = context.area
+            area.header_text_set(None)
+
+            workspace = context.workspace
+            workspace.status_text_set(text=None)
+
             bpy.types.SpaceView3D.draw_handler_remove(self.draw_handle_3d, 'WINDOW')
             return self.execute(context)
 

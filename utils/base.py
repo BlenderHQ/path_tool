@@ -1,18 +1,16 @@
 if "bpy" in locals():
-    import importlib
+    from importlib import reload
 
-    if "unified_path" in locals():
-        importlib.reload(unified_path)
-    if "draw" in locals():
-        importlib.reload(draw)
-    if "redo" in locals():
-        importlib.reload(redo)
+    reload(unified_path)
+    reload(draw)
+    reload(redo)
+
+    del reload
 
 from enum import Enum
 
 import bpy
 import bmesh
-from mathutils import Vector
 
 from . import unified_path
 from . import draw
@@ -112,7 +110,7 @@ class PathUtils:
     def update_meshes(self, context):
         for ob, bm in self.bm_seq:
             bm.select_flush_mode()
-            bmesh.update_edit_mesh(ob.data, False, False)
+            bmesh.update_edit_mesh(mesh=ob.data, loop_triangles=False, destructive=False)
 
     def update_path_beetween(self, context, elem_0, elem_1):
         tool_settings = context.scene.tool_settings
@@ -214,12 +212,12 @@ class PathUtils:
 
                 # Join two pathes
                 if (
-                    (not path.close) and (not other_path.close) and
-                    (
-                        (path.control_elements[0] == other_path.control_elements[0]) or
-                        (path.control_elements[-1] == other_path.control_elements[-1]) or
-                        (path.control_elements[-1] == other_path.control_elements[0]) or
-                        (path.control_elements[0] == other_path.control_elements[-1])
+                    (not path.close) and (not other_path.close)
+                    and (
+                        (path.control_elements[0] == other_path.control_elements[0])
+                        or (path.control_elements[-1] == other_path.control_elements[-1])
+                        or (path.control_elements[-1] == other_path.control_elements[0])
+                        or (path.control_elements[0] == other_path.control_elements[-1])
                     )
                 ):
                     path += other_path

@@ -1,8 +1,9 @@
 if "bpy" in locals():
-    import importlib
+    from importlib import reload
 
-    if "shaders" in locals():
-        importlib.reload(shaders)
+    reload(shaders)
+
+    del reload
 
 import bpy
 import bgl
@@ -11,6 +12,7 @@ from gpu_extras.batch import batch_for_shader
 
 from .. import shaders
 from .. import __package__ as addon_pkg
+
 
 def gen_batch_faces_seq(fill_seq, is_active, shader):
     temp_bmesh = bmesh.new()
@@ -77,13 +79,8 @@ def draw_callback_3d(self):
     context = bpy.context
     preferences = context.preferences.addons[addon_pkg].preferences
 
-    # tool_settings = context.scene.tool_settings
-    # select_mode = tuple(tool_settings.mesh_select_mode)
-
     bgl.glPointSize(preferences.point_size)
     bgl.glLineWidth(preferences.line_width)
-
-    # bgl.glEnable(bgl.GL_PROGRAM_POINT_SIZE)
 
     bgl.glEnable(bgl.GL_MULTISAMPLE)
     bgl.glEnable(bgl.GL_LINE_SMOOTH)
@@ -92,12 +89,10 @@ def draw_callback_3d(self):
     bgl.glBlendFunc(bgl.GL_SRC_ALPHA, bgl.GL_ONE_MINUS_SRC_ALPHA)
     bgl.glEnable(bgl.GL_BLEND)
 
-    # bgl.glEnable(bgl.GL_POLYGON_SMOOTH)
     bgl.glHint(bgl.GL_POLYGON_SMOOTH_HINT, bgl.GL_NICEST)
 
     bgl.glEnable(bgl.GL_DEPTH_TEST)
     bgl.glDepthFunc(bgl.GL_LEQUAL)
-    #bgl.glDepthRange(0.001, 0.999)
 
     bgl.glDisable(bgl.GL_POLYGON_OFFSET_FILL)
     bgl.glPolygonOffset(1.0, 0.0)
@@ -112,7 +107,6 @@ def draw_callback_3d(self):
         color_path = preferences.color_path
 
         if path == self.active_path:
-            #if path.direction:
             active_index = self.active_index
 
             color = preferences.color_active_path_control_element
@@ -140,6 +134,5 @@ def draw_callback_3d(self):
             path.batch_control_elements.draw(shader_ce)
 
     bgl.glDisable(bgl.GL_BLEND)
-    # bgl.glDisable(bgl.GL_DEPTH_TEST)
     bgl.glPointSize(1.0)
     bgl.glLineWidth(1.0)

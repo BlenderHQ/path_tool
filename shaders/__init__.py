@@ -1,11 +1,3 @@
-# <pep8 compliant>
-
-# A module containing all the shaders used.
-# All files with the *.glsl extension in the module directory during import are placed in the "shader" container.
-# Vertex, fragment, and other shader files must have the endings "_vert", "_frag", ect.
-
-__version__ = (1, 0, 0)
-
 import os
 
 import gpu
