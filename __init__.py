@@ -26,7 +26,7 @@ bl_info = {
     # Maximal tested Blender version. Newer versions would not be stop any
     # registration process, because (as a rule), newer versions hold older Python
     # API for backward compatibility.
-    "version": (3, 0, 0),
+    "version": (3, 1, 0),
     # Minimal tested (and supported as well) Blender version. Blender Python API
     # before this value do not guaranteed that some functions works as expected,
     # because of found during development process bugs from Blender side, which was
