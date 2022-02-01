@@ -26,7 +26,7 @@ bl_info = {
     # Maximal tested Blender version. Newer versions would not be stop any
     # registration process, because (as a rule), newer versions hold older Python
     # API for backward compatibility.
-    "version": (3, 0, 0),
+    "version": (3, 1, 0),
     # Minimal tested (and supported as well) Blender version. Blender Python API
     # before this value do not guaranteed that some functions works as expected,
     # because of found during development process bugs from Blender side, which was
@@ -40,12 +40,13 @@ bl_info = {
     "doc_url": "https://github.com/BlenderHQ/path-tool",
 }
 
+from . import bhq_addon_base
+
 if "bpy" in locals():
     _unregister_cls()
 
     from importlib import reload
 
-    reload(km)
     reload(tool)
     reload(shaders)
     reload(operators)
@@ -60,7 +61,6 @@ else:
 
 import bpy
 
-from . import km
 from . import tool
 from . import shaders
 from . import operators
@@ -106,7 +106,6 @@ def register():
     _register_cls()
 
     tool.register()
-    km.register()
 
     __is_partially_registered__ = False
     __is_completelly_registered__ = True
@@ -117,7 +116,6 @@ def unregister():
     global __is_completelly_registered__
 
     if __is_completelly_registered__:
-        km.unregister()
         tool.unregister()
 
         _unregister_cls()

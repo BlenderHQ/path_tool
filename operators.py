@@ -63,7 +63,7 @@ class MESH_OT_select_path(utils.base.PathUtils, bpy.types.Operator):
     def invoke(self, context, event):
         wm = context.window_manager
 
-        # Stadard input event keys (type, value, alt, ctrl, shift)
+        # Standard input event keys (type, value, alt, ctrl, shift)
         kc = wm.keyconfigs.user
         self.mouse_buttons = utils.inputs.get_mouse_buttons(wm)
         self.navigation_evkeys = utils.inputs.get_navigation_evkeys(kc)
