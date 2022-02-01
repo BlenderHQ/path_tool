@@ -40,6 +40,8 @@ bl_info = {
     "doc_url": "https://github.com/BlenderHQ/path-tool",
 }
 
+from . import bhq_addon_base
+
 if "bpy" in locals():
     _unregister_cls()
 
