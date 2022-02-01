@@ -45,7 +45,6 @@ if "bpy" in locals():
 
     from importlib import reload
 
-    reload(km)
     reload(tool)
     reload(shaders)
     reload(operators)
@@ -60,7 +59,6 @@ else:
 
 import bpy
 
-from . import km
 from . import tool
 from . import shaders
 from . import operators
@@ -106,7 +104,6 @@ def register():
     _register_cls()
 
     tool.register()
-    km.register()
 
     __is_partially_registered__ = False
     __is_completelly_registered__ = True
@@ -117,7 +114,6 @@ def unregister():
     global __is_completelly_registered__
 
     if __is_completelly_registered__:
-        km.unregister()
         tool.unregister()
 
         _unregister_cls()
