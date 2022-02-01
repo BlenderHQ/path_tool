@@ -1,0 +1,3 @@
+[submodule "bhq_addon_base"]
+	path = bhq_addon_base
+	url = https://github.com/BlenderHQ/bhq_addon_base
