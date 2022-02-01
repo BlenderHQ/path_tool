@@ -108,7 +108,7 @@ class PathToolMesh(_PathToolBase):
             label="Path Tool",
             description="Tool for selecting and marking up mesh object elements",
             operator=operators.MESH_OT_select_path.bl_idname,
-            icon=os.path.join(os.path.dirname(__file__), "icons", "ops.mesh.path_tool"),
+            icon=os.path.join(os.path.dirname(__file__), "ops.mesh.path_tool"),
             keymap=km_path_tool_name,
             draw_settings=draw_settings_path_tool_mesh,
         )
