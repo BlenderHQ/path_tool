@@ -1,79 +1,47 @@
-if "bpy" in locals():
-    from importlib import reload
-
-    reload(operators)
-    reload(km)
-
-    del reload
-
 import os
 
-from bpy.utils.toolsystem import ToolDef
+import bpy
 
 from . import operators
-from . import km
 
 
-@ToolDef.from_fn
-def path_tool():
-    def draw_settings(context, layout, tool):
-        layout.use_property_split = False
+class PathToolMesh(bpy.types.WorkSpaceTool):
+    bl_space_type = 'VIEW_3D'
+    bl_context_mode = 'EDIT_MESH'
 
-        props = tool.operator_properties(
-            operators.MESH_OT_select_path.bl_idname)
-
-        row = layout.row(align=True)
-        row.label(text="Select")
-        row.prop(props, "mark_select", expand=True, icon_only=True)
-        row = layout.row(align=True)
-        row.label(text="Seam")
-        row.prop(props, "mark_seam", expand=True, icon_only=True)
-        row = layout.row(align=True)
-        row.label(text="Sharp")
-        row.prop(props, "mark_sharp", expand=True, icon_only=True)
-
-    icons_dir = os.path.join(os.path.dirname(__file__), "icons")
-    icon_file = os.path.join(icons_dir, "ops.mesh.path_tool")
-
-    if not os.path.isfile(icon_file + ".dat"):
-        print("Missing tool icon file in addon directory\n(%s)" % icon_file)
-
-    return dict(
-        idname="mesh.path_tool",
-        label="Path Tool",
-        description="Tool for selecting and marking up mesh object elements (alpha)",
-        operator=operators.MESH_OT_select_path.bl_idname,
-        icon=icon_file,
-        keymap=km.km_path_tool_name,
-        draw_settings=draw_settings,
+    bl_idname = "mesh.path_tool"
+    bl_label = "Path Tool"
+    bl_description = (
+        "Tool for selecting and marking up\n"
+        "mesh object elements"
+    )
+    bl_icon = os.path.join(os.path.dirname(__file__), "icons", "ops.mesh.path_tool")
+    bl_widget = None
+    bl_keymap = (
+        (
+            operators.MESH_OT_select_path.bl_idname, dict(
+                type='LEFTMOUSE',
+                value='PRESS',
+            ), None
+        ),
     )
 
+    def draw_settings(context, layout, tool):
+        layout.use_property_split = True
 
-def get_tool_list(space_type, context_mode):
-    from bl_ui.space_toolsystem_common import ToolSelectPanelHelper
+        props = tool.operator_properties(operators.MESH_OT_select_path.bl_idname)
 
-    cls = ToolSelectPanelHelper._tool_class_from_space_type(space_type)
-    return cls._tools[context_mode]
+        row = layout.row()
+        row.prop(props, "mark_select", expand=True, icon_only=True, text="Select")
+        row = layout.row()
+        row.prop(props, "mark_seam", expand=True, icon_only=True, text="Seam")
+        row = layout.row()
+        row.prop(props, "mark_sharp", expand=True, icon_only=True, text="Sharp")
 
 
 def register():
-    tools = get_tool_list('VIEW_3D', 'EDIT_MESH')
-
-    for index, tool in enumerate(tools, 1):
-        if isinstance(tool, ToolDef) and tool.label == "Cursor":
-            break
-
-    tools[:index] += None, path_tool
-
-    del tools
+    bpy.utils.register_tool(PathToolMesh, after={"builtin.select_lasso"}, separator=False, group=False)
 
 
 def unregister():
-    tools = get_tool_list('VIEW_3D', 'EDIT_MESH')
-
-    index = tools.index(path_tool) - 1  # None
-    tools.pop(index)
-    tools.remove(path_tool)
-
-    del tools
-    del index
+    bpy.utils.unregister_tool(PathToolMesh)
