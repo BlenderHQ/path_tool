@@ -31,8 +31,6 @@ if "bpy" in locals():
 
     from importlib import reload
 
-    if "km" in locals():
-        reload(km)
     if "tool" in locals():
         reload(tool)
     if "shaders" in locals():
@@ -47,7 +45,6 @@ if "bpy" in locals():
 
 import bpy
 
-from . import km
 from . import tool
 from . import shaders
 from . import operators
@@ -65,10 +62,8 @@ _cls_register, _cls_unregister = bpy.utils.register_classes_factory(classes=_cla
 def register():
     _cls_register()
     tool.register()
-    km.register()
 
 
 def unregister():
-    km.unregister()
     tool.unregister()
     _cls_unregister()
