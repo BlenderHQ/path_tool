@@ -1,19 +1,6 @@
-# NOTE: Keep this file at addon root directory. Otherwise, `__package__` would
-# give wrong information.
-
 import sys
+
 import bpy
-import rna_keymap_ui
-
-
-def tested_bver_older() -> tuple:
-    bl_info = getattr(sys.modules[__package__], "bl_info")
-    return bl_info["blender"]
-
-
-def tested_bver_latest() -> tuple:
-    bl_info = getattr(sys.modules[__package__], "bl_info")
-    return bl_info["version"]
 
 
 class PathToolPreferences(bpy.types.AddonPreferences):
@@ -70,26 +57,6 @@ class PathToolPreferences(bpy.types.AddonPreferences):
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
-
-        # Check Blender version for compatibility.
-        def _draw_compatibility_link(lay) -> None:
-            lay.label(text="Please, read the documentation about compatibility support:")
-            col.operator("wm.url_open", text="Read about compatibility",
-                         icon='URL').url = "https://github.com/BlenderHQ/path_tool/blob/master/README.md#compatibility"
-
-        if bpy.app.version < tested_bver_older():
-            col = layout.column(align=True)
-            col.label(
-                text="You Blender version is less than minimal supported!",
-                icon='ERROR'
-            )
-            _draw_compatibility_link(col)
-            return
-
-        elif bpy.app.version > tested_bver_latest():
-            col = layout.column(align=True)
-            col.label(text="Your Blender version may be not tested", icon='INFO')
-            _draw_compatibility_link(col)
 
         col = layout.column(align=True)
 

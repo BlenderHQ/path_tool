@@ -56,8 +56,6 @@ def unregister():
         blender_keyconfig_name = "Blender"
     blender_addon_keyconfig_name = "Blender addon"
 
-    print([_.name for _ in wm.keyconfigs])
-
     kc_default = wm.keyconfigs.get(blender_keyconfig_name)
     if kc_default:
         km_default = kc_default.keymaps
