@@ -739,10 +739,8 @@ class MESH_OT_select_path(bpy.types.Operator):
 
                 # Join two pathes
                 if (
-                    ((path.flag & other_path.flag) ^ PathFlag.CLOSE)
-                    and (
-                        (path.control_elements[0] ==
-                         other_path.control_elements[0])
+                    ((path.flag & other_path.flag) ^ PathFlag.CLOSE) and (
+                        (path.control_elements[0] == other_path.control_elements[0])
                         or (path.control_elements[-1] == other_path.control_elements[-1])
                         or (path.control_elements[-1] == other_path.control_elements[0])
                         or (path.control_elements[0] == other_path.control_elements[-1])
