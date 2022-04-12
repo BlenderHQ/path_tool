@@ -21,6 +21,11 @@ class InteractEvent(enum.Enum):
     RELEASE = 9
 
 
+class PathFlag(enum.IntFlag):
+    CLOSE = enum.auto()
+    REVERSE = enum.auto()
+
+
 class Path:
     """
     Structure:
@@ -45,31 +50,32 @@ class Path:
         "control_elements",
         "fill_elements",
         "batch_seq_fills",
-        "close",
-        "direction",
+        "flag",
     )
 
+    island_index: int
+    ob: bpy.types.Object
+    batch_control_elements: gpu.types.GPUBatch
+    control_elements: list
+    fill_elements: list
+    batch_seq_fills: list[gpu.types.GPUBatch]
+    flag: PathFlag
+
     def __init__(self, elem=None, linked_island_index=0, ob=None):
-        # Index of mesh elements island in operator
         self.island_index = linked_island_index
-        # Model matrix of object on which path is
         self.ob = ob
-        # One batch for all control elements
         self.batch_control_elements = None
 
-        self.control_elements = []
-        self.fill_elements = []
-        # And separate batches for each fill seq. self.batch_seq_fills[-1] reserved for
-        self.batch_seq_fills = []
+        self.control_elements = list()
+        self.fill_elements = list()
+        self.batch_seq_fills = list()
 
         if elem is not None:
             self.control_elements.append(elem)
-            # Placeholders for fill seq and it's batch from first to the last control element(if path.close)
             self.fill_elements.append([])
             self.batch_seq_fills.append(None)
 
-        self.close = False
-        self.direction = True
+        self.flag = 0
 
     def copy(self):
         new_path = Path()
@@ -80,8 +86,7 @@ class Path:
         new_path.batch_control_elements = self.batch_control_elements
         new_path.island_index = self.island_index
         new_path.ob = self.ob
-        new_path.close = self.close
-        new_path.direction = self.direction
+        new_path.flag = self.flag
 
         return new_path
 
@@ -182,7 +187,9 @@ class Path:
         self.batch_seq_fills.reverse()
         self.fill_elements.append(close_path_fill)
         self.batch_seq_fills.append(close_path_batch)
-        self.direction = not self.direction
+
+        self.flag ^= PathFlag.REVERSE
+
         return self
 
     def is_in_control_elements(self, elem):
@@ -259,7 +266,7 @@ class Path:
             pairs_items = [[elem, self.control_elements[elem_index - 1], elem_index - 1],
                            [elem, self.control_elements[elem_index + 1], elem_index]]
 
-        if self.close and (control_elements_count > 2) and (elem_index in (0, control_elements_count - 1)):
+        if (self.flag & PathFlag.CLOSE) and (control_elements_count > 2) and (elem_index in (0, control_elements_count - 1)):
             pairs_items.extend(
                 [[self.control_elements[0], self.control_elements[-1], -1]])
 
@@ -699,8 +706,8 @@ class MESH_OT_select_path(bpy.types.Operator):
                         # First-last control element same path
                         if i == 0 and j == len(path.control_elements) - 1:
                             path.pop_control_element(-1)
-                            if not path.close:
-                                path.close = True
+                            if (path.flag ^ PathFlag.CLOSE):
+                                path.flag |= PathFlag.CLOSE
                                 self.update_fills_by_element_index(
                                     context, path, 0)
 
@@ -732,7 +739,7 @@ class MESH_OT_select_path(bpy.types.Operator):
 
                 # Join two pathes
                 if (
-                    (not path.close) and (not other_path.close)
+                    ((path.flag & other_path.flag) ^ PathFlag.CLOSE)
                     and (
                         (path.control_elements[0] ==
                          other_path.control_elements[0])
@@ -746,7 +753,7 @@ class MESH_OT_select_path(bpy.types.Operator):
                     self._active_path_index = i
 
                     batch, _ = self.gen_batch_control_elements(
-                        context, path == self.active_path, path)  # Draw
+                        context, path == self.active_path, path)
                     path.batch_control_elements = batch
                     self.report(type={'INFO'}, message="Joined two paths")
 
@@ -892,9 +899,9 @@ class MESH_OT_select_path(bpy.types.Operator):
 
         # Close active path
         elif interact_event is InteractEvent.CLOSE:
-            self.active_path.close = not self.active_path.close
+            self.active_path.flag ^= PathFlag.CLOSE
 
-            if self.active_path.close:
+            if self.active_path.flag & PathFlag.CLOSE:
                 self.update_fills_by_element_index(
                     context, self.active_path, 0)
                 if len(self.active_path.control_elements) > 2:
