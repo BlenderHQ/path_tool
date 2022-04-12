@@ -35,8 +35,6 @@ if "bpy" in locals():
         reload(tool)
     if "shaders" in locals():
         reload(shaders)
-    if "operators" in locals():
-        reload(operators)
     if "preferences" in locals():
         reload(preferences)
 
@@ -47,13 +45,12 @@ import bpy
 
 from . import tool
 from . import shaders
-from . import operators
 from . import preferences
 
 
 _classes = [
     preferences.PathToolPreferences,
-    operators.MESH_OT_select_path,
+    tool.MESH_OT_select_path,
 ]
 
 _cls_register, _cls_unregister = bpy.utils.register_classes_factory(classes=_classes)
@@ -61,9 +58,9 @@ _cls_register, _cls_unregister = bpy.utils.register_classes_factory(classes=_cla
 
 def register():
     _cls_register()
-    tool.register()
+    bpy.utils.register_tool(tool.PathToolMesh, after={"builtin.select_lasso"}, separator=False, group=False)
 
 
 def unregister():
-    tool.unregister()
+    bpy.utils.unregister_tool(tool.PathToolMesh)
     _cls_unregister()
