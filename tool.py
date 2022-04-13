@@ -359,6 +359,7 @@ class MESH_OT_select_path(bpy.types.Operator):
         ),
         options={'ENUM_FLAG'},
         default=set(),
+        name="Action History",
     )
 
     mark_select: bpy.props.EnumProperty(
@@ -397,33 +398,20 @@ class MESH_OT_select_path(bpy.types.Operator):
         description="Mark sharp options",
     )
 
+    def draw_func(self, layout: bpy.types.UILayout) -> None:
+        layout.row().prop(self, "mark_select", text="Select", icon_only=True, expand=True)
+        layout.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
+        layout.row().prop(self, "mark_sharp", text="Sharp", icon_only=True, expand=True)
+
     def draw(self, _context: bpy.types.Context) -> None:
-        layout = self.layout
-        layout.use_property_split = True
-
-        col = layout.column(align=True)
-
-        col.row().prop(self, "mark_select", text="Select", icon_only=True, expand=True)
-        col.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
-        col.row().prop(self, "mark_sharp", text="Sharp", icon_only=True, expand=True)
+        self.draw_func(self.layout)
 
     def popup_menu_pie_draw(self, popup: bpy.types.UIPieMenu, context: bpy.types.Context) -> None:
-        layout = popup.layout
-        pie = layout.menu_pie()
-
-        box = pie.box()
-
-        col = box.column(align=True)
-
-        col.row().prop(self, "mark_select", text="Select", icon_only=True, expand=True)
-        col.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
-        col.row().prop(self, "mark_sharp", text="Sharp", icon_only=True, expand=True)
-
-        scol = col.column()
-        scol.emboss = 'NORMAL'
-        row = scol.row(align=True)
-        row.prop(self, "context_undo", expand=True)
-
+        pie = popup.layout.menu_pie()
+        col = pie.box().column()
+        col.use_property_split = True
+        self.draw_func(col)
+        col.prop(self, "context_undo", text="Action", expand=True)
         pie.prop_tabs_enum(self, "context_action")
 
     @staticmethod
@@ -1270,3 +1258,4 @@ class PathToolMesh(bpy.types.WorkSpaceTool):
         layout.use_property_split = True
 
         props = tool.operator_properties(MESH_OT_select_path.bl_idname)
+        MESH_OT_select_path.draw_func(props, layout)
