@@ -341,12 +341,6 @@ class MESH_OT_select_path(bpy.types.Operator):
     #
     path_seq: list[Path]
 
-    apply_tool_settings: bpy.props.BoolProperty(
-        default=False,
-        name="Apply Tool Settings",
-        description="Apply operator settings from context and redo menu as workspace tool settings",
-    )
-
     context_action: bpy.props.EnumProperty(
         items=(
             ('TCLPATH', "Toggle Close Path",
@@ -412,7 +406,6 @@ class MESH_OT_select_path(bpy.types.Operator):
         col.row().prop(self, "mark_select", text="Select", icon_only=True, expand=True)
         col.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
         col.row().prop(self, "mark_sharp", text="Sharp", icon_only=True, expand=True)
-        col.prop(self, "apply_tool_settings")
 
     def popup_menu_pie_draw(self, popup: bpy.types.UIPieMenu, context: bpy.types.Context) -> None:
         layout = popup.layout
@@ -425,10 +418,6 @@ class MESH_OT_select_path(bpy.types.Operator):
         col.row().prop(self, "mark_select", text="Select", icon_only=True, expand=True)
         col.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
         col.row().prop(self, "mark_sharp", text="Sharp", icon_only=True, expand=True)
-
-        row = col.row(align=True)
-        row.emboss = 'NONE'
-        row.prop(self, "apply_tool_settings")
 
         scol = col.column()
         scol.emboss = 'NORMAL'
