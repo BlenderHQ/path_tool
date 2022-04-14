@@ -1,19 +1,27 @@
+# NOTE: `# type: ignore` used for type checks:
+#   * UI draw methods
+#   * `bpy.props. ...` property definitions
+
+# https://peps.python.org/pep-0563/#enabling-the-future-behavior-in-python-3-7
+from __future__ import annotations
+
 import os
 import enum
-from typing import (Union, Iterable)
+from typing import Union, Iterable
 import collections
 
 import bpy
 import gpu
 from gpu_extras.batch import batch_for_shader
-import bgl
+import bgl  # type: ignore
 import bmesh
 
 from . import shaders
 
-_PackedEvent_T = tuple[str, str, bool, bool, bool]
+_PackedEvent_T = tuple[Union[int, str], Union[int, str], Union[int, bool], Union[int, bool], Union[int, bool]]
 _EventKey_T = Union[bpy.types.KeyMapItem, bpy.types.Event]
 _ControlPoint_T = Union[bmesh.types.BMVert, bmesh.types.BMFace]
+_MeshElement_T = Union[bmesh.types.BMVert, bmesh.types.BMEdge, bmesh.types.BMFace]
 _ObjectBMesh = tuple[bpy.types.Object, bmesh.types.BMesh]
 
 
@@ -60,14 +68,19 @@ class Path:
     )
 
     island_index: int
-    ob: bpy.types.Object
-    batch_control_elements: gpu.types.GPUBatch
-    control_elements: list
-    fill_elements: list
-    batch_seq_fills: list[gpu.types.GPUBatch]
+    ob: Union[bpy.types.Object, None]
+    batch_control_elements: Union[gpu.types.GPUBatch, None]
+    control_elements: list[Union[_ControlPoint_T, None]]
+
+    fill_elements: list[list[Union[bmesh.types.BMVert, bmesh.types.BMEdge, bmesh.types.BMFace]]]
+    batch_seq_fills: list[Union[gpu.types.GPUBatch, None]]
     flag: PathFlag
 
-    def __init__(self, elem=None, linked_island_index=0, ob=None):
+    def __init__(self,
+                 elem: Union[_ControlPoint_T, None] = None,
+                 linked_island_index: int = 0,
+                 ob: Union[bpy.types.Object, None] = None
+                 ) -> None:
         self.island_index = linked_island_index
         self.ob = ob
         self.batch_control_elements = None
@@ -81,9 +94,9 @@ class Path:
             self.fill_elements.append([])
             self.batch_seq_fills.append(None)
 
-        self.flag = 0
+        self.flag = PathFlag(0)
 
-    def copy(self):
+    def copy(self) -> Path:
         new_path = Path()
         new_path.control_elements = self.control_elements.copy()
         new_path.fill_elements = self.fill_elements.copy()
@@ -96,96 +109,78 @@ class Path:
 
         return new_path
 
-    def __repr__(self):
-        # For development purposes only
-        batch_seq_fills_formatted = []
-        for i, batch in enumerate(self.batch_seq_fills):
-            if batch:
-                batch_seq_fills_formatted.append("fb_%d" % i)
-                continue
-            batch_seq_fills_formatted.append(batch)
+    def __add__(self, other: Path) -> Path:
+        if self.island_index == other.island_index:
+            is_found_merged_elements = False
+            for i in (0, -1):
+                elem = self.control_elements[i]
+                for j in (0, -1):
+                    other_elem = other.control_elements[j]
+                    if elem == other_elem:
+                        is_found_merged_elements = True
 
-        ["fb_%d" % i for i in range(len(self.batch_seq_fills))]
-        return "\nPath[%d]:\n    ce: %s\n    fe: %s\n    fb: %s" % (
-            id(self),
-            str([n.index for n in self.control_elements]),
-            str([len(n) for n in self.fill_elements]),
-            str(batch_seq_fills_formatted)
-        )
+                        if i == -1 and j == 0:
+                            # End-First
+                            self.control_elements.pop(-1)
+                            self.fill_elements.pop(-1)
+                            self.batch_seq_fills.pop(-1)
 
-    def __add__(self, other):
-        assert self.island_index == other.island_index
+                            self.control_elements.extend(other.control_elements)
+                            self.fill_elements.extend(other.fill_elements)
+                            self.batch_seq_fills.extend(other.batch_seq_fills)
 
-        is_found_merged_elements = False
-        for i in (0, -1):
-            elem = self.control_elements[i]
-            for j in (0, -1):
-                other_elem = other.control_elements[j]
-                if elem == other_elem:
-                    is_found_merged_elements = True
+                        elif i == 0 and j == -1:
+                            # First-End
 
-                    if i == -1 and j == 0:
-                        # End-First
-                        self.control_elements.pop(-1)
-                        self.fill_elements.pop(-1)
-                        self.batch_seq_fills.pop(-1)
+                            self.control_elements.pop(0)
 
-                        self.control_elements.extend(other.control_elements)
-                        self.fill_elements.extend(other.fill_elements)
-                        self.batch_seq_fills.extend(other.batch_seq_fills)
+                            other.fill_elements.pop(-1)
+                            other.batch_seq_fills.pop(-1)
 
-                    elif i == 0 and j == -1:
-                        # First-End
+                            other.control_elements.extend(self.control_elements)
+                            other.fill_elements.extend(self.fill_elements)
+                            other.batch_seq_fills.extend(self.batch_seq_fills)
 
-                        self.control_elements.pop(0)
+                            self.control_elements = other.control_elements
+                            self.fill_elements = other.fill_elements
+                            self.batch_seq_fills = other.batch_seq_fills
 
-                        other.fill_elements.pop(-1)
-                        other.batch_seq_fills.pop(-1)
+                        elif i == 0 and j == 0:
+                            # First-First
+                            self.control_elements.pop(0)
 
-                        other.control_elements.extend(self.control_elements)
-                        other.fill_elements.extend(self.fill_elements)
-                        other.batch_seq_fills.extend(self.batch_seq_fills)
+                            other.control_elements.reverse()
+                            other.fill_elements.reverse()
+                            other.batch_seq_fills.reverse()
 
-                        self.control_elements = other.control_elements
-                        self.fill_elements = other.fill_elements
-                        self.batch_seq_fills = other.batch_seq_fills
+                            other.fill_elements.pop(0)
+                            other.batch_seq_fills.pop(0)
 
-                    elif i == 0 and j == 0:
-                        # First-First
-                        self.control_elements.pop(0)
+                            other.control_elements.extend(self.control_elements)
+                            other.fill_elements.extend(self.fill_elements)
+                            other.batch_seq_fills.extend(self.batch_seq_fills)
 
-                        other.control_elements.reverse()
-                        other.fill_elements.reverse()
-                        other.batch_seq_fills.reverse()
+                            self.control_elements = other.control_elements
+                            self.fill_elements = other.fill_elements
+                            self.batch_seq_fills = other.batch_seq_fills
 
-                        other.fill_elements.pop(0)
-                        other.batch_seq_fills.pop(0)
+                        elif i == -1 and j == -1:
+                            # End-End
+                            other.reverse()
+                            self.control_elements.pop(-1)
+                            self.fill_elements.pop(-1)
+                            self.batch_seq_fills.pop(-1)
 
-                        other.control_elements.extend(self.control_elements)
-                        other.fill_elements.extend(self.fill_elements)
-                        other.batch_seq_fills.extend(self.batch_seq_fills)
+                            self.control_elements.extend(other.control_elements)
+                            self.fill_elements.extend(other.fill_elements)
+                            self.batch_seq_fills.extend(other.batch_seq_fills)
 
-                        self.control_elements = other.control_elements
-                        self.fill_elements = other.fill_elements
-                        self.batch_seq_fills = other.batch_seq_fills
-
-                    elif i == -1 and j == -1:
-                        # End-End
-                        other.reverse()
-                        self.control_elements.pop(-1)
-                        self.fill_elements.pop(-1)
-                        self.batch_seq_fills.pop(-1)
-
-                        self.control_elements.extend(other.control_elements)
-                        self.fill_elements.extend(other.fill_elements)
-                        self.batch_seq_fills.extend(other.batch_seq_fills)
-
-            if is_found_merged_elements:
-                break
+                if is_found_merged_elements:
+                    break
 
         return self
 
-    def reverse(self):
+    def reverse(self) -> Path:
         self.control_elements.reverse()
         close_path_fill = self.fill_elements.pop(-1)
         close_path_batch = self.batch_seq_fills.pop(-1)
@@ -198,43 +193,34 @@ class Path:
 
         return self
 
-    def is_in_control_elements(self, elem):
-        """
-        Return's element index in self.control_elements if exist, otherwise None
-        """
+    def is_in_control_elements(self, elem: _ControlPoint_T) -> Union[int, None]:
         if elem in self.control_elements:
             return self.control_elements.index(elem)
 
-    def is_in_fill_elements(self, elem):
-        """
-        Return's index of fill in self.fill_elements if element exist in any fill, otherwise None
-        """
-        for fill_index, fill_seq in enumerate(self.fill_elements):
-            if isinstance(elem, bmesh.types.BMVert):
+    def is_in_fill_elements(self, elem: _ControlPoint_T) -> Union[int, None]:
+        if isinstance(elem, bmesh.types.BMVert):
+            for fill_index, fill_seq in enumerate(self.fill_elements):
                 for edge in fill_seq:
                     for vert in edge.verts:
+                        vert: bmesh.types.BMVert
                         if elem == vert:
                             return fill_index
-            elif isinstance(elem, bmesh.types.BMFace):
-                if elem in fill_seq:
-                    return fill_index
 
-    def insert_control_element(self, elem_index, elem):
-        """
-        Insert
-        - new control element
-        - empty list for fill elements after this element
-        - placeholder for fill batch
-        """
+        # elif isinstance(elem, bmesh.types.BMFace):
+        for fill_index, fill_seq in enumerate(self.fill_elements):
+            if elem in fill_seq:
+                return fill_index
+
+    def insert_control_element(self, elem_index: int, elem: _ControlPoint_T) -> None:
         self.control_elements.insert(elem_index, elem)
         self.fill_elements.insert(elem_index, [])
         self.batch_seq_fills.insert(elem_index, None)
 
-    def remove_control_element(self, elem):
+    def remove_control_element(self, elem: _ControlPoint_T) -> None:
         elem_index = self.control_elements.index(elem)
         self.pop_control_element(elem_index)
 
-    def pop_control_element(self, elem_index):
+    def pop_control_element(self, elem_index: int) -> Union[_ControlPoint_T, None]:
         elem = self.control_elements.pop(elem_index)
         pop_index = elem_index - 1
         if elem_index == 0:
@@ -243,13 +229,7 @@ class Path:
         self.batch_seq_fills.pop(pop_index)
         return elem
 
-    def get_pairs_items(self, elem_index):
-        """
-        Return's pairs_items list in format:
-        pairs_items = [[elem_0, elem_1, fill_index_0],
-                       (optional)[elem_0, elem_2, fill_index_1]]
-        Used to update fill elements from and to given element
-        """
+    def get_pairs_items(self, elem_index: int) -> list[_ControlPoint_T]:
         pairs_items = []
         control_elements_count = len(self.control_elements)
         if control_elements_count < 2:
@@ -261,14 +241,11 @@ class Path:
         elem = self.control_elements[elem_index]
 
         if elem_index == 0:
-            # First control element
             pairs_items = [[elem, self.control_elements[1], 0]]
         elif elem_index == len(self.control_elements) - 1:
-            # Last control element
             pairs_items = [
                 [elem, self.control_elements[elem_index - 1], elem_index - 1]]
         elif len(self.control_elements) > 2:
-            # At least 3 control elements
             pairs_items = [[elem, self.control_elements[elem_index - 1], elem_index - 1],
                            [elem, self.control_elements[elem_index + 1], elem_index]]
 
@@ -280,8 +257,11 @@ class Path:
 
 
 class OPMode(enum.Enum):
+    # BMesh vertices are control points, edges are pathes.
     MEDGE = enum.auto()
+    # Bmesh faces are both pathes and control points.
     MFACE = enum.auto()
+
 
 
 class MESH_OT_select_path(bpy.types.Operator):
@@ -341,69 +321,68 @@ class MESH_OT_select_path(bpy.types.Operator):
     #
     path_seq: list[Path]
 
-    context_action: bpy.props.EnumProperty(
+    context_action: bpy.props.EnumProperty(  # type: ignore
         items=(
-            ('TCLPATH', "Toggle Close Path",
-             "Close the path from the first to the last control point", '', 2),
+            ('TCLPATH', "Toggle Close Path", "Close the path from the first to the last control point", '', 2),
             ('CHDIR', "Change direction", "Changes the direction of the path", '', 4),
-            ('APPLY', "Apply All", "Apply all paths and make changes to the mesh", '', 8),
+            ('APPLY', "Apply All", "Apply all paths and make changes to the mesh", '', 8),  # type: ignore
         ),
         options={'ENUM_FLAG'},
         default=set(),
     )
 
-    context_undo: bpy.props.EnumProperty(
+    context_undo: bpy.props.EnumProperty(  # type: ignore
         items=(
             ('UNDO', "Undo", "Undo one step", 'LOOP_BACK', 2),
-            ('REDO', "Redo", "Redo one step", 'LOOP_FORWARDS', 4),
+            ('REDO', "Redo", "Redo one step", 'LOOP_FORWARDS', 4),  # type: ignore
         ),
         options={'ENUM_FLAG'},
         default=set(),
         name="Action History",
     )
 
-    mark_select: bpy.props.EnumProperty(
+    mark_select: bpy.props.EnumProperty(  # type: ignore
         items=(
             ('EXTEND', "Extend", "Extend existing selection", 'SELECT_EXTEND', 1),
             ('NONE', "Do nothing", "Do nothing", "X", 2),
             ('SUBTRACT', "Subtract", "Subtract existing selection", 'SELECT_SUBTRACT', 3),
-            ('INVERT', "Invert", "Inverts existing selection", 'SELECT_DIFFERENCE', 4)
+            ('INVERT', "Invert", "Inverts existing selection", 'SELECT_DIFFERENCE', 4),  # type: ignore
         ),
-        default='EXTEND',
+        default='EXTEND',  # type: ignore
         name="Select",
         description="Selection options",
     )
 
-    mark_seam: bpy.props.EnumProperty(
+    mark_seam: bpy.props.EnumProperty(  # type: ignore
         items=(
             ('MARK', "Mark", "Mark seam path elements", 'RESTRICT_SELECT_OFF', 1),
             ('NONE', "Do nothing", "Do nothing", 'X', 2),
             ('CLEAR', "Clear", "Clear seam path elements", 'RESTRICT_SELECT_ON', 3),
-            ('TOGGLE', "Toggle", "Toggle seams on path elements", 'ACTION_TWEAK', 4)
+            ('TOGGLE', "Toggle", "Toggle seams on path elements", 'ACTION_TWEAK', 4),  # type: ignore
         ),
-        default='NONE',
+        default='NONE',  # type: ignore
         name="Seams",
         description="Mark seam options",
     )
 
-    mark_sharp: bpy.props.EnumProperty(
+    mark_sharp: bpy.props.EnumProperty(  # type: ignore
         items=(
             ('MARK', "Mark", "Mark sharp path elements", 'RESTRICT_SELECT_OFF', 1),
             ('NONE', "Do nothing", "Do nothing", 'X', 2),
             ('CLEAR', "Clear", "Clear sharp path elements", 'RESTRICT_SELECT_ON', 3),
-            ('TOGGLE', "Toggle", "Toggle sharpness on path", 'ACTION_TWEAK', 4)
+            ('TOGGLE', "Toggle", "Toggle sharpness on path", 'ACTION_TWEAK', 4),  # type: ignore
         ),
-        default="NONE",
+        default="NONE",  # type: ignore
         name="Sharp",
         description="Mark sharp options",
     )
 
     def draw_func(self, layout: bpy.types.UILayout) -> None:
-        layout.row().prop(self, "mark_select", text="Select", icon_only=True, expand=True)
-        layout.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
-        layout.row().prop(self, "mark_sharp", text="Sharp", icon_only=True, expand=True)
+        layout.row().prop(self, "mark_select", text="Select", icon_only=True, expand=True)  # type: ignore
+        layout.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)  # type: ignore
+        layout.row().prop(self, "mark_sharp", text="Sharp", icon_only=True, expand=True)  # type: ignore
 
-    def draw(self, _context: bpy.types.Context) -> None:
+    def draw(self, context: bpy.types.Context) -> None:
         self.draw_func(self.layout)
 
     def popup_menu_pie_draw(self, popup: bpy.types.UIPieMenu, context: bpy.types.Context) -> None:
@@ -411,8 +390,8 @@ class MESH_OT_select_path(bpy.types.Operator):
         col = pie.box().column()
         col.use_property_split = True
         self.draw_func(col)
-        col.prop(self, "context_undo", text="Action", expand=True)
-        pie.prop_tabs_enum(self, "context_action")
+        col.prop(self, "context_undo", text="Action", expand=True)  # type: ignore
+        pie.prop_tabs_enum(self, "context_action")  # type: ignore
 
     @staticmethod
     def _pack_event(item: _EventKey_T) -> _PackedEvent_T:
@@ -431,7 +410,7 @@ class MESH_OT_select_path(bpy.types.Operator):
         return tuple(ret)
 
     @staticmethod
-    def gen_batch_faces_seq(fill_seq, is_active, shader) -> tuple[gpu.types.GPUBatch, int]:
+    def _gpu_gen_batch_faces_seq(fill_seq, is_active, shader) -> tuple[gpu.types.GPUBatch, int]:
         tmp_bm = bmesh.new()
         for face in fill_seq:
             tmp_bm.faces.new((tmp_bm.verts.new(v.co, v) for v in face.verts), face)
@@ -443,8 +422,7 @@ class MESH_OT_select_path(bpy.types.Operator):
 
         r_batch = batch_for_shader(shader, 'TRIS', {
             "pos": tuple((v.co for v in tmp_bm.verts))},
-            indices=tuple(((loop.vert.index for loop in tri)
-                          for tri in tmp_loops))
+            indices=tuple(((loop.vert.index for loop in tri) for tri in tmp_loops))
         )
 
         r_active_face_tri_start_index = None
@@ -459,7 +437,7 @@ class MESH_OT_select_path(bpy.types.Operator):
         return r_batch, r_active_face_tri_start_index
 
     @staticmethod
-    def gen_batch_control_elements(context: bpy.types.Context, is_active, path):
+    def gen_batch_control_elements(context: bpy.types.Context, is_active: bool, path: Path):
         shader = shaders.shader.vert_uniform_color
         select_mode = tuple(context.scene.tool_settings.mesh_select_mode)
 
@@ -467,34 +445,17 @@ class MESH_OT_select_path(bpy.types.Operator):
         r_active_elem_start_index = None
 
         if select_mode[1]:
-            r_batch = batch_for_shader(
-                shader, 'POINTS', {"pos": tuple((v.co for v in path.control_elements))})
+            r_batch = batch_for_shader(shader, 'POINTS', {"pos": tuple((v.co for v in path.control_elements))})
             if is_active:
                 r_active_elem_start_index = len(path.control_elements) - 1
         elif select_mode[2]:
-            r_batch, r_active_elem_start_index = MESH_OT_select_path.gen_batch_faces_seq(
+            r_batch, r_active_elem_start_index = MESH_OT_select_path._gpu_gen_batch_faces_seq(
                 path.control_elements,
                 is_active,
                 shader
             )
 
         return r_batch, r_active_elem_start_index
-
-    @staticmethod
-    def gen_batch_fill_elements(context, fill_seq):
-        shader = shaders.shader.path_uniform_color
-        select_mode = tuple(context.scene.tool_settings.mesh_select_mode)
-        r_batch = None
-        if select_mode[1]:
-            pos = []
-            for edge in fill_seq:
-                pos.extend([vert.co for vert in edge.verts])
-            r_batch = batch_for_shader(shader, 'LINES', {"pos": pos})
-        elif select_mode[2]:
-            r_batch, _ = MESH_OT_select_path.gen_batch_faces_seq(
-                fill_seq, False, shader)
-
-        return r_batch
 
     def draw_callback_3d(self, context: bpy.types.Context):
         preferences = context.preferences.addons[__package__].preferences
@@ -565,13 +526,13 @@ class MESH_OT_select_path(bpy.types.Operator):
             return self.path_seq[self._active_path_index]
 
     @active_path.setter
-    def active_path(self, value):
+    def active_path(self, value: Path):
         if value not in self.path_seq:
             self.path_seq.append(value)
         self._active_path_index = self.path_seq.index(value)
 
     @staticmethod
-    def set_selection_state(elem_seq: Iterable[Union[bmesh.types.BMVert, bmesh.types.BMEdge, bmesh.types.BMFace]], state: bool = True):
+    def set_selection_state(elem_seq: Iterable[_MeshElement_T], state: bool = True):
         for elem in elem_seq:
             elem.select = state
 
@@ -691,7 +652,18 @@ class MESH_OT_select_path(bpy.types.Operator):
             fill_seq = self.update_path_beetween(context, elem_0, elem_1)
 
             path.fill_elements[fill_index] = fill_seq
-            batch = self.gen_batch_fill_elements(context, fill_seq)
+
+            shader = shaders.shader.path_uniform_color
+            select_mode = tuple(context.scene.tool_settings.mesh_select_mode)
+            batch = None
+            if select_mode[1]:
+                pos = []
+                for edge in fill_seq:
+                    pos.extend([vert.co for vert in edge.verts])
+                batch = batch_for_shader(shader, 'LINES', {"pos": pos})
+            elif select_mode[2]:
+                batch, _ = MESH_OT_select_path._gpu_gen_batch_faces_seq(fill_seq, False, shader)
+
             path.batch_seq_fills[fill_index] = batch
 
     def gen_final_elements_seq(self, context: bpy.types.Context):
@@ -1008,7 +980,10 @@ class MESH_OT_select_path(bpy.types.Operator):
         # Evaluate meshes:
         self.bm_arr = self._eval_meshes(context)
 
-        mesh_elements = "verts"
+        if initial_select_mode[1]:
+            mesh_elements = "edges"
+        elif initial_select_mode[0]:
+            mesh_elements = "verts"
         if initial_select_mode[2]:
             mesh_elements = "faces"
 
@@ -1234,28 +1209,17 @@ class MESH_OT_select_path(bpy.types.Operator):
 
 
 class PathToolMesh(bpy.types.WorkSpaceTool):
-    bl_space_type = 'VIEW_3D'
-    bl_context_mode = 'EDIT_MESH'
-
     bl_idname = "mesh.path_tool"
     bl_label = "Path Tool"
+    bl_space_type = 'VIEW_3D'
+    bl_context_mode = 'EDIT_MESH'
     bl_description = (
         "Tool for selecting and marking up\n"
         "mesh object elements"
     )
-    bl_icon = os.path.join(os.path.dirname(__file__),
-                           "icons", "ops.mesh.path_tool")
-    bl_keymap = (
-        (
-            MESH_OT_select_path.bl_idname, dict(
-                type='LEFTMOUSE',
-                value='PRESS',
-            ), None
-        ),
-    )
+    bl_icon = os.path.join(os.path.dirname(__file__), "icons", "ops.mesh.path_tool")
+    bl_keymap = ((MESH_OT_select_path.bl_idname, dict(type='LEFTMOUSE', value='PRESS',), None),)
 
-    def draw_settings(context, layout, tool):
-        layout.use_property_split = True
-
-        props = tool.operator_properties(MESH_OT_select_path.bl_idname)
-        MESH_OT_select_path.draw_func(props, layout)
+    @staticmethod
+    def draw_settings(context: bpy.types.Context, layout: bpy.types.UILayout, tool: bpy.types.WorkSpaceTool):
+        MESH_OT_select_path.draw_func(tool.operator_properties(MESH_OT_select_path.bl_idname), layout)
