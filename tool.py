@@ -22,7 +22,7 @@ _PackedEvent_T = tuple[Union[int, str], Union[int, str], Union[int, bool], Union
 _EventKey_T = Union[bpy.types.KeyMapItem, bpy.types.Event]
 _ControlPoint_T = Union[bmesh.types.BMVert, bmesh.types.BMFace]
 _MeshElement_T = Union[bmesh.types.BMVert, bmesh.types.BMEdge, bmesh.types.BMFace]
-_ObjectBMesh = tuple[bpy.types.Object, bmesh.types.BMesh]
+_ObjectBMesh_T = tuple[bpy.types.Object, bmesh.types.BMesh]
 
 
 class InteractEvent(enum.Enum):
@@ -70,7 +70,7 @@ class Path:
     island_index: int
     ob: Union[bpy.types.Object, None]
     batch_control_elements: Union[gpu.types.GPUBatch, None]
-    control_elements: list[Union[_ControlPoint_T, None]]
+    control_elements: list[_ControlPoint_T]
 
     fill_elements: list[list[Union[bmesh.types.BMVert, bmesh.types.BMEdge, bmesh.types.BMFace]]]
     batch_seq_fills: list[Union[gpu.types.GPUBatch, None]]
@@ -199,17 +199,24 @@ class Path:
 
     def is_in_fill_elements(self, elem: _ControlPoint_T) -> Union[int, None]:
         if isinstance(elem, bmesh.types.BMVert):
-            for fill_index, fill_seq in enumerate(self.fill_elements):
-                for edge in fill_seq:
+            for i, arr in enumerate(self.fill_elements):
+                arr: list[bmesh.types.BMEdge]
+
+                for edge in arr:
+                    edge: bmesh.types.BMEdge
+
                     for vert in edge.verts:
                         vert: bmesh.types.BMVert
                         if elem == vert:
-                            return fill_index
+                            return i
+                del arr
 
         # elif isinstance(elem, bmesh.types.BMFace):
-        for fill_index, fill_seq in enumerate(self.fill_elements):
-            if elem in fill_seq:
-                return fill_index
+        for i, arr in enumerate(self.fill_elements):
+            arr: list[bmesh.types.BMFace]
+
+            if elem in arr:
+                return i
 
     def insert_control_element(self, elem_index: int, elem: _ControlPoint_T) -> None:
         self.control_elements.insert(elem_index, elem)
@@ -229,39 +236,42 @@ class Path:
         self.batch_seq_fills.pop(pop_index)
         return elem
 
-    def get_pairs_items(self, elem_index: int) -> list[_ControlPoint_T]:
-        pairs_items = []
-        control_elements_count = len(self.control_elements)
-        if control_elements_count < 2:
-            return pairs_items
+    def get_pairs_items(self, elem_index: int) -> list[list[Union[_ControlPoint_T, int]]]:
+        r_pairs: list[list[Union[_ControlPoint_T, int]]] = list()
 
-        if elem_index > control_elements_count - 1:
-            elem_index = control_elements_count - 1
+        num_ce = len(self.control_elements)
+        if num_ce < 2:
+            return r_pairs
+
+        if elem_index > num_ce - 1:
+            elem_index = num_ce - 1
 
         elem = self.control_elements[elem_index]
 
         if elem_index == 0:
-            pairs_items = [[elem, self.control_elements[1], 0]]
+            r_pairs = [[elem, self.control_elements[1], 0]]
+
         elif elem_index == len(self.control_elements) - 1:
-            pairs_items = [
-                [elem, self.control_elements[elem_index - 1], elem_index - 1]]
+            r_pairs = [[elem, self.control_elements[elem_index - 1], elem_index - 1]]
+
         elif len(self.control_elements) > 2:
-            pairs_items = [[elem, self.control_elements[elem_index - 1], elem_index - 1],
-                           [elem, self.control_elements[elem_index + 1], elem_index]]
+            r_pairs = [[elem, self.control_elements[elem_index - 1], elem_index - 1],
+                       [elem, self.control_elements[elem_index + 1], elem_index]]
 
-        if (self.flag & PathFlag.CLOSE) and (control_elements_count > 2) and (elem_index in (0, control_elements_count - 1)):
-            pairs_items.extend(
-                [[self.control_elements[0], self.control_elements[-1], -1]])
+        if ((self.flag & PathFlag.CLOSE)
+                and (num_ce > 2)
+                and (elem_index in (0, num_ce - 1))):
+            r_pairs.extend([[self.control_elements[0], self.control_elements[-1], -1]])
 
-        return pairs_items
+        return r_pairs
 
 
-class OPMode(enum.Enum):
-    # BMesh vertices are control points, edges are pathes.
+class OPMode(enum.IntFlag):
+    NONE = enum.auto()
+    MVERT = enum.auto()
     MEDGE = enum.auto()
-    # Bmesh faces are both pathes and control points.
     MFACE = enum.auto()
-
+    PRIMARY = enum.auto()
 
 
 class MESH_OT_select_path(bpy.types.Operator):
@@ -276,6 +286,11 @@ class MESH_OT_select_path(bpy.types.Operator):
         "modal_events",
         "undo_redo_events",
         "nav_events",
+
+        "_op_mode",
+
+        # ---
+        # TODO: sort all next fields.
 
         "bm_arr",
         "initial_select",
@@ -305,12 +320,18 @@ class MESH_OT_select_path(bpy.types.Operator):
     is_navigation_active: bool
 
     #
-    bm_arr: tuple[_ObjectBMesh]
+    _op_mode: OPMode
+    #
+
+    # ---
+    # TODO: sort all next fields.
+
+    bm_arr: tuple[_ObjectBMesh_T]
     initial_select: tuple[_ControlPoint_T]
     mesh_islands: list[tuple[_ControlPoint_T]]
     drag_elem_indices: list[bool]
-    _active_path_index: int
-    _drag_elem: _ControlPoint_T
+    _active_path_index: Union[int, None]
+    _drag_elem: Union[bmesh.types.BMVert, bmesh.types.BMFace, None]
     _just_closed_path: bool
     undo_history: collections.deque[tuple[int, tuple[Path]]]
     redo_history: collections.deque[tuple[int, tuple[Path]]]
@@ -398,7 +419,7 @@ class MESH_OT_select_path(bpy.types.Operator):
         return item.type, item.value, item.alt, item.ctrl, item.shift
 
     @staticmethod
-    def _eval_meshes(context: bpy.types.Context) -> tuple[_ObjectBMesh]:
+    def _eval_meshes(context: bpy.types.Context) -> tuple[_ObjectBMesh_T]:
         ret = []
         for ob in context.objects_in_mode:
             ob: bpy.types.Object
@@ -532,23 +553,17 @@ class MESH_OT_select_path(bpy.types.Operator):
         self._active_path_index = self.path_seq.index(value)
 
     @staticmethod
-    def set_selection_state(elem_seq: Iterable[_MeshElement_T], state: bool = True):
+    def set_selection_state(elem_seq: Iterable[_MeshElement_T], state: bool = True) -> None:
         for elem in elem_seq:
             elem.select = state
 
-    def get_selected_elements(self, mesh_elements):
-        ret = tuple()
-        for _, bm in self.bm_arr:
-            elem_arr = getattr(bm, mesh_elements)
-            ret += tuple((n for n in elem_arr if n.select))
-        return ret
+    def get_element_by_mouse(
+            self,
+            context: bpy.types.Context,
+            event: bpy.types.Event) -> Union[bmesh.types.BMVert, bmesh.types.BMFace, None]:
 
-    def get_element_by_mouse(self, context: bpy.types.Context, event: bpy.types.Event):
-        tool_settings = context.scene.tool_settings
-        initial_select_mode = tuple(tool_settings.mesh_select_mode)
-        # Change select mode for edges path (select verts)
-        if initial_select_mode[1]:
-            tool_settings.mesh_select_mode = (True, False, False)
+        initial_select_mode = self._set_ts_mesh_select_mode(context, self.op_mode)
+
         bpy.ops.mesh.select_all(action='DESELECT')
         mouse_location = (event.mouse_region_x, event.mouse_region_y)
         bpy.ops.view3d.select(location=mouse_location)
@@ -559,7 +574,7 @@ class MESH_OT_select_path(bpy.types.Operator):
             elem = bm.select_history.active
             if elem:
                 break
-        tool_settings.mesh_select_mode = initial_select_mode
+        self._set_ts_mesh_select_mode(context, initial_select_mode)
         return elem, ob
 
     def get_current_state_copy(self):
@@ -616,11 +631,10 @@ class MESH_OT_select_path(bpy.types.Operator):
         self.mesh_islands.append(linked_island)
         return len(self.mesh_islands) - 1
 
-    def update_meshes(self, _context: bpy.types.Context):
+    def update_meshes(self):
         for ob, bm in self.bm_arr:
             bm.select_flush_mode()
-            bmesh.update_edit_mesh(
-                mesh=ob.data, loop_triangles=False, destructive=False)
+            bmesh.update_edit_mesh(mesh=ob.data, loop_triangles=False, destructive=False)
 
     def update_path_beetween(self, context: bpy.types.Context, elem_0: _ControlPoint_T, elem_1: _ControlPoint_T):
         tool_settings = context.scene.tool_settings
@@ -901,10 +915,69 @@ class MESH_OT_select_path(bpy.types.Operator):
 
             self.register_undo_step()
 
+    @property
+    def op_mode(self) -> OPMode:
+        return self._op_mode
+
+    @staticmethod
+    def _set_ts_mesh_select_mode(context: bpy.types.Context,
+                                 mode_flag: OPMode = OPMode.NONE,
+                                 ) -> OPMode:
+        ts = context.scene.tool_settings
+
+        # Initial select mode flag.
+        r_initial_msm = OPMode.PRIMARY
+        if ts.mesh_select_mode[0]:
+            r_initial_msm |= OPMode.MVERT
+        if ts.mesh_select_mode[1]:
+            r_initial_msm |= OPMode.MEDGE
+        if ts.mesh_select_mode[2]:
+            r_initial_msm |= OPMode.MFACE
+
+        if mode_flag ^ OPMode.NONE:
+            if mode_flag & OPMode.PRIMARY:
+                msm = (
+                    bool(mode_flag & OPMode.MVERT),
+                    bool(mode_flag & OPMode.MEDGE),
+                    bool(mode_flag & OPMode.MFACE)
+                )
+            else:
+                msm = (
+                    bool(mode_flag & (OPMode.MVERT | OPMode.MEDGE)),
+                    False,
+                    bool((mode_flag & OPMode.MFACE) and (mode_flag ^ (OPMode.MVERT | OPMode.MEDGE)))
+                )
+
+            if ts.mesh_select_mode != msm:
+                ts.mesh_select_mode = msm
+
+        return r_initial_msm
+
+    def get_selected_elements(self, m_flag: OPMode = OPMode.NONE):
+        ret = tuple()
+
+        if m_flag & OPMode.PRIMARY:
+            if m_flag & OPMode.MEDGE:
+                attr = "edges"
+            elif m_flag & OPMode.MVERT:
+                attr = "verts"
+
+            if m_flag & OPMode.MFACE:
+                attr = "faces"
+
+            for _, bm in self.bm_arr:
+                elem_arr = getattr(bm, attr)
+                ret += tuple((n for n in elem_arr if n.select))
+        return ret
+
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
         wm = context.window_manager
+        ts = context.scene.tool_settings
+        num_undo_steps = context.preferences.edit.undo_steps
 
+        # ____________________________________________________________________ #
         # Input keymaps:
+
         kc = wm.keyconfigs.user
         km_path_tool = kc.keymaps["3D View Tool: Edit Mesh, Path Tool"]
         kmi = km_path_tool.keymap_items[0]
@@ -915,32 +988,27 @@ class MESH_OT_select_path(bpy.types.Operator):
         if self.select_mb == 'LEFTMOUSE':
             self.pie_mb = 'RIGHTMOUSE'
 
-        # Operator's modal keymap.
-        km_standard_modal = kc.keymaps["Standard Modal Map"]
-        modal_events = dict()
-
-        for kmi in km_standard_modal.keymap_items:
-            ev = list(self._pack_event(kmi))
-            ev[2:5] = (False, False, False)
-            modal_events[tuple(ev)] = kmi.propvalue
-        self.modal_events = modal_events
+        # Modal keymap.
+        self.modal_events = dict()
+        for kmi in kc.keymaps["Standard Modal Map"].keymap_items:
+            ev = self._pack_event(kmi)
+            self.modal_events[(ev[0], ev[1], False, False, False)] = kmi.propvalue
 
         # Operator's undo/redo keymap.
-        undo_redo_events = {}
+        self.undo_redo_events = dict()
         km_screen = kc.keymaps['Screen']
 
         kmi = km_screen.keymap_items.find_from_operator(idname='ed.undo')
-        undo_redo_events[self._pack_event(kmi)] = 'UNDO'
+        self.undo_redo_events[self._pack_event(kmi)] = 'UNDO'
 
         kmi = km_screen.keymap_items.find_from_operator(idname='ed.redo')
-        undo_redo_events[self._pack_event(kmi)] = 'REDO'
-        self.undo_redo_events = undo_redo_events
+        self.undo_redo_events[self._pack_event(kmi)] = 'REDO'
 
         # Navigation events which would be passed through operator's modal cycle.
-        km_view3d = kc.keymaps['3D View']
-
         nav_events = []
-        for kmi in km_view3d.keymap_items:
+        for kmi in kc.keymaps['3D View'].keymap_items:
+            kmi: bpy.types.KeyMapItem
+
             if kmi.idname in (
                 "view3d.rotate",
                 "view3d.move",
@@ -967,79 +1035,62 @@ class MESH_OT_select_path(bpy.types.Operator):
                 nav_events.append(tuple(ev))
         self.nav_events = tuple(nav_events)
 
-        # Mesh select mode:
-        tool_settings = context.scene.tool_settings
-        initial_select_mode = tuple(tool_settings.mesh_select_mode)
-        mesh_mode = (False, True, False)
-        header_text_mode = "Edge Selection"
-        if initial_select_mode[2]:
-            mesh_mode = (False, False, True)
-            header_text_mode = "Face Selection"
-        tool_settings.mesh_select_mode = mesh_mode
-
-        # Evaluate meshes:
-        self.bm_arr = self._eval_meshes(context)
-
-        if initial_select_mode[1]:
-            mesh_elements = "edges"
-        elif initial_select_mode[0]:
-            mesh_elements = "verts"
-        if initial_select_mode[2]:
-            mesh_elements = "faces"
-
-        self.initial_select = self.get_selected_elements(mesh_elements)
-        self.draw_handle_3d = bpy.types.SpaceView3D.draw_handler_add(
-            self.draw_callback_3d, (context,), 'WINDOW', 'POST_VIEW'
-        )
-
-        # Prevent first click empty space
-        elem, _ = self.get_element_by_mouse(context, event)
-        if not elem:
-            tool_settings.mesh_select_mode = initial_select_mode
-            self.cancel(context)
-            return {'CANCELLED'}
-
         self.is_mouse_pressed = False
         self.is_navigation_active = False
-        # Set header and statusbar information.
-        area = context.area
-        area.header_text_set("Path Tool (%s)" % header_text_mode)
-        workspace = context.workspace
-        workspace.status_text_set(
-            f"Select Mesh Element: {self.select_mb.capitalize()}; "
-            f"Context Menu: {self.pie_mb.capitalize()}"
-            f""
-        )
 
-        wm.modal_handler_add(self)
+        # ____________________________________________________________________ #
+        # Initialize variables.
 
-        self.path_seq = []
-        self.mesh_islands = []
-        self.drag_elem_indices = []
+        self.path_seq \
+            = self.mesh_islands \
+            = self.drag_elem_indices \
+            = list()
 
         self._active_path_index = None
         self._drag_elem = None
         self._just_closed_path = False
 
-        undo_steps = context.preferences.edit.undo_steps
-        self.undo_history = collections.deque(maxlen=undo_steps)
-        self.redo_history = collections.deque(maxlen=undo_steps)
+        self.undo_history = collections.deque(maxlen=num_undo_steps)
+        self.redo_history = collections.deque(maxlen=num_undo_steps)
 
-        self.select_only_seq = {}
-        self.markup_seq = {}
+        self.select_only_seq \
+            = self.markup_seq \
+            = dict()
+
+        # ____________________________________________________________________ #
+        # Meshes context setup.
+        self._op_mode = OPMode.MEDGE
+        if ts.mesh_select_mode[2]:
+            self._op_mode = OPMode.MFACE
+
+        # Evaluate meshes:
+        self.bm_arr = self._eval_meshes(context)
+
+        initial_select_mode = self._set_ts_mesh_select_mode(context, OPMode.NONE | OPMode.PRIMARY)
+        self.initial_select = self.get_selected_elements(initial_select_mode)
+
+        # Prevent first click empty space
+        elem, _ = self.get_element_by_mouse(context, event)
+        if not elem:
+            self.set_selection_state(self.initial_select, True)
+            self.update_meshes()
+            return {'CANCELLED'}
+
+        self.draw_handle_3d = bpy.types.SpaceView3D.draw_handler_add(
+            self.draw_callback_3d,
+            (context,),
+            'WINDOW',
+            'POST_VIEW'
+        )
+
+        wm.modal_handler_add(self)
 
         self.modal(context, event)
         return {'RUNNING_MODAL'}
 
     def cancel(self, context: bpy.types.Context):
-        bpy.types.SpaceView3D.draw_handler_remove(
-            self.draw_handle_3d, 'WINDOW')
         self.set_selection_state(self.initial_select, True)
-        self.update_meshes(context)
-        workspace = context.workspace
-        workspace.status_text_set(text=None)
-        area = context.area
-        area.header_text_set(None)
+        self.update_meshes()
 
     def modal(self, context: bpy.types.Context, event: bpy.types.Event):
         wm = context.window_manager
@@ -1055,7 +1106,7 @@ class MESH_OT_select_path(bpy.types.Operator):
         elif self.is_navigation_active and event.value == 'RELEASE':
             self.is_navigation_active = False
             self.set_selection_state(self.initial_select, True)
-            self.update_meshes(context)
+            self.update_meshes()
             return {'RUNNING_MODAL'}
 
         # Cancel
@@ -1075,8 +1126,7 @@ class MESH_OT_select_path(bpy.types.Operator):
             workspace = context.workspace
             workspace.status_text_set(text=None)
 
-            bpy.types.SpaceView3D.draw_handler_remove(
-                self.draw_handle_3d, 'WINDOW')
+            bpy.types.SpaceView3D.draw_handler_remove(self.draw_handle_3d, 'WINDOW')
             return self.execute(context)
 
         # Close path
@@ -1137,7 +1187,7 @@ class MESH_OT_select_path(bpy.types.Operator):
             self.interact_control_element(context, elem, matrix_world, interact_event)
 
             self.set_selection_state(self.initial_select, True)
-            self.update_meshes(context)
+            self.update_meshes()
 
         # If removed the last control element of the last path
         if not len(self.path_seq):
@@ -1204,7 +1254,7 @@ class MESH_OT_select_path(bpy.types.Operator):
                         for i in index_markup_seq:
                             elem_seq[i].smooth = not elem_seq[i].smooth
 
-        self.update_meshes(context)
+        self.update_meshes()
         return {'FINISHED'}
 
 
