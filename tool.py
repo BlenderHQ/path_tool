@@ -1,7 +1,3 @@
-# NOTE: `# type: ignore` used for type checks:
-#   * UI draw methods
-#   * `bpy.props. ...` property definitions
-
 # https://peps.python.org/pep-0563/#enabling-the-future-behavior-in-python-3-7
 from __future__ import annotations
 
@@ -11,9 +7,14 @@ from typing import Union, Iterable
 import collections
 
 import bpy
+from bpy.types import (
+    Operator,
+    SpaceView3D
+)
+
 import gpu
 from gpu_extras.batch import batch_for_shader
-import bgl  # type: ignore
+import bgl
 import bmesh
 
 from . import shaders
@@ -274,7 +275,7 @@ class OPMode(enum.IntFlag):
     PRIMARY = enum.auto()
 
 
-class MESH_OT_select_path(bpy.types.Operator):
+class MESH_OT_select_path(Operator):
     bl_idname = "mesh.path_tool"
     bl_label = "Path Tool"
     bl_options = {'REGISTER', 'UNDO'}
@@ -287,6 +288,7 @@ class MESH_OT_select_path(bpy.types.Operator):
         "undo_redo_events",
         "nav_events",
 
+        "_initial_op_mode",
         "_op_mode",
 
         # ---
@@ -320,6 +322,7 @@ class MESH_OT_select_path(bpy.types.Operator):
     is_navigation_active: bool
 
     #
+    _initial_op_mode: OPMode
     _op_mode: OPMode
     #
 
@@ -342,66 +345,66 @@ class MESH_OT_select_path(bpy.types.Operator):
     #
     path_seq: list[Path]
 
-    context_action: bpy.props.EnumProperty(  # type: ignore
+    context_action: bpy.props.EnumProperty(
         items=(
             ('TCLPATH', "Toggle Close Path", "Close the path from the first to the last control point", '', 2),
             ('CHDIR', "Change direction", "Changes the direction of the path", '', 4),
-            ('APPLY', "Apply All", "Apply all paths and make changes to the mesh", '', 8),  # type: ignore
+            ('APPLY', "Apply All", "Apply all paths and make changes to the mesh", '', 8),
         ),
         options={'ENUM_FLAG'},
         default=set(),
     )
 
-    context_undo: bpy.props.EnumProperty(  # type: ignore
+    context_undo: bpy.props.EnumProperty(
         items=(
             ('UNDO', "Undo", "Undo one step", 'LOOP_BACK', 2),
-            ('REDO', "Redo", "Redo one step", 'LOOP_FORWARDS', 4),  # type: ignore
+            ('REDO', "Redo", "Redo one step", 'LOOP_FORWARDS', 4),
         ),
         options={'ENUM_FLAG'},
         default=set(),
         name="Action History",
     )
 
-    mark_select: bpy.props.EnumProperty(  # type: ignore
+    mark_select: bpy.props.EnumProperty(
         items=(
             ('EXTEND', "Extend", "Extend existing selection", 'SELECT_EXTEND', 1),
             ('NONE', "Do nothing", "Do nothing", "X", 2),
             ('SUBTRACT', "Subtract", "Subtract existing selection", 'SELECT_SUBTRACT', 3),
-            ('INVERT', "Invert", "Inverts existing selection", 'SELECT_DIFFERENCE', 4),  # type: ignore
+            ('INVERT', "Invert", "Inverts existing selection", 'SELECT_DIFFERENCE', 4),
         ),
-        default='EXTEND',  # type: ignore
+        default='EXTEND',
         name="Select",
         description="Selection options",
     )
 
-    mark_seam: bpy.props.EnumProperty(  # type: ignore
+    mark_seam: bpy.props.EnumProperty(
         items=(
             ('MARK', "Mark", "Mark seam path elements", 'RESTRICT_SELECT_OFF', 1),
             ('NONE', "Do nothing", "Do nothing", 'X', 2),
             ('CLEAR', "Clear", "Clear seam path elements", 'RESTRICT_SELECT_ON', 3),
-            ('TOGGLE', "Toggle", "Toggle seams on path elements", 'ACTION_TWEAK', 4),  # type: ignore
+            ('TOGGLE', "Toggle", "Toggle seams on path elements", 'ACTION_TWEAK', 4),
         ),
-        default='NONE',  # type: ignore
+        default='NONE',
         name="Seams",
         description="Mark seam options",
     )
 
-    mark_sharp: bpy.props.EnumProperty(  # type: ignore
+    mark_sharp: bpy.props.EnumProperty(
         items=(
             ('MARK', "Mark", "Mark sharp path elements", 'RESTRICT_SELECT_OFF', 1),
             ('NONE', "Do nothing", "Do nothing", 'X', 2),
             ('CLEAR', "Clear", "Clear sharp path elements", 'RESTRICT_SELECT_ON', 3),
-            ('TOGGLE', "Toggle", "Toggle sharpness on path", 'ACTION_TWEAK', 4),  # type: ignore
+            ('TOGGLE', "Toggle", "Toggle sharpness on path", 'ACTION_TWEAK', 4),
         ),
-        default="NONE",  # type: ignore
+        default="NONE",
         name="Sharp",
         description="Mark sharp options",
     )
 
     def draw_func(self, layout: bpy.types.UILayout) -> None:
-        layout.row().prop(self, "mark_select", text="Select", icon_only=True, expand=True)  # type: ignore
-        layout.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)  # type: ignore
-        layout.row().prop(self, "mark_sharp", text="Sharp", icon_only=True, expand=True)  # type: ignore
+        layout.row().prop(self, "mark_select", text="Select", icon_only=True, expand=True)
+        layout.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
+        layout.row().prop(self, "mark_sharp", text="Sharp", icon_only=True, expand=True)
 
     def draw(self, context: bpy.types.Context) -> None:
         self.draw_func(self.layout)
@@ -411,8 +414,8 @@ class MESH_OT_select_path(bpy.types.Operator):
         col = pie.box().column()
         col.use_property_split = True
         self.draw_func(col)
-        col.prop(self, "context_undo", text="Action", expand=True)  # type: ignore
-        pie.prop_tabs_enum(self, "context_action")  # type: ignore
+        col.prop(self, "context_undo", text="Action", expand=True)
+        pie.prop_tabs_enum(self, "context_action")
 
     @staticmethod
     def _pack_event(item: _EventKey_T) -> _PackedEvent_T:
@@ -916,6 +919,10 @@ class MESH_OT_select_path(bpy.types.Operator):
             self.register_undo_step()
 
     @property
+    def initial_op_mode(self) -> OPMode:
+        return self._initial_op_mode
+
+    @property
     def op_mode(self) -> OPMode:
         return self._op_mode
 
@@ -1066,31 +1073,32 @@ class MESH_OT_select_path(bpy.types.Operator):
         # Evaluate meshes:
         self.bm_arr = self._eval_meshes(context)
 
-        initial_select_mode = self._set_ts_mesh_select_mode(context, OPMode.NONE | OPMode.PRIMARY)
-        self.initial_select = self.get_selected_elements(initial_select_mode)
+        self._initial_op_mode = self._set_ts_mesh_select_mode(context, OPMode.NONE | OPMode.PRIMARY)
+        self.initial_select = self.get_selected_elements(self.initial_op_mode)
 
         # Prevent first click empty space
         elem, _ = self.get_element_by_mouse(context, event)
         if not elem:
-            self.set_selection_state(self.initial_select, True)
-            self.update_meshes()
+            self.cancel(context)
             return {'CANCELLED'}
 
-        self.draw_handle_3d = bpy.types.SpaceView3D.draw_handler_add(
-            self.draw_callback_3d,
-            (context,),
-            'WINDOW',
-            'POST_VIEW'
-        )
+        self.gpu_handle = SpaceView3D.draw_handler_add(self.draw_callback_3d, (context,), 'WINDOW', 'POST_VIEW')
 
         wm.modal_handler_add(self)
 
         self.modal(context, event)
         return {'RUNNING_MODAL'}
 
+    def remove_draw_handle(self) -> None:
+        dh = getattr(self, "draw_handle_3d", None)
+        if dh:
+            SpaceView3D.draw_handler_remove(dh)
+
     def cancel(self, context: bpy.types.Context):
+        self._set_ts_mesh_select_mode(context, self.initial_op_mode)
         self.set_selection_state(self.initial_select, True)
         self.update_meshes()
+        self.remove_draw_handle()
 
     def modal(self, context: bpy.types.Context, event: bpy.types.Event):
         wm = context.window_manager
