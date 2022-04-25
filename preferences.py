@@ -13,61 +13,82 @@ class Preferences(AddonPreferences):
     bl_idname = __package__
 
     tab: EnumProperty(
-        name="Tab",
-        description="User preferences tab to be displayed",
         items=(
             ('APPEARANCE', "Appearance", "Appearance user preferences"),
             ('KEYMAP', "Keymap", "Keymap settings"),
         ),
         default='APPEARANCE',
         options={'HIDDEN', 'SKIP_SAVE'},
+        name="Tab",
+        description="User preferences tab to be displayed",
     )
 
     color_control_element: FloatVectorProperty(
+        default=(0.622574, 0.685957, 0.666101, 1.0),
+        subtype="COLOR",
+        size=4,
+        min=0.0,
+        max=1.0,
         name="Control Element",
-        default=[0.622574, 0.685957, 0.666101, 1.000000],
-        subtype="COLOR", size=4, min=0.0, max=1.0,
-        description="Control element color"
+        description="Control element color",
     )
 
     color_active_path_control_element: FloatVectorProperty(
+        default=(0.969922, 0.969922, 0.969922, 1.0),
+        subtype="COLOR",
+        size=4,
+        min=0.0,
+        max=1.0,
         name="Active Path Control Element",
-        default=[0.969922, 0.969922, 0.969922, 1.000000],
-        subtype="COLOR", size=4, min=0.0, max=1.0,
-        description="Control element color"
+        description="Control element color",
     )
 
     color_active_control_element: FloatVectorProperty(
+        default=(0.039087, 0.331906, 0.940392, 1.0),
+        subtype="COLOR",
+        size=4,
+        min=0.0,
+        max=1.0,
         name="Active Control Element",
-        default=[0.039087, 0.331906, 0.940392, 1.000000],
-        subtype="COLOR", size=4, min=0.0, max=1.0,
-        description="Control element color"
+        description="Control element color",
     )
 
     color_path: FloatVectorProperty(
+        default=(0.0, 0.7, 1.0, 1.0),
+        subtype="COLOR",
+        size=4,
+        min=0.0,
+        max=1.0,
         name="Path",
-        default=[0.000000, 0.700000, 1.000000, 1.000000],
-        subtype="COLOR", size=4, min=0.0, max=1.0,
-        description="Path color"
+        description="Path color",
     )
 
     color_active_path: FloatVectorProperty(
+        default=(1.0, 0.1, 0.1, 1.0),
+        subtype="COLOR",
+        size=4,
+        min=0.0,
+        max=1.0,
         name="Active Path",
-        default=[1.000000, 0.100000, 0.100000, 1.000000],
-        subtype="COLOR", size=4, min=0.0, max=1.0,
-        description="Path color"
+        description="Path color",
     )
 
     point_size: FloatProperty(
-        name="Vertex Size",
         default=4.0,
-        min=1.0, max=10.0, subtype='PIXEL'
+        min=1.0,
+        max=10.0,
+        subtype='PIXEL',
+        name="Vertex Size",
+        description="",
     )
 
     line_width: FloatProperty(
-        name="Edge Width",
         default=3.0,
-        min=1.0, max=10.0, subtype='PIXEL'
+        min=1.0,
+        max=10.0,
+        subtype='PIXEL',
+        name="Edge Width",
+        description="",
     )
 
     def draw(self, context: bpy.types.Context):
