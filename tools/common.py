@@ -18,14 +18,6 @@ class PathFlag(IntFlag):
     REVERSE = auto()
 
 
-class OPMode(IntFlag):
-    NONE = auto()
-    MVERT = auto()
-    MEDGE = auto()
-    MFACE = auto()
-    PRIMARY = auto()
-
-
 class Path:
     """
     Structure:

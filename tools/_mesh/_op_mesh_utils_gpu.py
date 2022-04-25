@@ -3,13 +3,12 @@ from bpy.types import SpaceView3D
 import bmesh
 from gpu_extras.batch import batch_for_shader
 
-from ..common import OPMode
+from . import _op_mesh_annotations
 from ... import __package__ as addon_pkg
 from ... import bhqab
 
 
-class MeshOperatorGPUUtils:
-
+class MeshOperatorGPUUtils(_op_mesh_annotations.MeshOperatorVariables):
     @staticmethod
     def _gpu_gen_batch_faces_seq(fill_seq, is_active, shader):
         tmp_bm = bmesh.new()
@@ -43,11 +42,11 @@ class MeshOperatorGPUUtils:
         r_batch = None
         r_active_elem_start_index = None
 
-        if self.op_mode is OPMode.MEDGE:
+        if self.prior_ts_msm[1]:
             r_batch = batch_for_shader(shader, 'POINTS', {"pos": tuple((v.co for v in path.control_elements))})
             if is_active:
                 r_active_elem_start_index = len(path.control_elements) - 1
-        elif self.op_mode is OPMode.MFACE:
+        elif self.prior_ts_msm[2]:
             r_batch, r_active_elem_start_index = super(type(self), self)._gpu_gen_batch_faces_seq(
                 path.control_elements,
                 is_active,

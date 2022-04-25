@@ -1,19 +1,24 @@
+from typing import Union, Literal
+
 import bpy
+from bpy.types import Context, Event
+
 import bmesh
+from bmesh.types import BMVert, BMEdge, BMFace
 from gpu_extras.batch import batch_for_shader
 
-from ..common import InteractEvent, PathFlag, Path, OPMode
+from . import _op_mesh_annotations
+from ..common import InteractEvent, PathFlag, Path
 from ... import bhqab
 
 
-class MeshOperatorUtils:
-
+class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
     def draw_func(self, layout):
         layout.row().prop(self, "mark_select", text="Select", icon_only=True, expand=True)
         layout.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
         layout.row().prop(self, "mark_sharp", text="Sharp", icon_only=True, expand=True)
 
-    def draw(self, _context):
+    def draw(self, context: Context) -> None:
         self.draw_func(self.layout)
 
     def popup_menu_pie_draw(self, popup, context):
@@ -55,9 +60,9 @@ class MeshOperatorUtils:
         for elem in elem_seq:
             elem.select = state
 
-    def get_element_by_mouse(self, context, event):
-
-        initial_select_mode = self._set_ts_mesh_select_mode(context, self.op_mode)
+    def get_element_by_mouse(self, context: Context, event: Event):
+        ts = context.tool_settings
+        ts.mesh_select_mode = self.select_ts_msm
 
         bpy.ops.mesh.select_all(action='DESELECT')
         mouse_location = (event.mouse_region_x, event.mouse_region_y)
@@ -69,7 +74,7 @@ class MeshOperatorUtils:
             elem = bm.select_history.active
             if elem:
                 break
-        self._set_ts_mesh_select_mode(context, initial_select_mode)
+        ts.mesh_select_mode = self.prior_ts_msm
         return elem, ob
 
     def get_current_state_copy(self):
@@ -104,19 +109,22 @@ class MeshOperatorUtils:
         self.undo_history.append(step)
         self.redo_history.clear()
 
-    def get_linked_island_index(self, context, elem):
+    def get_linked_island_index(self, context: Context, elem: Union[BMVert, BMFace]):
+        ts = context.tool_settings
+
         for i, linked_island in enumerate(self.mesh_islands):
             if elem in linked_island:
                 return i
 
-        sm = self._set_ts_mesh_select_mode(context, self.op_mode)
+        ts.mesh_select_mode = self.select_ts_msm
 
         bpy.ops.mesh.select_all(action='DESELECT')
         elem.select_set(True)
         bpy.ops.mesh.select_linked(delimit={'NORMAL'})
 
-        linked_island = self.get_selected_elements(self.op_mode)
-        self._set_ts_mesh_select_mode(context, sm)
+        linked_island = self.get_selected_elements(self.select_mesh_elements)
+
+        ts.mesh_select_mode = self.prior_ts_msm
 
         bpy.ops.mesh.select_all(action='DESELECT')
         self.mesh_islands.append(linked_island)
@@ -127,25 +135,31 @@ class MeshOperatorUtils:
             bm.select_flush_mode()
             bmesh.update_edit_mesh(mesh=ob.data, loop_triangles=False, destructive=False)
 
-    def update_path_beetween(self, context, elem_0, elem_1):
-        sm = self._set_ts_mesh_select_mode(context, self.op_mode)
+    def update_path_beetween(self,
+                             context: Context,
+                             elem_0: Union[BMVert, BMFace],
+                             elem_1: Union[BMVert, BMFace]):
+        ts = context.tool_settings
+        ts.mesh_select_mode = self.select_ts_msm
 
         bpy.ops.mesh.select_all(action='DESELECT')
         self.set_selection_state((elem_0, elem_1), True)
         bpy.ops.mesh.shortest_path_select()
         self.set_selection_state((elem_0, elem_1), False)
-        r_fill_seq = self.get_selected_elements(self.op_mode)
+        r_fill_seq = self.get_selected_elements(self.select_mesh_elements)
         bpy.ops.mesh.select_all(action='DESELECT')
+
         # Exception if control points in one edge
-        if (not r_fill_seq) and (sm & OPMode.MEDGE):
+        if (not r_fill_seq) and isinstance(elem_0, BMVert):
             for edge in elem_0.link_edges:
+                edge: BMEdge
                 if edge.other_vert(elem_0) == elem_1:
                     r_fill_seq = [edge]
 
-        self._set_ts_mesh_select_mode(context, sm)
+        ts.mesh_select_mode = self.prior_ts_msm
         return r_fill_seq
 
-    def update_fills_by_element_index(self, context, path, elem_index):
+    def update_fills_by_element_index(self, context: Context, path: Path, elem_index: int):
         pairs_items = path.get_pairs_items(elem_index)
         for item in pairs_items:
             elem_0, elem_1, fill_index = item
@@ -155,13 +169,13 @@ class MeshOperatorUtils:
 
             shader = bhqab.gpu_extras.shader.path_uniform_color
             batch = None
-            if self.op_mode & OPMode.MEDGE:
+            if self.prior_ts_msm[1]:  # Edge mesh select mode
                 pos = []
                 for edge in fill_seq:
                     pos.extend([vert.co for vert in edge.verts])
                 batch = batch_for_shader(shader, 'LINES', {"pos": pos})
 
-            elif self.op_mode & OPMode.MFACE:
+            elif self.prior_ts_msm[2]:  # Faces mesh select mode
                 batch, _ = super(type(self), self)._gpu_gen_batch_faces_seq(fill_seq, False, shader)
 
             path.batch_seq_fills[fill_index] = batch
@@ -179,9 +193,9 @@ class MeshOperatorUtils:
                     continue
                 for fill_seq in path.fill_elements:
                     index_select_seq.extend([n.index for n in fill_seq])
-                if self.op_mode & OPMode.MEDGE:
+                if self.prior_ts_msm:  # Edges mesh select mode
                     index_markup_seq = index_select_seq
-                if self.op_mode & OPMode.MFACE:
+                if self.prior_ts_msm[2]:  # Faces mesh select mode
                     # For face selection mode control elements are required too
                     index_select_seq.extend([face.index for face in path.control_elements])
                     tmp = path.fill_elements
@@ -388,63 +402,10 @@ class MeshOperatorUtils:
 
             self.register_undo_step()
 
-    @property
-    def initial_op_mode(self):
-        return self._initial_op_mode
-
-    @property
-    def op_mode(self):
-        return self._op_mode
-
-    @staticmethod
-    def _set_ts_mesh_select_mode(context, mode_flag=OPMode.NONE):
-        ts = context.scene.tool_settings
-
-        # Initial select mode flag.
-        r_initial_msm = OPMode.PRIMARY
-        if ts.mesh_select_mode[0]:
-            r_initial_msm |= OPMode.MVERT
-        if ts.mesh_select_mode[1]:
-            r_initial_msm |= OPMode.MEDGE
-        if ts.mesh_select_mode[2]:
-            r_initial_msm |= OPMode.MFACE
-
-        if mode_flag ^ OPMode.NONE:
-            if mode_flag & OPMode.PRIMARY:
-                msm = (
-                    bool(mode_flag & OPMode.MVERT),
-                    bool(mode_flag & OPMode.MEDGE),
-                    bool(mode_flag & OPMode.MFACE)
-                )
-            else:
-                msm = (
-                    bool(mode_flag & (OPMode.MVERT | OPMode.MEDGE)),
-                    False,
-                    bool((mode_flag & OPMode.MFACE) and (mode_flag ^ (OPMode.MVERT | OPMode.MEDGE)))
-                )
-
-            if ts.mesh_select_mode != msm:
-                ts.mesh_select_mode = msm
-        return r_initial_msm
-
-    def get_selected_elements(self, m_flag=OPMode.NONE):
+    def get_selected_elements(self, mesh_elements="verts"):
         ret = tuple()
 
-        if m_flag & OPMode.PRIMARY:
-            if m_flag & OPMode.MEDGE:
-                attr = "edges"
-            elif m_flag & OPMode.MVERT:
-                attr = "verts"
-
-            if m_flag & OPMode.MFACE:
-                attr = "faces"
-        else:
-            if m_flag & (OPMode.MEDGE | OPMode.MVERT):
-                attr = "verts"
-            elif self.op_mode & OPMode.MFACE:
-                attr = "faces"
-
         for _, bm in self.bm_arr:
-            elem_arr = getattr(bm, attr)
+            elem_arr = getattr(bm, mesh_elements)
             ret += tuple((n for n in elem_arr if n.select))
         return ret

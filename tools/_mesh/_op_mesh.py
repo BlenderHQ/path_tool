@@ -2,12 +2,12 @@ from collections import deque
 
 import bpy
 import bgl
-from bpy.types import Operator, SpaceView3D
+from bpy.types import Operator, SpaceView3D, Context
 from bpy.props import EnumProperty
 
 from . import _op_mesh_utils
 from . import _op_mesh_utils_gpu
-from ..common import InteractEvent, OPMode
+from ..common import InteractEvent
 
 
 class MESH_OT_select_path(Operator,
@@ -73,7 +73,7 @@ class MESH_OT_select_path(Operator,
         description="Mark sharp options",
     )
 
-    def invoke(self, context, event):
+    def invoke(self, context: bpy.types.Context, event):
         wm = context.window_manager
         ts = context.scene.tool_settings
         num_undo_steps = context.preferences.edit.undo_steps
@@ -160,15 +160,39 @@ class MESH_OT_select_path(Operator,
 
         # ____________________________________________________________________ #
         # Meshes context setup.
-        self._op_mode = OPMode.MEDGE
-        if ts.mesh_select_mode[2]:
-            self._op_mode = OPMode.MFACE
-
         # Evaluate meshes:
         self.bm_arr = self._eval_meshes(context)
 
-        self._initial_op_mode = self._set_ts_mesh_select_mode(context, OPMode.NONE | OPMode.PRIMARY)
-        self.initial_select = self.get_selected_elements(self.initial_op_mode)
+        # NOTE: This part is optimized:
+        # * If initial select mode contains only faces flag, initial selection
+        #   array would contain only faces.
+        self.initial_ts_msm = tuple(ts.mesh_select_mode)
+        if self.initial_ts_msm[2]:
+            self.initial_mesh_elements = "faces"
+        # * But if it also contains edges or vertices selection flags,
+        # there is more prior to store vertices (if correspondent flag)
+        # or edges (if vertices are not used) to minimize used memory and
+        # selection setting element iterations.
+        if self.initial_ts_msm[0]:
+            self.initial_mesh_elements = "verts"
+        elif self.initial_ts_msm[1]:
+            self.initial_mesh_elements = "edges"
+
+        # For edge operator mode, vertices acts as a control points, so they
+        # would be used for mesh element selection by mouse. For faces - only
+        # faces.
+        self.prior_ts_msm = (False, True, False)
+        self.prior_mesh_elements = "verts"
+        self.select_ts_msm = (True, False, False)
+        self.select_mesh_elements = "edges"
+        if self.initial_ts_msm[2]:
+            self.prior_ts_msm = (False, False, True)
+            self.prior_mesh_elements = "faces"
+            self.select_ts_msm = (False, False, True)
+            self.select_mesh_elements = "faces"
+
+        # Get initial selection state of mesh elements (see description above).
+        self.initial_select = self.get_selected_elements(self.initial_mesh_elements)
 
         # Prevent first click empty space
         elem, _ = self.get_element_by_mouse(context, event)
@@ -176,16 +200,14 @@ class MESH_OT_select_path(Operator,
             self.cancel(context)
             return {'CANCELLED'}
 
-        # print(self.op_mode)
-        self._set_ts_mesh_select_mode(context, self.op_mode)
-
         self.gpu_handle = SpaceView3D.draw_handler_add(self.draw_callback_3d, (context,), 'WINDOW', 'POST_VIEW')
         wm.modal_handler_add(self)
         self.modal(context, event)
         return {'RUNNING_MODAL'}
 
-    def cancel(self, context):
-        self._set_ts_mesh_select_mode(context, self.initial_op_mode)
+    def cancel(self, context: Context):
+        ts = context.tool_settings
+        ts.mesh_select_mode = self.initial_ts_msm
         self.set_selection_state(self.initial_select, True)
         self.update_meshes()
         self.remove_gpu_handle()
