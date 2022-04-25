@@ -79,7 +79,7 @@ class MESH_OT_select_path(Operator):
         layout.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
         layout.row().prop(self, "mark_sharp", text="Sharp", icon_only=True, expand=True)
 
-    def draw(self, context):
+    def draw(self, _context):
         self.draw_func(self.layout)
 
     def popup_menu_pie_draw(self, popup, context):
@@ -230,10 +230,7 @@ class MESH_OT_select_path(Operator):
         for elem in elem_seq:
             elem.select = state
 
-    def get_element_by_mouse(
-            self,
-            context,
-            event):
+    def get_element_by_mouse(self, context, event):
 
         initial_select_mode = self._set_ts_mesh_select_mode(context, self.op_mode)
 
@@ -427,11 +424,7 @@ class MESH_OT_select_path(Operator):
                     path.batch_control_elements = batch
                     self.report(type={'INFO'}, message="Joined two paths")
 
-    def interact_control_element(
-            self, context,
-            elem,
-            ob,
-            interact_event):
+    def interact_control_element(self, context, elem, ob, interact_event):
         if elem and interact_event is InteractEvent.ADD:
             if not self.path_seq:
                 return self.interact_control_element(context, elem, ob, InteractEvent.ADD_NEW_PATH)
