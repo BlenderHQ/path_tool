@@ -1,10 +1,10 @@
-from typing import Union, Literal
+from typing import Union
 
 import bpy
-from bpy.types import Context, Event
+from bpy.types import Context, Event, UIPieMenu, KeyMapItem, Object
 
 import bmesh
-from bmesh.types import BMVert, BMEdge, BMFace
+from bmesh.types import BMesh, BMVert, BMEdge, BMFace
 from gpu_extras.batch import batch_for_shader
 
 from . import _op_mesh_annotations
@@ -18,10 +18,10 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
         layout.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
         layout.row().prop(self, "mark_sharp", text="Sharp", icon_only=True, expand=True)
 
-    def draw(self, context: Context) -> None:
+    def draw(self, _context: Context) -> None:
         self.draw_func(self.layout)
 
-    def popup_menu_pie_draw(self, popup, context):
+    def popup_menu_pie_draw(self, popup: UIPieMenu, _context: Context) -> None:
         pie = popup.layout.menu_pie()
         col = pie.box().column()
         col.use_property_split = True
@@ -30,14 +30,16 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
         pie.prop_tabs_enum(self, "context_action")
 
     @staticmethod
-    def _pack_event(item):
+    def _pack_event(item: Union[KeyMapItem, Event]) -> tuple[
+            Union[int, str], Union[int, str],
+            Union[int, bool], Union[int, bool], Union[int, bool]]:
         return item.type, item.value, item.alt, item.ctrl, item.shift
 
     @staticmethod
-    def _eval_meshes(context):
+    def _eval_meshes(context: Context) -> tuple[tuple[Object, BMesh]]:
         ret = []
         for ob in context.objects_in_mode:
-
+            ob: Object
             bm = bmesh.from_edit_mesh(ob.data)
             for elem_arr in (bm.verts, bm.edges, bm.faces):
                 elem_arr.ensure_lookup_table()
