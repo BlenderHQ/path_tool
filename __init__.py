@@ -21,7 +21,7 @@ bl_info = {
     "blender": (3, 0, 0),
     "location": "Toolbar",
     "description": "Tool for selecting and marking up mesh object elements",
-    "category": "3D View",
+    "category": "Mesh",
     "support": 'COMMUNITY',
     "doc_url": "https://github.com/BlenderHQ/path-tool",
 }

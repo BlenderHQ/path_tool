@@ -163,28 +163,18 @@ class MESH_OT_select_path(Operator,
         # Evaluate meshes:
         self.bm_arr = self._eval_meshes(context)
 
-        # NOTE: This part is optimized:
-        # * If initial select mode contains only faces flag, initial selection
-        #   array would contain only faces.
         self.initial_ts_msm = tuple(ts.mesh_select_mode)
         if self.initial_ts_msm[2]:
             self.initial_mesh_elements = "faces"
-        # * But if it also contains edges or vertices selection flags,
-        # there is more prior to store vertices (if correspondent flag)
-        # or edges (if vertices are not used) to minimize used memory and
-        # selection setting element iterations.
         if self.initial_ts_msm[0]:
             self.initial_mesh_elements = "verts"
         elif self.initial_ts_msm[1]:
             self.initial_mesh_elements = "edges"
 
-        # For edge operator mode, vertices acts as a control points, so they
-        # would be used for mesh element selection by mouse. For faces - only
-        # faces.
         self.prior_ts_msm = (False, True, False)
-        self.prior_mesh_elements = "verts"
+        self.prior_mesh_elements = "edges"
         self.select_ts_msm = (True, False, False)
-        self.select_mesh_elements = "edges"
+        self.select_mesh_elements = "verts"
         if self.initial_ts_msm[2]:
             self.prior_ts_msm = (False, False, True)
             self.prior_mesh_elements = "faces"

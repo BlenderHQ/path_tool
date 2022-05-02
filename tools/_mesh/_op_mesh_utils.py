@@ -104,12 +104,12 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
         else:
             self.report({'WARNING'}, message="Can not redo anymore")
 
-    def register_undo_step(self):
+    def register_undo_step(self) -> None:
         step = self.get_current_state_copy()
         self.undo_history.append(step)
         self.redo_history.clear()
 
-    def get_linked_island_index(self, context: Context, elem: Union[BMVert, BMFace]):
+    def get_linked_island_index(self, context: Context, elem: Union[BMVert, BMFace]) -> int:
         ts = context.tool_settings
 
         for i, linked_island in enumerate(self.mesh_islands):
@@ -130,7 +130,7 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
         self.mesh_islands.append(linked_island)
         return len(self.mesh_islands) - 1
 
-    def update_meshes(self):
+    def update_meshes(self) -> None:
         for ob, bm in self.bm_arr:
             bm.select_flush_mode()
             bmesh.update_edit_mesh(mesh=ob.data, loop_triangles=False, destructive=False)
@@ -146,7 +146,7 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
         self.set_selection_state((elem_0, elem_1), True)
         bpy.ops.mesh.shortest_path_select()
         self.set_selection_state((elem_0, elem_1), False)
-        r_fill_seq = self.get_selected_elements(self.select_mesh_elements)
+        r_fill_seq = self.get_selected_elements(self.prior_mesh_elements)
         bpy.ops.mesh.select_all(action='DESELECT')
 
         # Exception if control points in one edge
