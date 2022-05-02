@@ -266,7 +266,7 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
                     self.report(type={'INFO'}, message="Joined two paths")
 
     def interact_control_element(self, context, elem, ob, interact_event):
-        if elem and interact_event is InteractEvent.ADD:
+        if elem and interact_event is InteractEvent.ADD_CP:
             if not self.path_seq:
                 return self.interact_control_element(context, elem, ob, InteractEvent.ADD_NEW_PATH)
 
@@ -293,7 +293,7 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
                         if is_found_in_other_path:
                             self.active_path = path
                             self._just_closed_path = False
-                            self.interact_control_element(context, elem, ob, InteractEvent.ADD)
+                            self.interact_control_element(context, elem, ob, InteractEvent.ADD_CP)
                             return
                 else:
                     new_elem_index = fill_index + 1
@@ -328,11 +328,11 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
             linked_island_index = self.get_linked_island_index(context, elem)
             self.active_path = Path(elem, linked_island_index, ob)
             self._just_closed_path = False
-            self.interact_control_element(context, elem, ob, InteractEvent.ADD)
+            self.interact_control_element(context, elem, ob, InteractEvent.ADD_CP)
             self.report(type={'INFO'}, message="Created new path")
             return
 
-        elif elem and interact_event is InteractEvent.REMOVE:
+        elif elem and interact_event is InteractEvent.REMOVE_CP:
             self._just_closed_path = False
 
             elem_index = self.active_path.is_in_control_elements(elem)
@@ -341,7 +341,7 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
                     other_elem_index = path.is_in_control_elements(elem)
                     if other_elem_index is not None:
                         self.active_path = path
-                        self.interact_control_element(context, elem, ob, InteractEvent.REMOVE)
+                        self.interact_control_element(context, elem, ob, InteractEvent.REMOVE_CP)
                         return
             else:
                 self.active_path.pop_control_element(elem_index)
@@ -355,7 +355,7 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
                     batch, self.active_index = self.gen_batch_control_elements(True, self.active_path)
                     self.active_path.batch_control_elements = batch
 
-        elif elem and interact_event is InteractEvent.DRAG:
+        elif elem and interact_event is InteractEvent.DRAG_CP:
             if (not self._drag_elem) or (len(self.drag_elem_indices) != len(self.path_seq)):
                 return
             self._just_closed_path = False
@@ -375,13 +375,13 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
                             path
                         )
 
-        elif interact_event is InteractEvent.CHDIR:
+        elif interact_event is InteractEvent.CHANGE_DIRECTION:
             self.active_path.reverse()
             batch, self.active_index = self.gen_batch_control_elements(True, self.active_path)
             self.active_path.batch_control_elements = batch
             self._just_closed_path = False
 
-        elif interact_event is InteractEvent.CLOSE:
+        elif interact_event is InteractEvent.CLOSE_PATH:
             self.active_path.flag ^= PathFlag.CLOSE
 
             if self.active_path.flag & PathFlag.CLOSE:
@@ -394,7 +394,7 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
                 self._just_closed_path = False
                 self.check_join_pathes(context)
 
-        elif interact_event is InteractEvent.RELEASE:
+        elif interact_event is InteractEvent.RELEASE_PATH:
             self.drag_elem_indices = []
             self._drag_elem = None
 

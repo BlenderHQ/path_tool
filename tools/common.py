@@ -4,13 +4,13 @@ import bmesh
 
 
 class InteractEvent(Enum):
-    ADD = auto()
+    ADD_CP = auto()
     ADD_NEW_PATH = auto()
-    REMOVE = auto()
-    DRAG = auto()
-    CLOSE = auto()
-    CHDIR = auto()
-    RELEASE = auto()
+    REMOVE_CP = auto()
+    DRAG_CP = auto()
+    CLOSE_PATH = auto()
+    CHANGE_DIRECTION = auto()
+    RELEASE_PATH = auto()
 
 
 class PathFlag(IntFlag):

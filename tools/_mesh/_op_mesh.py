@@ -230,11 +230,11 @@ class MESH_OT_select_path(Operator,
 
         elif 'TCLPATH' in self.context_action:
             self.context_action = set()
-            interact_event = InteractEvent.CLOSE
+            interact_event = InteractEvent.CLOSE_PATH
 
         elif 'CHDIR' in self.context_action:
             self.context_action = set()
-            interact_event = InteractEvent.CHDIR
+            interact_event = InteractEvent.CHANGE_DIRECTION
 
         elif (undo_redo_action == 'UNDO') or ('UNDO' in self.context_undo):
             self.context_undo = set()
@@ -254,7 +254,7 @@ class MESH_OT_select_path(Operator,
 
         elif ev == (self.select_mb, 'PRESS', False, False, False):
             self.is_mouse_pressed = True
-            interact_event = InteractEvent.ADD
+            interact_event = InteractEvent.ADD_CP
 
         elif ev == (self.select_mb, 'PRESS', False, False, True):
             self.is_mouse_pressed = True
@@ -262,18 +262,18 @@ class MESH_OT_select_path(Operator,
 
         elif ev == (self.select_mb, 'PRESS', False, True, False):
             self.is_mouse_pressed = False
-            interact_event = InteractEvent.REMOVE
+            interact_event = InteractEvent.REMOVE_CP
 
         elif ev in ((self.select_mb, 'RELEASE', False, False, False),
                     (self.select_mb, 'RELEASE', False, True, False),
                     (self.select_mb, 'RELEASE', False, False, True),
                     ):
             self.is_mouse_pressed = False
-            interact_event = InteractEvent.RELEASE
+            interact_event = InteractEvent.RELEASE_PATH
 
         if self.is_mouse_pressed:
             if ev[0] == 'MOUSEMOVE':
-                interact_event = InteractEvent.DRAG
+                interact_event = InteractEvent.DRAG_CP
 
         if interact_event is not None:
             elem, ob = self.get_element_by_mouse(context, event)
