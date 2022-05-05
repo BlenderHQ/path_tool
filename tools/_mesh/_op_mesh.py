@@ -164,12 +164,9 @@ class MESH_OT_select_path(Operator,
         self.bm_arr = self._eval_meshes(context)
 
         self.initial_ts_msm = tuple(ts.mesh_select_mode)
+        self.initial_mesh_elements = "edges"
         if self.initial_ts_msm[2]:
             self.initial_mesh_elements = "faces"
-        if self.initial_ts_msm[0]:
-            self.initial_mesh_elements = "verts"
-        elif self.initial_ts_msm[1]:
-            self.initial_mesh_elements = "edges"
 
         self.prior_ts_msm = (False, True, False)
         self.prior_mesh_elements = "edges"

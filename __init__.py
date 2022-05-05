@@ -42,10 +42,10 @@ from . import tools
 from . import preferences
 from . import bhqab
 
-_classes = [
+_classes = (
     preferences.Preferences,
     tools.MESH_OT_select_path,
-]
+)
 
 _cls_register, _cls_unregister = bpy.utils.register_classes_factory(classes=_classes)
 

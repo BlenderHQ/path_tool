@@ -1,10 +1,21 @@
 from typing import Union
 
 import bpy
-from bpy.types import Context, Event, UIPieMenu, KeyMapItem, Object
+from bpy.types import (
+    Context,
+    Event,
+    UIPieMenu,
+    KeyMapItem,
+    Object
+)
 
 import bmesh
-from bmesh.types import BMesh, BMVert, BMEdge, BMFace
+from bmesh.types import (
+    BMesh,
+    BMVert,
+    BMEdge,
+    BMFace
+)
 from gpu_extras.batch import batch_for_shader
 
 from . import _op_mesh_annotations
@@ -404,7 +415,7 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
 
             self.register_undo_step()
 
-    def get_selected_elements(self, mesh_elements="verts"):
+    def get_selected_elements(self, mesh_elements: str) -> tuple[Union[BMVert, BMEdge, BMFace]]:
         ret = tuple()
 
         for _, bm in self.bm_arr:

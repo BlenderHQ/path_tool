@@ -1,27 +1,46 @@
+from __future__ import annotations
+from typing import Union
 from enum import auto, Enum, IntFlag
 
+from bpy.types import Object
+from bmesh.types import BMVert, BMEdge, BMFace
+from gpu.types import GPUBatch
 import bmesh
 
 
 class InteractEvent(Enum):
     ADD_CP = auto()
+    "Add new control point"
+
     ADD_NEW_PATH = auto()
+    "Add new path"
+
     REMOVE_CP = auto()
+    "Remove control point"
+
     DRAG_CP = auto()
+    "Drag control point"
+
     CLOSE_PATH = auto()
+    "Close path"
+
     CHANGE_DIRECTION = auto()
+    "Switch path direction"
+
     RELEASE_PATH = auto()
+    "Release path"
 
 
 class PathFlag(IntFlag):
     CLOSE = auto()
+    "Controls filament between first and last control point of path"
+
     REVERSE = auto()
+    "Controls path direction due to initial control point order"
 
 
 class Path:
     """
-    Structure:
-
      [0]        [1]        [2]        [3]        [n]
       |  \\      |  \\      |  \\      |  \\      |
     ce_0 [...] ce_1 [...] ce_2 [...] ce_3 [...] ce_n   [...]
@@ -45,7 +64,19 @@ class Path:
         "flag",
     )
 
-    def __init__(self, elem=None, linked_island_index=0, ob=None):
+    island_index: int
+    ob: Object
+    batch_control_elements: Union[None, GPUBatch]
+    control_elements: list[Union[BMVert, BMFace]]
+    fill_elements: list[list[Union[BMEdge, BMFace]]]
+    batch_seq_fills: list[GPUBatch]
+    flag: PathFlag
+
+    def __init__(self,
+                 elem: Union[None, BMVert, BMFace] = None,
+                 linked_island_index: int = 0,
+                 ob: Union[None, Object] = None) -> None:
+
         self.island_index = linked_island_index
         self.ob = ob
         self.batch_control_elements = None
@@ -61,7 +92,7 @@ class Path:
 
         self.flag = PathFlag(0)
 
-    def copy(self):
+    def copy(self) -> Path:
         new_path = Path()
         new_path.control_elements = self.control_elements.copy()
         new_path.fill_elements = self.fill_elements.copy()
@@ -74,7 +105,7 @@ class Path:
 
         return new_path
 
-    def __add__(self, other):
+    def __add__(self, other: Path) -> Path:
         if self.island_index == other.island_index:
             is_found_merged_elements = False
             for i in (0, -1):
@@ -96,7 +127,6 @@ class Path:
 
                         elif i == 0 and j == -1:
                             # First-End
-
                             self.control_elements.pop(0)
 
                             other.fill_elements.pop(-1)
@@ -145,7 +175,7 @@ class Path:
 
         return self
 
-    def reverse(self):
+    def reverse(self) -> Path:
         self.control_elements.reverse()
         close_path_fill = self.fill_elements.pop(-1)
         close_path_batch = self.batch_seq_fills.pop(-1)

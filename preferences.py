@@ -1,5 +1,9 @@
 import bpy
-from bpy.types import AddonPreferences
+from bpy.types import (
+    Context,
+    UILayout,
+    AddonPreferences
+)
 from bpy.props import (
     EnumProperty,
     FloatVectorProperty,
@@ -12,9 +16,20 @@ from . import bhqab
 class Preferences(AddonPreferences):
     bl_idname = __package__
 
+    __slots__ = (
+        "tab",
+        "color_control_element",
+        "color_active_path_control_element",
+        "color_active_control_element",
+        "color_path",
+        "color_active_path",
+        "point_size",
+        "line_width",
+    )
+
     tab: EnumProperty(
         items=(
-            ('APPEARANCE', "Appearance", "Appearance user preferences"),
+            ('APPEARANCE', "Appearance", "Appearance settings"),
             ('KEYMAP', "Keymap", "Keymap settings"),
         ),
         default='APPEARANCE',
@@ -25,7 +40,7 @@ class Preferences(AddonPreferences):
 
     color_control_element: FloatVectorProperty(
         default=(0.622574, 0.685957, 0.666101, 1.0),
-        subtype="COLOR",
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -35,7 +50,7 @@ class Preferences(AddonPreferences):
 
     color_active_path_control_element: FloatVectorProperty(
         default=(0.969922, 0.969922, 0.969922, 1.0),
-        subtype="COLOR",
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -45,7 +60,7 @@ class Preferences(AddonPreferences):
 
     color_active_control_element: FloatVectorProperty(
         default=(0.039087, 0.331906, 0.940392, 1.0),
-        subtype="COLOR",
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -55,7 +70,7 @@ class Preferences(AddonPreferences):
 
     color_path: FloatVectorProperty(
         default=(0.0, 0.7, 1.0, 1.0),
-        subtype="COLOR",
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -65,7 +80,7 @@ class Preferences(AddonPreferences):
 
     color_active_path: FloatVectorProperty(
         default=(1.0, 0.1, 0.1, 1.0),
-        subtype="COLOR",
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -91,8 +106,8 @@ class Preferences(AddonPreferences):
         description="",
     )
 
-    def draw(self, context: bpy.types.Context):
-        layout: bpy.types.UILayout = self.layout
+    def draw(self, context: Context) -> None:
+        layout: UILayout = self.layout
 
         layout.use_property_split = True
 
