@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Literal, Union
 
 import bpy
 from bpy.types import (
@@ -51,6 +51,7 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
         ret = []
         for ob in context.objects_in_mode:
             ob: Object
+
             bm = bmesh.from_edit_mesh(ob.data)
             for elem_arr in (bm.verts, bm.edges, bm.faces):
                 elem_arr.ensure_lookup_table()
@@ -58,22 +59,24 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
         return tuple(ret)
 
     @property
-    def active_path(self):
+    def active_path(self) -> Union[None, Path]:
         if (self._active_path_index is not None) and (self._active_path_index <= len(self.path_seq) - 1):
             return self.path_seq[self._active_path_index]
 
     @active_path.setter
-    def active_path(self, value):
+    def active_path(self, value: Union[None, Path]) -> None:
         if value not in self.path_seq:
             self.path_seq.append(value)
         self._active_path_index = self.path_seq.index(value)
 
     @staticmethod
-    def set_selection_state(elem_seq, state=True):
+    def set_selection_state(elem_seq: tuple[Union[BMVert, BMEdge, BMFace]], state: bool = True) -> None:
         for elem in elem_seq:
             elem.select = state
 
-    def get_element_by_mouse(self, context: Context, event: Event):
+    def get_element_by_mouse(self, context: Context, event: Event) -> tuple[
+            Union[None, BMVert, BMEdge, BMFace], Union[None, Object]]:
+
         ts = context.tool_settings
         ts.mesh_select_mode = self.select_ts_msm
 
@@ -90,10 +93,10 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
         ts.mesh_select_mode = self.prior_ts_msm
         return elem, ob
 
-    def get_current_state_copy(self):
+    def get_current_state_copy(self) -> tuple[int, tuple[Path]]:
         return tuple((self._active_path_index, tuple(n.copy() for n in self.path_seq)))
 
-    def undo(self, context):
+    def undo(self, context: Context) -> set[Literal['CANCELLED', 'RUNNING_MODAL']]:
         if len(self.undo_history) == 1:
             self.cancel(context)
             return {'CANCELLED'}
@@ -108,7 +111,7 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
 
         return {'RUNNING_MODAL'}
 
-    def redo(self, context):
+    def redo(self, context: Context) -> None:
         if len(self.redo_history) > 0:
             step = self.redo_history.pop()
             self.undo_history.append(step)
@@ -151,7 +154,7 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
     def update_path_beetween(self,
                              context: Context,
                              elem_0: Union[BMVert, BMFace],
-                             elem_1: Union[BMVert, BMFace]):
+                             elem_1: Union[BMVert, BMFace]) -> tuple[Union[BMVert, BMFace]]:
         ts = context.tool_settings
         ts.mesh_select_mode = self.select_ts_msm
 
@@ -167,12 +170,12 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
             for edge in elem_0.link_edges:
                 edge: BMEdge
                 if edge.other_vert(elem_0) == elem_1:
-                    r_fill_seq = [edge]
+                    r_fill_seq = tuple((edge,))
 
         ts.mesh_select_mode = self.prior_ts_msm
         return r_fill_seq
 
-    def update_fills_by_element_index(self, context: Context, path: Path, elem_index: int):
+    def update_fills_by_element_index(self, context: Context, path: Path, elem_index: int) -> None:
         pairs_items = path.get_pairs_items(elem_index)
         for item in pairs_items:
             elem_0, elem_1, fill_index = item
@@ -193,11 +196,13 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
 
             path.batch_seq_fills[fill_index] = batch
 
-    def gen_final_elements_seq(self, context):
+    def gen_final_elements_seq(self, context: Context) -> None:
         self.select_only_seq = {}
         self.markup_seq = {}
 
         for ob in context.objects_in_mode:
+            ob: Object
+
             index_select_seq = []
             index_markup_seq = []
 
@@ -222,7 +227,7 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
             self.markup_seq[ob.as_pointer()] = list(
                 dict.fromkeys(index_markup_seq))
 
-    def remove_path_doubles(self, context, path):
+    def remove_path_doubles(self, context: Context, path: Path) -> None:
         for i, control_element in enumerate(path.control_elements):
             if path.control_elements.count(control_element) > 1:
                 for j, other_control_element in enumerate(path.control_elements):
@@ -253,7 +258,7 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
                             # Maybe, undo here?
                             pass
 
-    def check_join_pathes(self, context):
+    def check_join_pathes(self) -> None:
         for i, path in enumerate(self.path_seq):
             for other_path in self.path_seq:
                 if path == other_path:
@@ -276,7 +281,19 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
                     path.batch_control_elements = batch
                     self.report(type={'INFO'}, message="Joined two paths")
 
-    def interact_control_element(self, context, elem, ob, interact_event):
+    def get_selected_elements(self, mesh_elements: str) -> tuple[Union[BMVert, BMEdge, BMFace]]:
+        ret = tuple()
+
+        for _, bm in self.bm_arr:
+            elem_arr = getattr(bm, mesh_elements)
+            ret += tuple((n for n in elem_arr if n.select))
+        return ret
+
+    def interact_control_element(self,
+                                 context: Context,
+                                 elem: Union[None, BMVert, BMFace],
+                                 ob: Object,
+                                 interact_event: InteractEvent) -> None:
         if elem and interact_event is InteractEvent.ADD_CP:
             if not self.path_seq:
                 return self.interact_control_element(context, elem, ob, InteractEvent.ADD_NEW_PATH)
@@ -403,7 +420,7 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
                 self.active_path.fill_elements[-1] = []
                 self.active_path.batch_seq_fills[-1] = None
                 self._just_closed_path = False
-                self.check_join_pathes(context)
+                self.check_join_pathes()
 
         elif interact_event is InteractEvent.RELEASE_PATH:
             self.drag_elem_indices = []
@@ -411,14 +428,6 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
 
             for path in self.path_seq:
                 self.remove_path_doubles(context, path)
-            self.check_join_pathes(context)
+            self.check_join_pathes()
 
             self.register_undo_step()
-
-    def get_selected_elements(self, mesh_elements: str) -> tuple[Union[BMVert, BMEdge, BMFace]]:
-        ret = tuple()
-
-        for _, bm in self.bm_arr:
-            elem_arr = getattr(bm, mesh_elements)
-            ret += tuple((n for n in elem_arr if n.select))
-        return ret
