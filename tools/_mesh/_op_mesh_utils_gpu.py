@@ -1,4 +1,4 @@
-import bgl
+import gpu
 from bpy.types import SpaceView3D
 import bmesh
 from gpu_extras.batch import batch_for_shader
@@ -63,23 +63,12 @@ class MeshOperatorGPUUtils(_op_mesh_annotations.MeshOperatorVariables):
     def draw_callback_3d(self, context):
         preferences = context.preferences.addons[addon_pkg].preferences
 
-        bgl.glPointSize(preferences.point_size)
-        bgl.glLineWidth(preferences.line_width)
-
-        bgl.glEnable(bgl.GL_MULTISAMPLE)
-        bgl.glEnable(bgl.GL_LINE_SMOOTH)
-        bgl.glHint(bgl.GL_LINE_SMOOTH_HINT, bgl.GL_NICEST)
-
-        bgl.glBlendFunc(bgl.GL_SRC_ALPHA, bgl.GL_ONE_MINUS_SRC_ALPHA)
-        bgl.glEnable(bgl.GL_BLEND)
-
-        bgl.glHint(bgl.GL_POLYGON_SMOOTH_HINT, bgl.GL_NICEST)
-
-        bgl.glEnable(bgl.GL_DEPTH_TEST)
-        bgl.glDepthFunc(bgl.GL_LEQUAL)
-
-        bgl.glDisable(bgl.GL_POLYGON_OFFSET_FILL)
-        bgl.glPolygonOffset(1.0, 0.0)
+        gpu.state.point_size_set(preferences.point_size)
+        gpu.state.line_width_set(preferences.line_width)
+        gpu.state.blend_set('ADDITIVE')
+        gpu.state.depth_mask_set(True)
+        gpu.state.depth_test_set('LESS_EQUAL')
+        gpu.state.face_culling_set('NONE')
 
         draw_list = [_ for _ in self.path_seq if _ != self.active_path]
         draw_list.append(self.active_path)
@@ -104,8 +93,7 @@ class MeshOperatorGPUUtils(_op_mesh_annotations.MeshOperatorVariables):
 
             for batch in path.batch_seq_fills:
                 if batch:
-                    shader_path.uniform_float(
-                        "ModelMatrix", path.ob.matrix_world)
+                    shader_path.uniform_float("ModelMatrix", path.ob.matrix_world)
                     shader_path.uniform_float("color", color_path)
                     batch.draw(shader_path)
 
@@ -118,7 +106,3 @@ class MeshOperatorGPUUtils(_op_mesh_annotations.MeshOperatorVariables):
                 shader_ce.uniform_int("active_index", (active_index,))
 
                 path.batch_control_elements.draw(shader_ce)
-
-        bgl.glDisable(bgl.GL_BLEND)
-        bgl.glPointSize(1.0)
-        bgl.glLineWidth(1.0)

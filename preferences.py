@@ -8,6 +8,7 @@ from bpy.props import (
     EnumProperty,
     FloatVectorProperty,
     FloatProperty,
+    IntProperty,
 )
 
 from . import bhqab
@@ -39,9 +40,9 @@ class Preferences(AddonPreferences):
     )
 
     color_control_element: FloatVectorProperty(
-        default=(0.622574, 0.685957, 0.666101, 1.0),
+        default=(0.622574, 0.685957, 0.666101),
         subtype='COLOR',
-        size=4,
+        size=3,
         min=0.0,
         max=1.0,
         name="Control Element",
@@ -49,9 +50,9 @@ class Preferences(AddonPreferences):
     )
 
     color_active_path_control_element: FloatVectorProperty(
-        default=(0.969922, 0.969922, 0.969922, 1.0),
+        default=(0.969922, 0.969922, 0.969922),
         subtype='COLOR',
-        size=4,
+        size=3,
         min=0.0,
         max=1.0,
         name="Active Path Control Element",
@@ -59,9 +60,9 @@ class Preferences(AddonPreferences):
     )
 
     color_active_control_element: FloatVectorProperty(
-        default=(0.039087, 0.331906, 0.940392, 1.0),
+        default=(0.039087, 0.331906, 0.940392),
         subtype='COLOR',
-        size=4,
+        size=3,
         min=0.0,
         max=1.0,
         name="Active Control Element",
@@ -69,9 +70,9 @@ class Preferences(AddonPreferences):
     )
 
     color_path: FloatVectorProperty(
-        default=(0.0, 0.7, 1.0, 1.0),
+        default=(0.0, 0.7, 1.0),
         subtype='COLOR',
-        size=4,
+        size=3,
         min=0.0,
         max=1.0,
         name="Path",
@@ -79,28 +80,32 @@ class Preferences(AddonPreferences):
     )
 
     color_active_path: FloatVectorProperty(
-        default=(1.0, 0.1, 0.1, 1.0),
+        default=(1.0, 0.1, 0.1),
         subtype='COLOR',
-        size=4,
+        size=3,
         min=0.0,
         max=1.0,
         name="Active Path",
         description="Path color",
     )
 
-    point_size: FloatProperty(
-        default=4.0,
-        min=1.0,
-        max=10.0,
+    point_size: IntProperty(
+        default=4,
+        min=1,
+        max=9,
+        soft_min=3,
+        soft_max=6,
         subtype='PIXEL',
         name="Vertex Size",
         description="",
     )
 
-    line_width: FloatProperty(
-        default=3.0,
-        min=1.0,
-        max=10.0,
+    line_width: IntProperty(
+        default=3,
+        min=1,
+        max=9,
+        soft_min=3,
+        soft_max=6,
         subtype='PIXEL',
         name="Edge Width",
         description="",
