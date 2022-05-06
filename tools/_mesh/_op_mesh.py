@@ -1,7 +1,6 @@
 from collections import deque
 
 import bpy
-import bgl
 from bpy.types import Operator, SpaceView3D, Context
 from bpy.props import EnumProperty
 

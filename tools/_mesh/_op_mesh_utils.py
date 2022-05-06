@@ -237,8 +237,8 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
                         # First-last control element same path
                         if i == 0 and j == len(path.control_elements) - 1:
                             path.pop_control_element(-1)
-                            if (path.flag ^ PathFlag.CLOSE):
-                                path.flag |= PathFlag.CLOSE
+                            if (path.flag ^ PathFlag.CLOSED):
+                                path.flag |= PathFlag.CLOSED
                                 self.update_fills_by_element_index(context, path, 0)
 
                                 message = "Closed path"
@@ -266,7 +266,7 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
 
                 # Join two pathes
                 if (
-                    ((path.flag & other_path.flag) ^ PathFlag.CLOSE) and (
+                    ((path.flag & other_path.flag) ^ PathFlag.CLOSED) and (
                         (path.control_elements[0] == other_path.control_elements[0])
                         or (path.control_elements[-1] == other_path.control_elements[-1])
                         or (path.control_elements[-1] == other_path.control_elements[0])
@@ -410,9 +410,9 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
             self._just_closed_path = False
 
         elif interact_event is InteractEvent.CLOSE_PATH:
-            self.active_path.flag ^= PathFlag.CLOSE
+            self.active_path.flag ^= PathFlag.CLOSED
 
-            if self.active_path.flag & PathFlag.CLOSE:
+            if self.active_path.flag & PathFlag.CLOSED:
                 self.update_fills_by_element_index(context, self.active_path, 0)
                 if len(self.active_path.control_elements) > 2:
                     self._just_closed_path = True

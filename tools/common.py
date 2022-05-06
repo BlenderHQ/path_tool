@@ -32,10 +32,10 @@ class InteractEvent(Enum):
 
 
 class PathFlag(IntFlag):
-    CLOSE = auto()
+    CLOSED = auto()
     "Controls filament between first and last control point of path"
 
-    REVERSE = auto()
+    REVERSED = auto()
     "Controls path direction due to initial control point order"
 
 
@@ -184,7 +184,7 @@ class Path:
         self.fill_elements.append(close_path_fill)
         self.batch_seq_fills.append(close_path_batch)
 
-        self.flag ^= PathFlag.REVERSE
+        self.flag ^= PathFlag.REVERSED
 
         return self
 
@@ -253,7 +253,7 @@ class Path:
             r_pairs = [[elem, self.control_elements[elem_index - 1], elem_index - 1],
                        [elem, self.control_elements[elem_index + 1], elem_index]]
 
-        if ((self.flag & PathFlag.CLOSE)
+        if ((self.flag & PathFlag.CLOSED)
                 and (num_ce > 2)
                 and (elem_index in (0, num_ce - 1))):
             r_pairs.extend([[self.control_elements[0], self.control_elements[-1], -1]])
