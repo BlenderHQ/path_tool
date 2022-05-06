@@ -8,7 +8,7 @@ from gpu.types import GPUBatch
 import bmesh
 
 
-class InteractEvent(Enum):
+class InteractEvent(IntFlag):
     ADD_CP = auto()
     "Add new control point"
 
@@ -29,6 +29,15 @@ class InteractEvent(Enum):
 
     RELEASE_PATH = auto()
     "Release path"
+
+    UNDO = auto()
+    "Undo last event"
+
+    REDO = auto()
+    "Redo last event"
+
+    APPLY_PATHES = auto()
+    "Apply all pathes"
 
 
 class PathFlag(IntFlag):

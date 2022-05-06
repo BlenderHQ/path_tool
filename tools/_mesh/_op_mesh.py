@@ -18,20 +18,50 @@ class MESH_OT_select_path(Operator,
 
     context_action: EnumProperty(
         items=(
-            ('TCLPATH', "Toggle Close Path", "Close the path from the first to the last control point", '', 2),
-            ('CHDIR', "Change direction", "Changes the direction of the path", '', 4),
-            ('APPLY', "Apply All", "Apply all paths and make changes to the mesh", '', 8),
+            (
+                InteractEvent.CLOSE_PATH.name,
+                "Toggle Close Path",
+                "Close the path from the first to the last control point",
+                '',
+                InteractEvent.CLOSE_PATH.value,
+            ),
+            (
+                InteractEvent.CHANGE_DIRECTION.name,
+                "Change direction",
+                "Changes the direction of the path",
+                '',
+                InteractEvent.CHANGE_DIRECTION.value,
+            ),
+            (
+                InteractEvent.APPLY_PATHES.name,
+                "Apply All",
+                "Apply all paths and make changes to the mesh",
+                '',
+                InteractEvent.APPLY_PATHES.value,
+            ),
         ),
-        options={'ENUM_FLAG'},
         default=set(),
+        options={'ENUM_FLAG', 'HIDDEN', 'SKIP_SAVE'},
     )
 
     context_undo: EnumProperty(
         items=(
-            ('UNDO', "Undo", "Undo one step", 'LOOP_BACK', 2),
-            ('REDO', "Redo", "Redo one step", 'LOOP_FORWARDS', 4),
+            (
+                InteractEvent.UNDO.name,
+                "Undo",
+                "Undo one step",
+                'LOOP_BACK',
+                InteractEvent.UNDO.value,
+            ),
+            (
+                InteractEvent.REDO.name,
+                "Redo",
+                "Redo one step",
+                'LOOP_FORWARDS',
+                InteractEvent.REDO.value,
+            ),
         ),
-        options={'ENUM_FLAG'},
+        options={'ENUM_FLAG', 'HIDDEN', 'SKIP_SAVE'},
         default=set(),
         name="Action History",
     )
@@ -217,26 +247,26 @@ class MESH_OT_select_path(Operator,
             self.cancel(context)
             return {'CANCELLED'}
 
-        elif (modal_action == 'APPLY') or ('APPLY' in self.context_action):
+        elif (modal_action == 'APPLY') or (InteractEvent.APPLY_PATHES.name in self.context_action):
             self.context_action = set()
 
             self.gen_final_elements_seq(context)
             self.remove_gpu_handle()
             return self.execute(context)
 
-        elif 'TCLPATH' in self.context_action:
+        elif InteractEvent.CLOSE_PATH.name in self.context_action:
             self.context_action = set()
             interact_event = InteractEvent.CLOSE_PATH
 
-        elif 'CHDIR' in self.context_action:
+        elif InteractEvent.CHANGE_DIRECTION.name in self.context_action:
             self.context_action = set()
             interact_event = InteractEvent.CHANGE_DIRECTION
 
-        elif (undo_redo_action == 'UNDO') or ('UNDO' in self.context_undo):
+        elif (undo_redo_action == 'UNDO') or (InteractEvent.UNDO.name in self.context_undo):
             self.context_undo = set()
             return self.undo(context)
 
-        elif (undo_redo_action == 'REDO') or ('REDO' in self.context_undo):
+        elif (undo_redo_action == 'REDO') or (InteractEvent.REDO.name in self.context_undo):
             self.context_undo = set()
             self.redo(context)
 
@@ -245,7 +275,7 @@ class MESH_OT_select_path(Operator,
                 event=event,
                 draw_func=self.popup_menu_pie_draw,
                 title="Path Tool",
-                icon='NONE'
+                icon='NONE',
             )
 
         elif ev == (self.select_mb, 'PRESS', False, False, False):
