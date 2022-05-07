@@ -22,6 +22,10 @@ from . import _op_mesh_annotations
 from ..common import InteractEvent, PathFlag, Path
 from ... import bhqab
 
+HARDCODED_APPLY_KMI = ('SPACE', 'PRESS', False, False, False)
+HARDCODED_CLOSE_PATH_KMI = ('C', 'PRESS', False, False, False)
+HARDCODED_CHANGE_DIRECTION_KMI = ('D', 'PRESS', False, False, False)
+
 
 class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
     def draw_func(self, layout):
@@ -32,13 +36,36 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
     def draw(self, _context: Context) -> None:
         self.draw_func(self.layout)
 
-    def popup_menu_pie_draw(self, popup: UIPieMenu, _context: Context) -> None:
+    def draw_popup_menu_pie(self, popup: UIPieMenu, _context: Context) -> None:
         pie = popup.layout.menu_pie()
         col = pie.box().column()
         col.use_property_split = True
         self.draw_func(col)
         col.prop(self, "context_undo", text="Action", expand=True)
         pie.prop_tabs_enum(self, "context_action")
+
+    @staticmethod
+    def draw_statusbar(self, context: Context) -> None:
+        layout = self.layout
+        wm = context.window_manager
+
+        cancel_keys = set()
+        apply_keys = {HARDCODED_APPLY_KMI[0]}
+
+        kc = wm.keyconfigs.user
+        for kmi in kc.keymaps["Standard Modal Map"].keymap_items:
+            kmi: KeyMapItem
+            if kmi.propvalue == 'CANCEL':
+                cancel_keys.add(kmi.type)
+            elif kmi.propvalue == 'APPLY' and 'MOUSE' not in kmi.type:
+                apply_keys.add(kmi.type)
+
+        bhqab.utils_ui.template_input_info_kmi_from_type(layout, "Cancel", cancel_keys)
+        bhqab.utils_ui.template_input_info_kmi_from_type(layout, "Apply", apply_keys)
+        bhqab.utils_ui.template_input_info_kmi_from_type(layout, "Close Path", {HARDCODED_CLOSE_PATH_KMI[0]})
+        bhqab.utils_ui.template_input_info_kmi_from_type(
+            layout, "Change Direction", {HARDCODED_CHANGE_DIRECTION_KMI[0]}
+        )
 
     @staticmethod
     def _pack_event(item: Union[KeyMapItem, Event]) -> tuple[

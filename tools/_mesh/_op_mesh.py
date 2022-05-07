@@ -1,7 +1,12 @@
 from collections import deque
 
 import bpy
-from bpy.types import Operator, SpaceView3D, Context
+from bpy.types import (
+    Context,
+    Operator,
+    SpaceView3D,
+    STATUSBAR_HT_header,
+)
 from bpy.props import EnumProperty
 
 from . import _op_mesh_utils
@@ -216,6 +221,8 @@ class MESH_OT_select_path(Operator,
             self.cancel(context)
             return {'CANCELLED'}
 
+        STATUSBAR_HT_header.prepend(self.draw_statusbar)
+
         self.gpu_handle = SpaceView3D.draw_handler_add(self.draw_callback_3d, (context,), 'WINDOW', 'POST_VIEW')
         wm.modal_handler_add(self)
         self.modal(context, event)
@@ -227,6 +234,7 @@ class MESH_OT_select_path(Operator,
         self.set_selection_state(self.initial_select, True)
         self.update_meshes()
         self.remove_gpu_handle()
+        STATUSBAR_HT_header.remove(self.draw_statusbar)
 
     def modal(self, context, event):
         ev = self._pack_event(event)
@@ -247,18 +255,29 @@ class MESH_OT_select_path(Operator,
             self.cancel(context)
             return {'CANCELLED'}
 
-        elif (modal_action == 'APPLY') or (InteractEvent.APPLY_PATHES.name in self.context_action):
+        elif (
+            modal_action == 'APPLY'
+            or ev == _op_mesh_utils.HARDCODED_APPLY_KMI
+            or InteractEvent.APPLY_PATHES.name in self.context_action
+        ):
             self.context_action = set()
 
             self.gen_final_elements_seq(context)
             self.remove_gpu_handle()
+            STATUSBAR_HT_header.remove(self.draw_statusbar)
             return self.execute(context)
 
-        elif InteractEvent.CLOSE_PATH.name in self.context_action:
+        elif (
+            InteractEvent.CLOSE_PATH.name in self.context_action
+            or ev == _op_mesh_utils.HARDCODED_CLOSE_PATH_KMI
+        ):
             self.context_action = set()
             interact_event = InteractEvent.CLOSE_PATH
 
-        elif InteractEvent.CHANGE_DIRECTION.name in self.context_action:
+        elif (
+            InteractEvent.CHANGE_DIRECTION.name in self.context_action
+            or ev == _op_mesh_utils.HARDCODED_CHANGE_DIRECTION_KMI
+        ):
             self.context_action = set()
             interact_event = InteractEvent.CHANGE_DIRECTION
 
@@ -273,7 +292,7 @@ class MESH_OT_select_path(Operator,
         elif ev == (self.pie_mb, 'PRESS', False, False, False):
             context.window_manager.popup_menu_pie(
                 event=event,
-                draw_func=self.popup_menu_pie_draw,
+                draw_func=self.draw_popup_menu_pie,
                 title="Path Tool",
                 icon='NONE',
             )
