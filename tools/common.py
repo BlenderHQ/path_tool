@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Union
-from enum import auto, Enum, IntFlag
+from enum import auto, IntFlag
 
 from bpy.types import Object
 from bmesh.types import BMVert, BMEdge, BMFace
@@ -27,6 +27,9 @@ class InteractEvent(IntFlag):
     CHANGE_DIRECTION = auto()
     "Switch path direction"
 
+    TOPOLOGY_DISTANCE = auto()
+    "Use topology distance"
+
     RELEASE_PATH = auto()
     "Release path"
 
@@ -39,6 +42,9 @@ class InteractEvent(IntFlag):
     APPLY_PATHES = auto()
     "Apply all pathes"
 
+    CANCEL = auto()
+    "Cancel"
+
 
 class PathFlag(IntFlag):
     CLOSED = auto()
@@ -46,6 +52,9 @@ class PathFlag(IntFlag):
 
     REVERSED = auto()
     "Controls path direction due to initial control point order"
+
+    TOPOLOGY = auto()
+    "Path uses topology distance operator method"
 
 
 class Path:

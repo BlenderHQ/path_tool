@@ -6,7 +6,8 @@ from bpy.types import (
     Event,
     UIPieMenu,
     KeyMapItem,
-    Object
+    Object,
+    UILayout,
 )
 
 import bmesh
@@ -19,16 +20,17 @@ from bmesh.types import (
 from gpu_extras.batch import batch_for_shader
 
 from . import _op_mesh_annotations
-from ..common import InteractEvent, PathFlag, Path
+from .. common import InteractEvent, PathFlag, Path
 from ... import bhqab
 
 HARDCODED_APPLY_KMI = ('SPACE', 'PRESS', False, False, False)
 HARDCODED_CLOSE_PATH_KMI = ('C', 'PRESS', False, False, False)
 HARDCODED_CHANGE_DIRECTION_KMI = ('D', 'PRESS', False, False, False)
+HARDCODED_TOPOLOGY_DISTANCE_KMI = ('T', 'PRESS', False, False, False)
 
 
 class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
-    def draw_func(self, layout):
+    def draw_func(self, layout: UILayout) -> None:
         layout.row().prop(self, "mark_select", text="Select", icon_only=True, expand=True)
         layout.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
         layout.row().prop(self, "mark_sharp", text="Sharp", icon_only=True, expand=True)
@@ -36,17 +38,18 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
     def draw(self, _context: Context) -> None:
         self.draw_func(self.layout)
 
-    def draw_popup_menu_pie(self, popup: UIPieMenu, _context: Context) -> None:
+    def draw_popup_menu_pie(self, popup: UIPieMenu, context: Context) -> None:
         pie = popup.layout.menu_pie()
+        pie.prop_tabs_enum(self, "context_action")
         col = pie.box().column()
         col.use_property_split = True
         self.draw_func(col)
-        col.prop(self, "context_undo", text="Action", expand=True)
-        pie.prop_tabs_enum(self, "context_action")
 
     @staticmethod
     def draw_statusbar(self, context: Context) -> None:
         layout = self.layout
+        layout: UILayout
+
         wm = context.window_manager
 
         cancel_keys = set()
@@ -65,6 +68,9 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
         bhqab.utils_ui.template_input_info_kmi_from_type(layout, "Close Path", {HARDCODED_CLOSE_PATH_KMI[0]})
         bhqab.utils_ui.template_input_info_kmi_from_type(
             layout, "Change Direction", {HARDCODED_CHANGE_DIRECTION_KMI[0]}
+        )
+        bhqab.utils_ui.template_input_info_kmi_from_type(
+            layout, "Topology Distance", {HARDCODED_TOPOLOGY_DISTANCE_KMI[0]}
         )
 
     @staticmethod
@@ -178,35 +184,30 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
             bm.select_flush_mode()
             bmesh.update_edit_mesh(mesh=ob.data, loop_triangles=False, destructive=False)
 
-    def update_path_beetween(self,
-                             context: Context,
-                             elem_0: Union[BMVert, BMFace],
-                             elem_1: Union[BMVert, BMFace]) -> tuple[Union[BMVert, BMFace]]:
-        ts = context.tool_settings
-        ts.mesh_select_mode = self.select_ts_msm
-
-        bpy.ops.mesh.select_all(action='DESELECT')
-        self.set_selection_state((elem_0, elem_1), True)
-        bpy.ops.mesh.shortest_path_select()
-        self.set_selection_state((elem_0, elem_1), False)
-        r_fill_seq = self.get_selected_elements(self.prior_mesh_elements)
-        bpy.ops.mesh.select_all(action='DESELECT')
-
-        # Exception if control points in one edge
-        if (not r_fill_seq) and isinstance(elem_0, BMVert):
-            for edge in elem_0.link_edges:
-                edge: BMEdge
-                if edge.other_vert(elem_0) == elem_1:
-                    r_fill_seq = tuple((edge,))
-
-        ts.mesh_select_mode = self.prior_ts_msm
-        return r_fill_seq
-
     def update_fills_by_element_index(self, context: Context, path: Path, elem_index: int) -> None:
+        ts = context.tool_settings
+
         pairs_items = path.get_pairs_items(elem_index)
         for item in pairs_items:
             elem_0, elem_1, fill_index = item
-            fill_seq = self.update_path_beetween(context, elem_0, elem_1)
+
+            ts.mesh_select_mode = self.select_ts_msm
+
+            bpy.ops.mesh.select_all(action='DESELECT')
+            self.set_selection_state((elem_0, elem_1), True)
+            bpy.ops.mesh.shortest_path_select(use_topology_distance=bool(path.flag & PathFlag.TOPOLOGY))
+            self.set_selection_state((elem_0, elem_1), False)
+            fill_seq = self.get_selected_elements(self.prior_mesh_elements)
+            bpy.ops.mesh.select_all(action='DESELECT')
+
+            # Exception if control points in one edge
+            if (not fill_seq) and isinstance(elem_0, BMVert):
+                for edge in elem_0.link_edges:
+                    edge: BMEdge
+                    if edge.other_vert(elem_0) == elem_1:
+                        fill_seq = tuple((edge,))
+
+            ts.mesh_select_mode = self.prior_ts_msm
 
             path.fill_elements[fill_index] = fill_seq
 
@@ -448,6 +449,10 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
                 self.active_path.batch_seq_fills[-1] = None
                 self._just_closed_path = False
                 self.check_join_pathes()
+
+        elif interact_event is InteractEvent.TOPOLOGY_DISTANCE:
+            self.active_path.flag ^= PathFlag.TOPOLOGY
+            self.update_fills_by_element_index(context, self.active_path, 0)
 
         elif interact_event is InteractEvent.RELEASE_PATH:
             self.drag_elem_indices = []

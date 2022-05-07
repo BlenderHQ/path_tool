@@ -1,4 +1,4 @@
-from collections import deque
+import collections
 
 import bpy
 from bpy.types import (
@@ -7,7 +7,10 @@ from bpy.types import (
     SpaceView3D,
     STATUSBAR_HT_header,
 )
-from bpy.props import EnumProperty
+from bpy.props import (
+    EnumProperty,
+    BoolProperty
+)
 
 from . import _op_mesh_utils
 from . import _op_mesh_utils_gpu
@@ -24,51 +27,57 @@ class MESH_OT_select_path(Operator,
     context_action: EnumProperty(
         items=(
             (
-                InteractEvent.CLOSE_PATH.name,
-                "Toggle Close Path",
-                "Close the path from the first to the last control point",
-                '',
-                InteractEvent.CLOSE_PATH.value,
-            ),
-            (
                 InteractEvent.CHANGE_DIRECTION.name,
                 "Change direction",
                 "Changes the direction of the path",
-                '',
+                'CON_CHILDOF',
                 InteractEvent.CHANGE_DIRECTION.value,
+            ),
+            (
+                InteractEvent.CLOSE_PATH.name,
+                "Close Path",
+                "Close the path from the first to the last control point",
+                'MESH_CIRCLE',
+                InteractEvent.CLOSE_PATH.value,
+            ),
+            (
+                InteractEvent.CANCEL.name,
+                "Cancel",
+                "Cancel editing pathes",
+                'EVENT_ESC',
+                InteractEvent.CANCEL.value,
             ),
             (
                 InteractEvent.APPLY_PATHES.name,
                 "Apply All",
                 "Apply all paths and make changes to the mesh",
-                '',
+                'EVENT_RETURN',
                 InteractEvent.APPLY_PATHES.value,
             ),
-        ),
-        default=set(),
-        options={'ENUM_FLAG', 'HIDDEN', 'SKIP_SAVE'},
-    )
-
-    context_undo: EnumProperty(
-        items=(
             (
                 InteractEvent.UNDO.name,
                 "Undo",
-                "Undo one step",
+                "Undo previous interaction",
                 'LOOP_BACK',
                 InteractEvent.UNDO.value,
             ),
             (
                 InteractEvent.REDO.name,
                 "Redo",
-                "Redo one step",
+                "Redo previous undo",
                 'LOOP_FORWARDS',
                 InteractEvent.REDO.value,
             ),
+            (
+                InteractEvent.TOPOLOGY_DISTANCE.name,
+                "Use Topology Distance",
+                "Find the minimum number of steps, ignoring spatial distance",
+                'DRIVER_DISTANCE',
+                InteractEvent.TOPOLOGY_DISTANCE.value,
+            ),
         ),
-        options={'ENUM_FLAG', 'HIDDEN', 'SKIP_SAVE'},
         default=set(),
-        name="Action History",
+        options={'ENUM_FLAG', 'HIDDEN', 'SKIP_SAVE'},
     )
 
     mark_select: EnumProperty(
@@ -79,6 +88,7 @@ class MESH_OT_select_path(Operator,
             ('INVERT', "Invert", "Inverts existing selection", 'SELECT_DIFFERENCE', 4),
         ),
         default='EXTEND',
+        options={'HIDDEN', 'SKIP_SAVE'},
         name="Select",
         description="Selection options",
     )
@@ -91,6 +101,7 @@ class MESH_OT_select_path(Operator,
             ('TOGGLE', "Toggle", "Toggle seams on path elements", 'ACTION_TWEAK', 4),
         ),
         default='NONE',
+        options={'HIDDEN', 'SKIP_SAVE'},
         name="Seams",
         description="Mark seam options",
     )
@@ -105,6 +116,13 @@ class MESH_OT_select_path(Operator,
         default="NONE",
         name="Sharp",
         description="Mark sharp options",
+    )
+
+    use_topology_distance: BoolProperty(
+        default=False,
+        options={'HIDDEN', 'SKIP_SAVE'},
+        name="Topology Distance",
+        description="Find the minimum number of steps, ignoring spatial distance",
     )
 
     def invoke(self, context: bpy.types.Context, event):
@@ -186,8 +204,8 @@ class MESH_OT_select_path(Operator,
         self._drag_elem = None
         self._just_closed_path = False
 
-        self.undo_history = deque(maxlen=num_undo_steps)
-        self.redo_history = deque(maxlen=num_undo_steps)
+        self.undo_history = collections.deque(maxlen=num_undo_steps)
+        self.redo_history = collections.deque(maxlen=num_undo_steps)
 
         self.select_only_seq = dict()
         self.markup_seq = dict()
@@ -262,7 +280,11 @@ class MESH_OT_select_path(Operator,
             self.update_meshes()
             return {'RUNNING_MODAL'}
 
-        elif modal_action == 'CANCEL':
+        elif (
+            modal_action == 'CANCEL'
+            or InteractEvent.CANCEL.name in self.context_action
+        ):
+            self.context_action = set()
             self.cancel(context)
             return {'CANCELLED'}
 
@@ -292,12 +314,19 @@ class MESH_OT_select_path(Operator,
             self.context_action = set()
             interact_event = InteractEvent.CHANGE_DIRECTION
 
-        elif (undo_redo_action == 'UNDO') or (InteractEvent.UNDO.name in self.context_undo):
-            self.context_undo = set()
+        elif (
+            InteractEvent.TOPOLOGY_DISTANCE.name in self.context_action
+            or ev == _op_mesh_utils.HARDCODED_TOPOLOGY_DISTANCE_KMI
+        ):
+            self.context_action = set()
+            interact_event = InteractEvent.TOPOLOGY_DISTANCE
+
+        elif (undo_redo_action == 'UNDO') or (InteractEvent.UNDO.name in self.context_action):
+            self.context_action = set()
             return self.undo(context)
 
-        elif (undo_redo_action == 'REDO') or (InteractEvent.REDO.name in self.context_undo):
-            self.context_undo = set()
+        elif (undo_redo_action == 'REDO') or (InteractEvent.REDO.name in self.context_action):
+            self.context_action = set()
             self.redo(context)
 
         elif ev == (self.pie_mb, 'PRESS', False, False, False):
