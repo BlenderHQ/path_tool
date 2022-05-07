@@ -1,22 +1,37 @@
 # Path Tool
-Multi purpose Blender 2.8x addon for selecting and marking up mesh object elements.
-There is support for working simultaneously with multiple objects in edit mode. Installation is standard for Blender (Go to `Edit > Preferences > Addons > Install` and select the downloaded archive). Select one or more meshes and go into edit mode. In the toolbar, select Path Tool.
 
-## Mesh elements selection
-Work with the tool is carried out in the mode of selecting edges or faces. For the convenience of working with the mesh edges, vertices are used as control elements
+An add-on for Blender that complements the standard shortcut operator with new features.
 
-## Path editing
-Control elements of active path (the last one you interacted with) can be added (`LMB` on mesh), moved (`LMB` on element you want to move and drag) and removed (`Ctrl + LMB`). To start a new path otherwise existing one, click `Shift + LMB`. When you finished active path, it can be closed from first to last control element (`RMB` to open pie menu and select `Close Path`). Also if you just closed active path, next click on mesh element not related to any existing path will create a new path too. Control elements can be added after last element of active path and on existing segment between pair of other control elements. To add control element at start of active path, switch direction of path (`RMB` to open pie menu and select `Change direction`).
+The standard operator works great, but in terms of user experience, it could be better. Of course, most Blender operators work on the principle of "here and now", but for real work tasks this operator is used, including for marking UV seams, highlighting faces for sharp shading, highlighting a line along the mesh object to divide it into parts , etc. The bottom line is that in terms of user experience, we first select some mesh elements, then perform some operation with them.
 
-When you move control element of path to adjacent of the same path, they are joined, otherwise elements are not adjacent it will just moved. If you move first-to-last element of the same path, path will be closed.
-Pathes can interact each other. If you drag endpoint of one path to endpoint of other, two pathes will be joined. Also, if the controls are not endpoints, after releasing the drag and drop, they stick together when dragging.
+This addon is designed taking into account many points concerning the actual use of it in work tasks. The initial idea is quite simple - the operation of selecting the shortest path should be similar to working with the "Knife" tool.
 
-## Compatibility
-The addon supports older Blender versions as well as the newest ones. Please, note that for compatibility reasons with newest Blender versions we may stop support of older Blender versions. All this statements are caused by testing existing and new features of the addon in every official Blender release. As a rule, most of issues are well handled in Blender LTS releases (Blender 2.83 is the first LTS release), so we try to keep their support as long as Blender Foundation supports this releases.
+# How To Use the Addon
 
-A long story short, minimal supported Blender version means that if you install the addon on earlier version of Blender - you would get just warning message in addon user preferences, no any new functionalities would be added. But you may try to install the addon on newest Blender version, for example, on alpha or daily builds of Blender. This releases can not be completely tested, so you do this on your own risk. Of course, every new official release of Blender would be tested as fast as possible.
+After installing the addon, next to the standard tools for selecting mesh elements ("Tweak", "Select Box", ...) will appear "Path Tool" tool.
 
-Also note that for now, addon version always equals to latest tested Blender version.
+Keep in mind that working with multiple mesh objects in edit mode is supported, let's move on to the basics.
 
-## License
-The addon uses GNU General Public License v3, which means that its free. Copy of the license you can  find inside this repository (at `./LICENSE` file).
+Again (we will not mention this later, just keep in mind that this is done for the same purpose), taking into account the user experience, the selection of mesh elements is carried out in two modes of the operator:
+
+* Selection of **edges**:
+
+    * Work in this mode will start if there are no faces in the selection tool mode. In this case, the selection mode will be switched to edge only when the first control element is selected.
+
+    * Mesh vertices act as control points to build a path between them
+
+* Selection of **faces**:
+    
+    * Work in this mode will be started if faces are present in the selection tool mode. In this case, the selection mode will be switched to only the faces when the first control element is selected.
+
+    * The faces of the mesh in this case act as control points to build a path between them
+
+The vertex selection mode is skipped because it completely overlaps the edge selection mode.
+
+So, you have chosen the tool, you have decided in what mode you will edit the selection, you have created the first control element.
+
+When you click on the next mesh element, a new control element will be added and a short path will be built between them. The newly created control will become active. For simplicity of the story - a set of control elements and the paths between them will be called simply "Path". So, we have the first Path. In the work sometimes it is necessary to swap the active element from end to beginning, for this you have an option in the pie menu or shortcut displayed in the status bar. You can move the control elements of the path and it will be rebuilt. If you need to close the gap between the first and last Path's control, you also can use the appropriate option in the Pie menu or shortcut displayed in the status bar.
+
+Work with several Path's is also supported. To create a new Path, you can use the shortcut displayed in the status bar. When you do this, a new control element independent of the first Path will be created and the work will continue in the already familiar way.
+
+There are also some interesting points - different Paths can interact. If the control at the beginning or end of one Path is moved to the beginning or end of another Path, these Paths will merge into one. If the control is not finite then the paths will not be merged. Instead, all the control elements of all the paths that are on the same element of the mesh, in the same place, can be moved together, they seem to stick together
