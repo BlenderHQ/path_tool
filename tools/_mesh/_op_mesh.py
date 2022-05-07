@@ -212,8 +212,19 @@ class MESH_OT_select_path(Operator,
             self.select_ts_msm = (False, False, True)
             self.select_mesh_elements = "faces"
 
-        # Get initial selection state of mesh elements (see description above).
         self.initial_select = self.get_selected_elements(self.initial_mesh_elements)
+
+        # Tweak operator settings in case if all mesh elements are already selected
+        num_elements_total = 0
+        if self.prior_mesh_elements == "edges":
+            for _, bm in self.bm_arr:
+                num_elements_total += len(bm.edges)
+        elif self.prior_mesh_elements == "faces":
+            for _, bm in self.bm_arr:
+                num_elements_total += len(bm.faces)
+
+        if num_elements_total == len(self.initial_select) and self.mark_select == 'EXTEND':
+            self.mark_select = 'NONE'
 
         # Prevent first click empty space
         elem, _ = self.get_element_by_mouse(context, event)
