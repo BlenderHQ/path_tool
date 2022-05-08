@@ -1,8 +1,7 @@
 if "bpy" in locals():
     from importlib import reload
 
-    if "_mesh" in locals():
-        reload(_mesh)
+    reload(_mesh)
 
     del reload
 

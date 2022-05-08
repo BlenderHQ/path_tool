@@ -7,7 +7,6 @@ from bpy.types import (
 from bpy.props import (
     EnumProperty,
     FloatVectorProperty,
-    FloatProperty,
     IntProperty,
 )
 
@@ -130,5 +129,6 @@ class Preferences(AddonPreferences):
             col.separator()
             col.prop(self, "point_size")
             col.prop(self, "line_width")
+
         elif self.tab == 'KEYMAP':
             bhqab.utils_ui.template_tool_keymap(context, layout, "3D View Tool: Edit Mesh, Path Tool")
