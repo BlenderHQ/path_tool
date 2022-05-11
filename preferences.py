@@ -153,4 +153,4 @@ class Preferences(AddonPreferences):
             col.prop(self, "line_width")
 
         elif self.tab == 'KEYMAP':
-            bhqab.utils_ui.template_tool_keymap(context, layout, "3D View Tool: Edit Mesh, Path Tool")
+            bhqab.utils_ui.template_tool_keymap(context, layout, "3D View Tool: Edit Mesh, Select Path")

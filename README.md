@@ -8,7 +8,7 @@ This addon is designed taking into account many points concerning the actual use
 
 # How To Use the Addon
 
-After installing the addon, next to the standard tools for selecting mesh elements ("Tweak", "Select Box", ...) will appear "Path Tool" tool.
+After installing the addon, next to the standard tools for selecting mesh elements ("Tweak", "Select Box", ...) will appear "Select Path" tool.
 
 Keep in mind that working with multiple mesh objects in edit mode is supported, let's move on to the basics.
 

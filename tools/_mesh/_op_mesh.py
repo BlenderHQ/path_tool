@@ -21,7 +21,7 @@ class MESH_OT_select_path(Operator,
                           _op_mesh_utils.MeshOperatorUtils,
                           _op_mesh_utils_gpu.MeshOperatorGPUUtils):
     bl_idname = "mesh.path_tool"
-    bl_label = "Path Tool"
+    bl_label = "Select Path"
     bl_options = {'REGISTER', 'UNDO'}
 
     context_action: EnumProperty(
@@ -134,7 +134,7 @@ class MESH_OT_select_path(Operator,
         # Input keymaps:
 
         kc = wm.keyconfigs.user
-        km_path_tool = kc.keymaps["3D View Tool: Edit Mesh, Path Tool"]
+        km_path_tool = kc.keymaps["3D View Tool: Edit Mesh, Select Path"]
         kmi = km_path_tool.keymap_items[0]
 
         # Select and context pie menu mouse buttons.
