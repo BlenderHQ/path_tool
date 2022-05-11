@@ -297,14 +297,12 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
                     continue
 
                 # Join two pathes
-                if (
-                    ((path.flag & other_path.flag) ^ PathFlag.CLOSED) and (
-                        (path.control_elements[0] == other_path.control_elements[0])
-                        or (path.control_elements[-1] == other_path.control_elements[-1])
-                        or (path.control_elements[-1] == other_path.control_elements[0])
-                        or (path.control_elements[0] == other_path.control_elements[-1])
-                    )
-                ):
+                if (((path.flag ^ PathFlag.CLOSED and other_path.flag ^ PathFlag.CLOSED)) and ((
+                    path.control_elements[0] == other_path.control_elements[0])
+                    or (path.control_elements[-1] == other_path.control_elements[-1])
+                    or (path.control_elements[-1] == other_path.control_elements[0])
+                    or (path.control_elements[0] == other_path.control_elements[-1])
+                )):
                     path += other_path
                     self.path_seq.remove(other_path)
                     self._active_path_index = i

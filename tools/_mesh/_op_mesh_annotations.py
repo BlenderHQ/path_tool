@@ -1,6 +1,20 @@
-from typing import Union, Literal
-from bpy.types import Object
-from bmesh.types import BMesh, BMVert, BMEdge, BMFace
+from typing import (
+    Union,
+    Literal
+)
+from bpy.types import (
+    Object,
+)
+from bmesh.types import (
+    BMesh,
+    BMVert,
+    BMEdge,
+    BMFace
+)
+from ..common import (
+    PathFlag,
+    Path
+)
 
 
 class MeshOperatorVariables:
@@ -46,3 +60,5 @@ class MeshOperatorVariables:
 
     # BMesh elements caches
     bm_arr: tuple[tuple[Object, BMesh]]
+
+    path_seq: list[Path]
