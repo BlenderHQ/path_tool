@@ -137,7 +137,9 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
         elif len(self.undo_history) > 1:
             step = self.undo_history.pop()
             self.redo_history.append(step)
-            self._active_path_index, self.path_seq = self.undo_history[-1]
+            undo_step_active_path_index, undo_step_path_seq = self.undo_history[-1]
+            self._active_path_index = undo_step_active_path_index
+            self.path_seq = list(undo_step_path_seq)
             self._just_closed_path = False
 
         context.area.tag_redraw()
@@ -148,7 +150,9 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
         if len(self.redo_history) > 0:
             step = self.redo_history.pop()
             self.undo_history.append(step)
-            self._active_path_index, self.path_seq = self.undo_history[-1]
+            undo_step_active_path_index, undo_step_path_seq = self.undo_history[-1]
+            self._active_path_index = undo_step_active_path_index
+            self.path_seq = undo_step_path_seq
             context.area.tag_redraw()
         else:
             self.report({'WARNING'}, message="Can not redo anymore")
@@ -452,7 +456,8 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
 
         elif interact_event is InteractEvent.TOPOLOGY_DISTANCE:
             self.active_path.flag ^= PathFlag.TOPOLOGY
-            self.update_fills_by_element_index(context, self.active_path, 0)
+            for j in range(0, len(self.active_path.control_elements), 2):
+                self.update_fills_by_element_index(context, self.active_path, j)
 
         elif interact_event is InteractEvent.RELEASE_PATH:
             self.drag_elem_indices = []

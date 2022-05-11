@@ -4,6 +4,7 @@ import bmesh
 from gpu_extras.batch import batch_for_shader
 
 from . import _op_mesh_annotations
+from .. common import Path, PathFlag
 from ... import __package__ as addon_pkg
 from ... import bhqab
 
@@ -70,7 +71,7 @@ class MeshOperatorGPUUtils(_op_mesh_annotations.MeshOperatorVariables):
         gpu.state.depth_test_set('LESS_EQUAL')
         gpu.state.face_culling_set('NONE')
 
-        draw_list = [_ for _ in self.path_seq if _ != self.active_path]
+        draw_list: list[Path] = [_ for _ in self.path_seq if _ != self.active_path]
         draw_list.append(self.active_path)
 
         shader_ce = bhqab.gpu_extras.shader.vert_uniform_color
@@ -81,6 +82,8 @@ class MeshOperatorGPUUtils(_op_mesh_annotations.MeshOperatorVariables):
             color = preferences.color_control_element
             color_active = color
             color_path = preferences.color_path
+            if path.flag & PathFlag.TOPOLOGY:
+                color_path = preferences.color_path_topology
 
             if path == self.active_path:
                 active_index = self.active_index
@@ -88,6 +91,9 @@ class MeshOperatorGPUUtils(_op_mesh_annotations.MeshOperatorVariables):
                 color = preferences.color_active_path_control_element
                 color_active = preferences.color_active_control_element
                 color_path = preferences.color_active_path
+
+                if path.flag & PathFlag.TOPOLOGY:
+                    color_path = preferences.color_active_path_topology
 
             shader_path.bind()
 

@@ -78,6 +78,16 @@ class Preferences(AddonPreferences):
         description="Path color",
     )
 
+    color_path_topology: FloatVectorProperty(
+        default=(0.0, 0.9, 0.5),
+        subtype='COLOR',
+        size=3,
+        min=0.0,
+        max=1.0,
+        name="Topology Path",
+        description="Color of path",
+    )
+
     color_active_path: FloatVectorProperty(
         default=(1.0, 0.1, 0.1),
         subtype='COLOR',
@@ -85,6 +95,16 @@ class Preferences(AddonPreferences):
         min=0.0,
         max=1.0,
         name="Active Path",
+        description="Path color",
+    )
+
+    color_active_path_topology: FloatVectorProperty(
+        default=(1.0, 0.8, 0.1),
+        subtype='COLOR',
+        size=3,
+        min=0.0,
+        max=1.0,
+        name="Active Topology Path",
         description="Path color",
     )
 
@@ -126,6 +146,8 @@ class Preferences(AddonPreferences):
             col.prop(self, "color_active_control_element")
             col.prop(self, "color_path")
             col.prop(self, "color_active_path")
+            col.prop(self, "color_path_topology")
+            col.prop(self, "color_active_path_topology")
             col.separator()
             col.prop(self, "point_size")
             col.prop(self, "line_width")
