@@ -20,6 +20,7 @@ from bmesh.types import (
 from gpu_extras.batch import batch_for_shader
 
 from . import _annotations
+from . _annotations import _PackedEvent_T
 from ..common import InteractEvent, PathFlag, Path
 from ... import bhqab
 
@@ -74,9 +75,7 @@ class MeshOperatorUtils(_annotations.MeshOperatorVariables):
         )
 
     @staticmethod
-    def _pack_event(item: Union[KeyMapItem, Event]) -> tuple[
-            Union[int, str], Union[int, str],
-            Union[int, bool], Union[int, bool], Union[int, bool]]:
+    def _pack_event(item: Union[KeyMapItem, Event]) -> _PackedEvent_T:
         return item.type, item.value, item.alt, item.ctrl, item.shift
 
     @staticmethod
