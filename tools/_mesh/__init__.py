@@ -8,7 +8,7 @@ from bpy.types import (
     UILayout,
 )
 
-from . import _op_mesh
+from . import _op
 
 
 class PathToolMesh(WorkSpaceTool):
@@ -18,11 +18,11 @@ class PathToolMesh(WorkSpaceTool):
     bl_context_mode = 'EDIT_MESH'
     bl_description = "Select items using editable pathes"
     bl_icon = os.path.join(os.path.dirname(os.path.dirname(__file__)), "icons", "ops.mesh.path_tool")
-    bl_keymap = ((_op_mesh.MESH_OT_select_path.bl_idname, dict(type='LEFTMOUSE', value='PRESS',), None),)
+    bl_keymap = ((_op.MESH_OT_select_path.bl_idname, dict(type='LEFTMOUSE', value='PRESS',), None),)
 
     @staticmethod
     def draw_settings(_context: Context, layout: UILayout, tool: WorkSpaceTool):
-        _op_mesh.MESH_OT_select_path.draw_func(
-            tool.operator_properties(_op_mesh.MESH_OT_select_path.bl_idname),
+        _op.MESH_OT_select_path.draw_func(
+            tool.operator_properties(_op.MESH_OT_select_path.bl_idname),
             layout,
         )

@@ -3,13 +3,13 @@ from bpy.types import SpaceView3D
 import bmesh
 from gpu_extras.batch import batch_for_shader
 
-from . import _op_mesh_annotations
-from .. common import Path, PathFlag
+from . import _annotations
+from ..common import Path, PathFlag
 from ... import __package__ as addon_pkg
 from ... import bhqab
 
 
-class MeshOperatorGPUUtils(_op_mesh_annotations.MeshOperatorVariables):
+class MeshOperatorGPUUtils(_annotations.MeshOperatorVariables):
     @staticmethod
     def _gpu_gen_batch_faces_seq(fill_seq, is_active, shader):
         tmp_bm = bmesh.new()

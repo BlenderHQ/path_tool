@@ -12,14 +12,14 @@ from bpy.props import (
     BoolProperty
 )
 
-from . import _op_mesh_utils
-from . import _op_mesh_utils_gpu
+from . import _utils
+from . import _utils_gpu
 from ..common import InteractEvent
 
 
 class MESH_OT_select_path(Operator,
-                          _op_mesh_utils.MeshOperatorUtils,
-                          _op_mesh_utils_gpu.MeshOperatorGPUUtils):
+                          _utils.MeshOperatorUtils,
+                          _utils_gpu.MeshOperatorGPUUtils):
     bl_idname = "mesh.path_tool"
     bl_label = "Select Path"
     bl_options = {'REGISTER', 'UNDO'}
@@ -290,7 +290,7 @@ class MESH_OT_select_path(Operator,
 
         elif (
             modal_action == 'APPLY'
-            or ev == _op_mesh_utils.HARDCODED_APPLY_KMI
+            or ev == _utils.HARDCODED_APPLY_KMI
             or InteractEvent.APPLY_PATHES.name in self.context_action
         ):
             self.context_action = set()
@@ -302,21 +302,21 @@ class MESH_OT_select_path(Operator,
 
         elif (
             InteractEvent.CLOSE_PATH.name in self.context_action
-            or ev == _op_mesh_utils.HARDCODED_CLOSE_PATH_KMI
+            or ev == _utils.HARDCODED_CLOSE_PATH_KMI
         ):
             self.context_action = set()
             interact_event = InteractEvent.CLOSE_PATH
 
         elif (
             InteractEvent.CHANGE_DIRECTION.name in self.context_action
-            or ev == _op_mesh_utils.HARDCODED_CHANGE_DIRECTION_KMI
+            or ev == _utils.HARDCODED_CHANGE_DIRECTION_KMI
         ):
             self.context_action = set()
             interact_event = InteractEvent.CHANGE_DIRECTION
 
         elif (
             InteractEvent.TOPOLOGY_DISTANCE.name in self.context_action
-            or ev == _op_mesh_utils.HARDCODED_TOPOLOGY_DISTANCE_KMI
+            or ev == _utils.HARDCODED_TOPOLOGY_DISTANCE_KMI
         ):
             self.context_action = set()
             interact_event = InteractEvent.TOPOLOGY_DISTANCE
