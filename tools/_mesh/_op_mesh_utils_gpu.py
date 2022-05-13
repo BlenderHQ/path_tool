@@ -78,7 +78,7 @@ class MeshOperatorGPUUtils(_op_mesh_annotations.MeshOperatorVariables):
         shader_path = bhqab.gpu_extras.shader.path_uniform_color
 
         for path in draw_list:
-            active_index = 0
+            active_index = 0 
             color = preferences.color_control_element
             color_active = color
             color_path = preferences.color_path
