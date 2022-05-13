@@ -17,7 +17,7 @@ class PathToolMesh(WorkSpaceTool):
     bl_space_type = 'VIEW_3D'
     bl_context_mode = 'EDIT_MESH'
     bl_description = "Select items using editable pathes"
-    bl_icon = os.path.join(os.path.dirname(__file__), "ops.mesh.path_tool")
+    bl_icon = os.path.join(os.path.dirname(os.path.dirname(__file__)), "icons", "ops.mesh.path_tool")
     bl_keymap = ((_op_mesh.MESH_OT_select_path.bl_idname, dict(type='LEFTMOUSE', value='PRESS',), None),)
 
     @staticmethod
