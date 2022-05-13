@@ -19,8 +19,9 @@ from bmesh.types import (
 )
 from gpu_extras.batch import batch_for_shader
 
-from . import _op_mesh_annotations
-from .. common import InteractEvent, PathFlag, Path
+from . import _annotations
+from . _annotations import _PackedEvent_T
+from ..common import InteractEvent, PathFlag, Path
 from ... import bhqab
 
 HARDCODED_APPLY_KMI = ('SPACE', 'PRESS', False, False, False)
@@ -29,7 +30,7 @@ HARDCODED_CHANGE_DIRECTION_KMI = ('D', 'PRESS', False, False, False)
 HARDCODED_TOPOLOGY_DISTANCE_KMI = ('T', 'PRESS', False, False, False)
 
 
-class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
+class MeshOperatorUtils(_annotations.MeshOperatorVariables):
     def draw_func(self, layout: UILayout) -> None:
         layout.row().prop(self, "mark_select", text="Select", icon_only=True, expand=True)
         layout.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
@@ -74,9 +75,7 @@ class MeshOperatorUtils(_op_mesh_annotations.MeshOperatorVariables):
         )
 
     @staticmethod
-    def _pack_event(item: Union[KeyMapItem, Event]) -> tuple[
-            Union[int, str], Union[int, str],
-            Union[int, bool], Union[int, bool], Union[int, bool]]:
+    def _pack_event(item: Union[KeyMapItem, Event]) -> _PackedEvent_T:
         return item.type, item.value, item.alt, item.ctrl, item.shift
 
     @staticmethod

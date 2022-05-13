@@ -12,17 +12,50 @@ from bpy.props import (
     BoolProperty
 )
 
-from . import _op_mesh_utils
-from . import _op_mesh_utils_gpu
+from . import _utils
+from . import _utils_gpu
 from ..common import InteractEvent
 
 
 class MESH_OT_select_path(Operator,
-                          _op_mesh_utils.MeshOperatorUtils,
-                          _op_mesh_utils_gpu.MeshOperatorGPUUtils):
+                          _utils.MeshOperatorUtils,
+                          _utils_gpu.MeshOperatorGPUUtils):
     bl_idname = "mesh.path_tool"
     bl_label = "Select Path"
     bl_options = {'REGISTER', 'UNDO'}
+
+    __slots__ = (
+        "select_mb",
+        "pie_mb",
+        "modal_events",
+        "undo_redo_events",
+        "nav_events",
+        "is_mouse_pressed",
+        "is_navigation_active",
+
+        "initial_ts_msm",
+        "initial_mesh_elements",
+        "prior_ts_msm",
+        "prior_mesh_elements",
+        "select_ts_msm",
+        "select_mesh_elements",
+        "initial_select",
+
+        "bm_arr",
+        "path_seq",
+        "mesh_islands",
+        "drag_elem_indices",
+
+        "_active_path_index",
+        "_drag_elem",
+        "_just_closed_path",
+
+        "undo_history",
+        "redo_history",
+
+        "select_only_seq",
+        "markup_seq",
+    )
 
     context_action: EnumProperty(
         items=(
@@ -290,7 +323,7 @@ class MESH_OT_select_path(Operator,
 
         elif (
             modal_action == 'APPLY'
-            or ev == _op_mesh_utils.HARDCODED_APPLY_KMI
+            or ev == _utils.HARDCODED_APPLY_KMI
             or InteractEvent.APPLY_PATHES.name in self.context_action
         ):
             self.context_action = set()
@@ -302,21 +335,21 @@ class MESH_OT_select_path(Operator,
 
         elif (
             InteractEvent.CLOSE_PATH.name in self.context_action
-            or ev == _op_mesh_utils.HARDCODED_CLOSE_PATH_KMI
+            or ev == _utils.HARDCODED_CLOSE_PATH_KMI
         ):
             self.context_action = set()
             interact_event = InteractEvent.CLOSE_PATH
 
         elif (
             InteractEvent.CHANGE_DIRECTION.name in self.context_action
-            or ev == _op_mesh_utils.HARDCODED_CHANGE_DIRECTION_KMI
+            or ev == _utils.HARDCODED_CHANGE_DIRECTION_KMI
         ):
             self.context_action = set()
             interact_event = InteractEvent.CHANGE_DIRECTION
 
         elif (
             InteractEvent.TOPOLOGY_DISTANCE.name in self.context_action
-            or ev == _op_mesh_utils.HARDCODED_TOPOLOGY_DISTANCE_KMI
+            or ev == _utils.HARDCODED_TOPOLOGY_DISTANCE_KMI
         ):
             self.context_action = set()
             interact_event = InteractEvent.TOPOLOGY_DISTANCE

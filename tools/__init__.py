@@ -9,5 +9,5 @@ import bpy
 
 from . import _mesh
 
-MESH_OT_select_path = _mesh._op_mesh.MESH_OT_select_path
+MESH_OT_select_path = _mesh._op.MESH_OT_select_path
 PathToolMesh = _mesh.PathToolMesh
