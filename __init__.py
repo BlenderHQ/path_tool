@@ -60,7 +60,7 @@ class PathToolMesh(WorkSpaceTool):
 
     @staticmethod
     def draw_settings(_context: Context, layout: UILayout, tool: WorkSpaceTool):
-        _path_tool.MESH_OT_select_path.draw_func(
+        _path_tool.MESH_OT_select_path._ui_draw_func(
             tool.operator_properties(_path_tool.MESH_OT_select_path.bl_idname),
             layout,
         )
