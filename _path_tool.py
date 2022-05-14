@@ -518,7 +518,7 @@ class MESH_OT_select_path(Operator):
     path_seq: list[Path]
     mesh_islands: list[tuple[Union[BMVert, BMEdge, BMFace]]]
     drag_elem_indices: list[Union[None, int]]
-    _active_path_index: Union[None, int]
+    _active_path_index: int
     _drag_elem: Union[None, BMVert, BMFace]
     _just_closed_path: bool
 
@@ -585,14 +585,13 @@ class MESH_OT_select_path(Operator):
         return tuple(ret)
 
     @property
-    def active_path(self) -> Union[None, Path]:
-        if (self._active_path_index is not None) and (self._active_path_index <= len(self.path_seq) - 1):
+    def active_path(self) -> Path:
+        if self._active_path_index <= len(self.path_seq) - 1:
             return self.path_seq[self._active_path_index]
+        return self.path_seq[-1]
 
     @active_path.setter
-    def active_path(self, value: Union[None, Path]) -> None:
-        if value not in self.path_seq:
-            self.path_seq.append(value)
+    def active_path(self, value: Path) -> None:
         self._active_path_index = self.path_seq.index(value)
 
     @staticmethod
@@ -980,7 +979,9 @@ class MESH_OT_select_path(Operator):
 
         elif elem and interact_event is InteractEvent.ADD_NEW_PATH:
             linked_island_index = self._get_linked_island_index(context, elem)
-            self.active_path = Path(elem, linked_island_index, ob)
+            new_path = Path(elem, linked_island_index, ob)
+            self.path_seq.append(new_path)
+            self.active_path = new_path
             self._just_closed_path = False
             self._interact_control_element(context, elem, ob, InteractEvent.ADD_CP)
             self.report(type={'INFO'}, message="Created new path")
@@ -1141,7 +1142,7 @@ class MESH_OT_select_path(Operator):
         self.mesh_islands = list()
         self.drag_elem_indices = list()
 
-        self._active_path_index = None
+        self._active_path_index = 0
         self._drag_elem = None
         self._just_closed_path = False
 
