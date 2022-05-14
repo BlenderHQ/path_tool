@@ -29,22 +29,46 @@ bl_info = {
 if "bpy" in locals():
     from importlib import reload
 
-    reload(tools)
     reload(preferences)
+    reload(_path_tool)
 
     del reload
 
 import os
 
 import bpy
+from bpy.types import (
+    WorkSpaceTool,
+    Context,
+    UILayout,
+)
 
-from . import tools
 from . import preferences
 from . import bhqab
 
+from . import _path_tool
+
+
+class PathToolMesh(WorkSpaceTool):
+    bl_idname = "mesh.path_tool"
+    bl_label = "Select Path"
+    bl_space_type = 'VIEW_3D'
+    bl_context_mode = 'EDIT_MESH'
+    bl_description = "Select items using editable pathes"
+    bl_icon = os.path.join(os.path.dirname(__file__), "icons", "ops.mesh.path_tool")
+    bl_keymap = ((_path_tool.MESH_OT_select_path.bl_idname, dict(type='LEFTMOUSE', value='PRESS',), None),)
+
+    @staticmethod
+    def draw_settings(_context: Context, layout: UILayout, tool: WorkSpaceTool):
+        _path_tool.MESH_OT_select_path.draw_func(
+            tool.operator_properties(_path_tool.MESH_OT_select_path.bl_idname),
+            layout,
+        )
+
+
 _classes = (
     preferences.Preferences,
-    tools.MESH_OT_select_path,
+    _path_tool.MESH_OT_select_path,
 )
 
 _cls_register, _cls_unregister = bpy.utils.register_classes_factory(classes=_classes)
@@ -52,10 +76,10 @@ _cls_register, _cls_unregister = bpy.utils.register_classes_factory(classes=_cla
 
 def register():
     _cls_register()
-    bpy.utils.register_tool(tools.PathToolMesh, after={"builtin.select_lasso"}, separator=False, group=False)
+    bpy.utils.register_tool(PathToolMesh, after={"builtin.select_lasso"}, separator=False, group=False)
     bhqab.gpu_extras.shader.generate_shaders(os.path.join(os.path.dirname(__file__), "shaders"))
 
 
 def unregister():
-    bpy.utils.unregister_tool(tools.PathToolMesh)
+    bpy.utils.unregister_tool(PathToolMesh)
     _cls_unregister()
