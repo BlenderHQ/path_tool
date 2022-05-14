@@ -910,8 +910,8 @@ class MESH_OT_select_path(Operator):
             if path.batch_control_elements:
                 shader_ce.uniform_float("ModelMatrix", path.ob.matrix_world)
                 shader_ce.uniform_float("color", color)
-                shader_ce.uniform_float("color_active", color_active)
-                shader_ce.uniform_int("active_index", (active_index,))
+                shader_ce.uniform_float("colorActive", color_active)
+                shader_ce.uniform_int("activeIndex", (active_index,))
 
                 path.batch_control_elements.draw(shader_ce)
 
