@@ -23,17 +23,20 @@ _PackedEvent_T = tuple[
 
 
 class MeshOperatorVariables:
-
-    # ________________________________________________________________________ #
+    # Input events and keys
     select_mb: Literal['LEFTMOUSE', 'RIGHTMOUSE']
+    "Select mouse button"
     pie_mb: Literal['LEFTMOUSE', 'RIGHTMOUSE']
+    "Contextual pie menu mouse button"
     modal_events: dict[_PackedEvent_T, str]
-    undo_redo_events: dict[_PackedEvent_T, str]
-    nav_events: tuple[tuple[_PackedEvent_T]]
+    "Standard modal keymap modal events: ``'APPLY'``, ``'CANCEL'``, ect."
+    undo_redo_events: dict[_PackedEvent_T, Literal['UNDO', 'REDO']]
+    "Standard keymap undo and redo keys"
+    nav_events: tuple[_PackedEvent_T]
+    "Standard 3D View navigation events"
     is_mouse_pressed: bool
     is_navigation_active: bool
 
-    # ________________________________________________________________________ #
     # Tool settings mesh select modes and mesh elements
     initial_ts_msm: tuple[Union[int, bool], Union[int, bool], Union[int, bool]]
     """Initial tool settings mesh select mode with which operator was
@@ -74,7 +77,6 @@ class MeshOperatorVariables:
     # Initial selected mesh elements
     initial_select: tuple[Union[BMVert, BMEdge, BMFace]]
 
-    # ________________________________________________________________________ #
     # BMesh elements caches
     bm_arr: tuple[tuple[Object, BMesh]]
 
