@@ -29,22 +29,192 @@ bl_info = {
 if "bpy" in locals():
     from importlib import reload
 
-    reload(tools)
-    reload(preferences)
+    reload(_path_tool)
 
     del reload
 
 import os
 
 import bpy
+from bpy.types import (
+    WorkSpaceTool,
+    Context,
+    UILayout,
+    AddonPreferences,
+)
+from bpy.props import (
+    EnumProperty,
+    FloatVectorProperty,
+    IntProperty,
+)
 
-from . import tools
-from . import preferences
 from . import bhqab
+from . import _path_tool
+
+
+class Preferences(AddonPreferences):
+    bl_idname = __package__
+
+    __slots__ = (
+        "tab",
+        "color_control_element",
+        "color_active_path_control_element",
+        "color_active_control_element",
+        "color_path",
+        "color_active_path",
+        "point_size",
+        "line_width",
+    )
+
+    tab: EnumProperty(
+        items=(
+            ('APPEARANCE', "Appearance", "Appearance settings"),
+            ('KEYMAP', "Keymap", "Keymap settings"),
+        ),
+        default='APPEARANCE',
+        options={'HIDDEN', 'SKIP_SAVE'},
+        name="Tab",
+        description="User preferences tab to be displayed",
+    )
+
+    color_control_element: FloatVectorProperty(
+        default=(0.622574, 0.685957, 0.666101),
+        subtype='COLOR',
+        size=3,
+        min=0.0,
+        max=1.0,
+        name="Control Element",
+        description="Control element color",
+    )
+
+    color_active_path_control_element: FloatVectorProperty(
+        default=(0.969922, 0.969922, 0.969922),
+        subtype='COLOR',
+        size=3,
+        min=0.0,
+        max=1.0,
+        name="Active Path Control Element",
+        description="Control element color",
+    )
+
+    color_active_control_element: FloatVectorProperty(
+        default=(0.039087, 0.331906, 0.940392),
+        subtype='COLOR',
+        size=3,
+        min=0.0,
+        max=1.0,
+        name="Active Control Element",
+        description="Control element color",
+    )
+
+    color_path: FloatVectorProperty(
+        default=(0.0, 0.7, 1.0),
+        subtype='COLOR',
+        size=3,
+        min=0.0,
+        max=1.0,
+        name="Path",
+        description="Path color",
+    )
+
+    color_path_topology: FloatVectorProperty(
+        default=(0.0, 0.9, 0.5),
+        subtype='COLOR',
+        size=3,
+        min=0.0,
+        max=1.0,
+        name="Topology Path",
+        description="Color of path",
+    )
+
+    color_active_path: FloatVectorProperty(
+        default=(1.0, 0.1, 0.1),
+        subtype='COLOR',
+        size=3,
+        min=0.0,
+        max=1.0,
+        name="Active Path",
+        description="Path color",
+    )
+
+    color_active_path_topology: FloatVectorProperty(
+        default=(1.0, 0.8, 0.1),
+        subtype='COLOR',
+        size=3,
+        min=0.0,
+        max=1.0,
+        name="Active Topology Path",
+        description="Path color",
+    )
+
+    point_size: IntProperty(
+        default=4,
+        min=1,
+        max=9,
+        soft_min=3,
+        soft_max=6,
+        subtype='PIXEL',
+        name="Vertex Size",
+        description="",
+    )
+
+    line_width: IntProperty(
+        default=3,
+        min=1,
+        max=9,
+        soft_min=3,
+        soft_max=6,
+        subtype='PIXEL',
+        name="Edge Width",
+        description="",
+    )
+
+    def draw(self, context: Context) -> None:
+        layout: UILayout = self.layout
+
+        layout.use_property_split = True
+
+        row = layout.row()
+        row.prop_tabs_enum(self, "tab")
+
+        if self.tab == 'APPEARANCE':
+            col = layout.column(align=True)
+
+            col.prop(self, "color_control_element")
+            col.prop(self, "color_active_path_control_element")
+            col.prop(self, "color_active_control_element")
+            col.prop(self, "color_path")
+            col.prop(self, "color_active_path")
+            col.prop(self, "color_path_topology")
+            col.prop(self, "color_active_path_topology")
+            col.separator()
+            col.prop(self, "point_size")
+            col.prop(self, "line_width")
+
+        elif self.tab == 'KEYMAP':
+            bhqab.utils_ui.template_tool_keymap(context, layout, "3D View Tool: Edit Mesh, Select Path")
+
+
+class PathToolMesh(WorkSpaceTool):
+    bl_idname = "mesh.path_tool"
+    bl_label = "Select Path"
+    bl_space_type = 'VIEW_3D'
+    bl_context_mode = 'EDIT_MESH'
+    bl_description = "Select items using editable pathes"
+    bl_icon = os.path.join(os.path.dirname(__file__), "icons", "ops.mesh.path_tool")
+    bl_keymap = ((_path_tool.MESH_OT_select_path.bl_idname, dict(type='LEFTMOUSE', value='PRESS',), None),)
+
+    @staticmethod
+    def draw_settings(_context: Context, layout: UILayout, tool: WorkSpaceTool):
+        _path_tool.MESH_OT_select_path._ui_draw_func(
+            tool.operator_properties(_path_tool.MESH_OT_select_path.bl_idname),
+            layout,
+        )
+
 
 _classes = (
-    preferences.Preferences,
-    tools.MESH_OT_select_path,
+    Preferences,
+    _path_tool.MESH_OT_select_path,
 )
 
 _cls_register, _cls_unregister = bpy.utils.register_classes_factory(classes=_classes)
@@ -52,10 +222,10 @@ _cls_register, _cls_unregister = bpy.utils.register_classes_factory(classes=_cla
 
 def register():
     _cls_register()
-    bpy.utils.register_tool(tools.PathToolMesh, after={"builtin.select_lasso"}, separator=False, group=False)
+    bpy.utils.register_tool(PathToolMesh, after={"builtin.select_lasso"}, separator=False, group=False)
     bhqab.gpu_extras.shader.generate_shaders(os.path.join(os.path.dirname(__file__), "shaders"))
 
 
 def unregister():
-    bpy.utils.unregister_tool(tools.PathToolMesh)
+    bpy.utils.unregister_tool(PathToolMesh)
     _cls_unregister()
