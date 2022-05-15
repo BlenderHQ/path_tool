@@ -784,15 +784,14 @@ class MESH_OT_select_path(Operator):
 
     def _join_adjacent_to_active_path(self) -> None:
         for i, path in enumerate(self.path_seq):
-            if i == self._active_path_index:
-                continue
-
-            # Join two pathes
-            if (((self.active_path.flag ^ PathFlag.CLOSED and path.flag ^ PathFlag.CLOSED)) and ((
-                self.active_path.control_elements[0] == path.control_elements[0])  # Start to start
-                or (self.active_path.control_elements[-1] == path.control_elements[-1])  # End to end
-                or (self.active_path.control_elements[-1] == path.control_elements[0])  # End to start
-                or (self.active_path.control_elements[0] == path.control_elements[-1])  # Start to end
+            if (((i != self._active_path_index)  # Skip active path itself
+                # Closed pathes can not be merged
+                 and (self.active_path.flag ^ PathFlag.CLOSED and path.flag ^ PathFlag.CLOSED))
+                and (
+                    (self.active_path.control_elements[0] == path.control_elements[0])  # Start to start
+                    or (self.active_path.control_elements[-1] == path.control_elements[-1])  # End to end
+                    or (self.active_path.control_elements[-1] == path.control_elements[0])  # End to start
+                    or (self.active_path.control_elements[0] == path.control_elements[-1])  # Start to end
             )):
                 self.active_path += self.path_seq.pop(i)
 
