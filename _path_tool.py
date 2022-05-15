@@ -783,25 +783,23 @@ class MESH_OT_select_path(Operator):
                             pass
 
     def _check_join_pathes(self) -> None:
-        for i, path in enumerate(self.path_seq):
-            for other_path in self.path_seq:
-                if path == other_path:
-                    continue
+        for i, other_path in enumerate(self.path_seq):
+            if i == self._active_path_index:
+                continue
 
-                # Join two pathes
-                if (((path.flag ^ PathFlag.CLOSED and other_path.flag ^ PathFlag.CLOSED)) and ((
-                    path.control_elements[0] == other_path.control_elements[0])
-                    or (path.control_elements[-1] == other_path.control_elements[-1])
-                    or (path.control_elements[-1] == other_path.control_elements[0])
-                    or (path.control_elements[0] == other_path.control_elements[-1])
-                )):
-                    path += other_path
-                    self.path_seq.remove(other_path)
-                    self._active_path_index = i
+            # Join two pathes
+            if (((self.active_path.flag ^ PathFlag.CLOSED and other_path.flag ^ PathFlag.CLOSED)) and ((
+                self.active_path.control_elements[0] == other_path.control_elements[0])
+                or (self.active_path.control_elements[-1] == other_path.control_elements[-1])
+                or (self.active_path.control_elements[-1] == other_path.control_elements[0])
+                or (self.active_path.control_elements[0] == other_path.control_elements[-1])
+            )):
+                self.active_path += self.path_seq.pop(i)
 
-                    batch, _ = self._gpu_gen_batch_control_elements(path == self.active_path, path)
-                    path.batch_control_elements = batch
-                    self.report(type={'INFO'}, message="Joined two paths")
+                batch, _ = self._gpu_gen_batch_control_elements(True, self.active_path)
+                self.active_path.batch_control_elements = batch
+                self.report(type={'INFO'}, message="Joined two paths")
+                break
 
     def _get_selected_elements(self, mesh_elements: str) -> tuple[Union[BMVert, BMEdge, BMFace]]:
         ret = tuple()
