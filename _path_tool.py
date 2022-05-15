@@ -782,17 +782,17 @@ class MESH_OT_select_path(Operator):
                             # Maybe, undo here?
                             pass
 
-    def _check_join_pathes(self) -> None:
-        for i, other_path in enumerate(self.path_seq):
+    def _join_adjacent_to_active_path(self) -> None:
+        for i, path in enumerate(self.path_seq):
             if i == self._active_path_index:
                 continue
 
             # Join two pathes
-            if (((self.active_path.flag ^ PathFlag.CLOSED and other_path.flag ^ PathFlag.CLOSED)) and ((
-                self.active_path.control_elements[0] == other_path.control_elements[0])
-                or (self.active_path.control_elements[-1] == other_path.control_elements[-1])
-                or (self.active_path.control_elements[-1] == other_path.control_elements[0])
-                or (self.active_path.control_elements[0] == other_path.control_elements[-1])
+            if (((self.active_path.flag ^ PathFlag.CLOSED and path.flag ^ PathFlag.CLOSED)) and ((
+                self.active_path.control_elements[0] == path.control_elements[0])  # Start to start
+                or (self.active_path.control_elements[-1] == path.control_elements[-1])  # End to end
+                or (self.active_path.control_elements[-1] == path.control_elements[0])  # End to start
+                or (self.active_path.control_elements[0] == path.control_elements[-1])  # Start to end
             )):
                 self.active_path += self.path_seq.pop(i)
 
@@ -1045,7 +1045,7 @@ class MESH_OT_select_path(Operator):
                 self.active_path.fill_elements[-1] = []
                 self.active_path.batch_seq_fills[-1] = None
                 self._just_closed_path = False
-                self._check_join_pathes()
+                self._join_adjacent_to_active_path()
 
         elif interact_event is InteractEvent.TOPOLOGY_DISTANCE:
             self.active_path.flag ^= PathFlag.TOPOLOGY
@@ -1058,7 +1058,7 @@ class MESH_OT_select_path(Operator):
 
             for path in self.path_seq:
                 self._remove_path_doubles(context, path)
-            self._check_join_pathes()
+            self._join_adjacent_to_active_path()
 
             self._register_undo_step()
 
