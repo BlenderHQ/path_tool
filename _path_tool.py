@@ -363,14 +363,14 @@ class MESH_OT_select_path(Operator):
                 InteractEvent.CHANGE_DIRECTION.name,
                 "Change direction",
                 "Changes the direction of the path",
-                'CON_CHILDOF',
+                'NONE',  # 'CON_CHILDOF',
                 InteractEvent.CHANGE_DIRECTION.value,
             ),
             (
                 InteractEvent.CLOSE_PATH.name,
                 "Close Path",
                 "Close the path from the first to the last control point",
-                'MESH_CIRCLE',
+                'NONE',  # 'MESH_CIRCLE',
                 InteractEvent.CLOSE_PATH.value,
             ),
             (
@@ -382,7 +382,7 @@ class MESH_OT_select_path(Operator):
             ),
             (
                 InteractEvent.APPLY_PATHES.name,
-                "Apply All",
+                "Apply",
                 "Apply all paths and make changes to the mesh",
                 'EVENT_RETURN',
                 InteractEvent.APPLY_PATHES.value,
@@ -403,9 +403,9 @@ class MESH_OT_select_path(Operator):
             ),
             (
                 InteractEvent.TOPOLOGY_DISTANCE.name,
-                "Use Topology Distance",
+                "Change topology",
                 "Find the minimum number of steps, ignoring spatial distance",
-                'DRIVER_DISTANCE',
+                'NONE',  # 'DRIVER_DISTANCE',
                 InteractEvent.TOPOLOGY_DISTANCE.value,
             ),
         ),
