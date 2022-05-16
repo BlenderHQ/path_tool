@@ -470,7 +470,6 @@ class MESH_OT_select_path(Operator):
     nav_events: tuple[_PackedEvent_T]
     "Standard 3D View navigation events"
     is_mouse_pressed: bool
-    is_navigation_active: bool
 
     # Tool settings mesh select modes and mesh elements
     initial_ts_msm: tuple[Union[int, bool], Union[int, bool], Union[int, bool]]
@@ -1130,7 +1129,6 @@ class MESH_OT_select_path(Operator):
         self.nav_events = tuple(nav_events)
 
         self.is_mouse_pressed = False
-        self.is_navigation_active = False
 
         # ____________________________________________________________________ #
         # Initialize variables.
@@ -1212,12 +1210,6 @@ class MESH_OT_select_path(Operator):
 
         if ev in self.nav_events:
             return {'PASS_THROUGH'}
-
-        elif self.is_navigation_active and event.value == 'RELEASE':
-            self.is_navigation_active = False
-            self._set_selection_state(self.initial_select, True)
-            self._update_meshes()
-            return {'RUNNING_MODAL'}
 
         elif (
             modal_action == 'CANCEL'
