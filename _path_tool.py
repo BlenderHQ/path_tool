@@ -482,6 +482,14 @@ class MESH_OT_select_path(Operator):
         description="Mark sharp options",
     )
 
+    use_topology_distance: BoolProperty(
+        default=False,
+        options={'HIDDEN', 'SKIP_SAVE'},
+        name="Use Topology Distance",
+        description=("Algorithm for calculating the switching path: simple or using a mesh topology"
+                     "(Find the minimum number of steps, ignoring spatial distance)"),
+    )
+
     # Input events and keys
     select_mb: Literal['LEFTMOUSE', 'RIGHTMOUSE']
     "Select mouse button"
@@ -999,6 +1007,10 @@ class MESH_OT_select_path(Operator):
         elif elem and interact_event is InteractEvent.ADD_NEW_PATH:
             linked_island_index = self._get_linked_island_index(context, elem)
             new_path = Path(elem, linked_island_index, ob)
+
+            if self.use_topology_distance:
+                new_path.flag |= PathFlag.TOPOLOGY
+
             self.path_seq.append(new_path)
             self.active_path = new_path
             self._just_closed_path = False
