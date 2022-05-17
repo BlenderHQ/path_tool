@@ -767,6 +767,7 @@ class MESH_OT_select_path(Operator):
             self.markup_seq[ob] = list(dict.fromkeys(index_markup_seq))
 
     def _ui_draw_func(self, layout: UILayout) -> None:
+        layout.use_property_split = True
         layout.row().prop(self, "mark_select", text="Select", icon_only=True, expand=True)
         layout.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
         layout.row().prop(self, "mark_sharp", text="Sharp", icon_only=True, expand=True)
@@ -775,7 +776,6 @@ class MESH_OT_select_path(Operator):
         pie = popup.layout.menu_pie()
         pie.prop_tabs_enum(self, "context_action")
         col = pie.box().column()
-        col.use_property_split = True
         self._ui_draw_func(col)
 
     @staticmethod
