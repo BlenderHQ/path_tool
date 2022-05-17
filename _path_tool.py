@@ -455,13 +455,6 @@ class MESH_OT_select_path(Operator):
         description="Mark sharp options",
     )
 
-    use_topology_distance: BoolProperty(
-        default=False,
-        options={'HIDDEN', 'SKIP_SAVE'},
-        name="Topology Distance",
-        description="Find the minimum number of steps, ignoring spatial distance",
-    )
-
     # Input events and keys
     select_mb: Literal['LEFTMOUSE', 'RIGHTMOUSE']
     "Select mouse button"
