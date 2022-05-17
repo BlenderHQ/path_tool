@@ -362,14 +362,17 @@ class MESH_OT_select_path(Operator):
             (
                 InteractEvent.CHANGE_DIRECTION.name,
                 "Change direction",
-                "Changes the direction of the path",
+                ("Change the direction of the active path.\n"
+                 "The active element of the path will be the final element "
+                 "from the opposite end of the path, from it will be formed a section to the next control element that "
+                 "you create."),
                 'NONE',  # 'CON_CHILDOF',
                 InteractEvent.CHANGE_DIRECTION.value,
             ),
             (
                 InteractEvent.CLOSE_PATH.name,
                 "Close Path",
-                "Close the path from the first to the last control point",
+                "Connect between the beginning and end of the active path",
                 'NONE',  # 'MESH_CIRCLE',
                 InteractEvent.CLOSE_PATH.value,
             ),
@@ -383,14 +386,14 @@ class MESH_OT_select_path(Operator):
             (
                 InteractEvent.APPLY_PATHES.name,
                 "Apply",
-                "Apply all paths and make changes to the mesh",
+                "Apply the created mesh paths according to the selected options",
                 'EVENT_RETURN',
                 InteractEvent.APPLY_PATHES.value,
             ),
             (
                 InteractEvent.UNDO.name,
                 "Undo",
-                "Undo previous interaction",
+                "Take a step back",
                 'LOOP_BACK',
                 InteractEvent.UNDO.value,
             ),
@@ -404,7 +407,8 @@ class MESH_OT_select_path(Operator):
             (
                 InteractEvent.TOPOLOGY_DISTANCE.name,
                 "Change topology",
-                "Find the minimum number of steps, ignoring spatial distance",
+                ("Algorithm for calculating the switching path: simple or using a mesh topology"
+                 "(Find the minimum number of steps, ignoring spatial distance)"),
                 'NONE',  # 'DRIVER_DISTANCE',
                 InteractEvent.TOPOLOGY_DISTANCE.value,
             ),
