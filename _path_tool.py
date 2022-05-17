@@ -527,46 +527,6 @@ class MESH_OT_select_path(Operator):
     select_only_seq: dict  # TODO
     markup_seq: dict  # TODO
 
-    def _ui_draw_func(self, layout: UILayout) -> None:
-        layout.row().prop(self, "mark_select", text="Select", icon_only=True, expand=True)
-        layout.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
-        layout.row().prop(self, "mark_sharp", text="Sharp", icon_only=True, expand=True)
-
-    def _ui_draw_popup_menu_pie(self, popup: UIPieMenu, context: Context) -> None:
-        pie = popup.layout.menu_pie()
-        pie.prop_tabs_enum(self, "context_action")
-        col = pie.box().column()
-        col.use_property_split = True
-        self._ui_draw_func(col)
-
-    @staticmethod
-    def _ui_draw_statusbar(self, context: Context) -> None:
-        layout = self.layout
-        layout: UILayout
-
-        wm = context.window_manager
-
-        cancel_keys = set()
-        apply_keys = {HARDCODED_APPLY_KMI[0]}
-
-        kc = wm.keyconfigs.user
-        for kmi in kc.keymaps["Standard Modal Map"].keymap_items:
-            kmi: KeyMapItem
-            if kmi.propvalue == 'CANCEL':
-                cancel_keys.add(kmi.type)
-            elif kmi.propvalue == 'APPLY' and 'MOUSE' not in kmi.type:
-                apply_keys.add(kmi.type)
-
-        bhqab.utils_ui.template_input_info_kmi_from_type(layout, "Cancel", cancel_keys)
-        bhqab.utils_ui.template_input_info_kmi_from_type(layout, "Apply", apply_keys)
-        bhqab.utils_ui.template_input_info_kmi_from_type(layout, "Close Path", {HARDCODED_CLOSE_PATH_KMI[0]})
-        bhqab.utils_ui.template_input_info_kmi_from_type(
-            layout, "Change Direction", {HARDCODED_CHANGE_DIRECTION_KMI[0]}
-        )
-        bhqab.utils_ui.template_input_info_kmi_from_type(
-            layout, "Topology Distance", {HARDCODED_TOPOLOGY_DISTANCE_KMI[0]}
-        )
-
     @staticmethod
     def _pack_event(item: Union[KeyMapItem, Event]) -> _PackedEvent_T:
         return item.type, item.value, item.alt, item.ctrl, item.shift
@@ -805,6 +765,46 @@ class MESH_OT_select_path(Operator):
             # Remove duplicates
             self.select_only_seq[ob] = list(dict.fromkeys(index_select_seq))
             self.markup_seq[ob] = list(dict.fromkeys(index_markup_seq))
+
+    def _ui_draw_func(self, layout: UILayout) -> None:
+        layout.row().prop(self, "mark_select", text="Select", icon_only=True, expand=True)
+        layout.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
+        layout.row().prop(self, "mark_sharp", text="Sharp", icon_only=True, expand=True)
+
+    def _ui_draw_popup_menu_pie(self, popup: UIPieMenu, context: Context) -> None:
+        pie = popup.layout.menu_pie()
+        pie.prop_tabs_enum(self, "context_action")
+        col = pie.box().column()
+        col.use_property_split = True
+        self._ui_draw_func(col)
+
+    @staticmethod
+    def _ui_draw_statusbar(self, context: Context) -> None:
+        layout = self.layout
+        layout: UILayout
+
+        wm = context.window_manager
+
+        cancel_keys = set()
+        apply_keys = {HARDCODED_APPLY_KMI[0]}
+
+        kc = wm.keyconfigs.user
+        for kmi in kc.keymaps["Standard Modal Map"].keymap_items:
+            kmi: KeyMapItem
+            if kmi.propvalue == 'CANCEL':
+                cancel_keys.add(kmi.type)
+            elif kmi.propvalue == 'APPLY' and 'MOUSE' not in kmi.type:
+                apply_keys.add(kmi.type)
+
+        bhqab.utils_ui.template_input_info_kmi_from_type(layout, "Cancel", cancel_keys)
+        bhqab.utils_ui.template_input_info_kmi_from_type(layout, "Apply", apply_keys)
+        bhqab.utils_ui.template_input_info_kmi_from_type(layout, "Close Path", {HARDCODED_CLOSE_PATH_KMI[0]})
+        bhqab.utils_ui.template_input_info_kmi_from_type(
+            layout, "Change Direction", {HARDCODED_CHANGE_DIRECTION_KMI[0]}
+        )
+        bhqab.utils_ui.template_input_info_kmi_from_type(
+            layout, "Topology Distance", {HARDCODED_TOPOLOGY_DISTANCE_KMI[0]}
+        )
 
     @staticmethod
     def _gpu_gen_batch_faces_seq(fill_seq, is_active, shader):
