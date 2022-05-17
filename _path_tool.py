@@ -17,6 +17,7 @@ from bpy.types import (
     STATUSBAR_HT_header,
     UILayout,
     UIPieMenu,
+    WorkSpaceTool,
 )
 from bpy.props import (
     BoolProperty,
@@ -417,6 +418,18 @@ class MESH_OT_select_path(Operator):
         options={'ENUM_FLAG', 'HIDDEN', 'SKIP_SAVE'},
     )
 
+    @staticmethod
+    def _get_tool_settings(context: Context) -> Union[None, MESH_OT_select_path]:
+        tool: WorkSpaceTool = context.workspace.tools.from_space_view3d_mode("EDIT_MESH", create=False)
+        if tool:
+            props: MESH_OT_select_path = tool.operator_properties(MESH_OT_select_path.__name__)
+            return props
+
+    def _update_mark_select(self, context: Context):
+        props = MESH_OT_select_path._get_tool_settings(context)
+        if props:
+            props.mark_select = self.mark_select
+
     mark_select: EnumProperty(
         items=(
             ('EXTEND', "Extend", "Extend existing selection", 'SELECT_EXTEND', 1),
@@ -426,9 +439,15 @@ class MESH_OT_select_path(Operator):
         ),
         default='EXTEND',
         options={'HIDDEN', 'SKIP_SAVE'},
+        update=_update_mark_select,
         name="Select",
         description="Selection options",
     )
+
+    def _update_mark_seam(self, context: Context):
+        props = MESH_OT_select_path._get_tool_settings(context)
+        if props:
+            props.mark_seam = self.mark_seam
 
     mark_seam: EnumProperty(
         items=(
@@ -439,9 +458,15 @@ class MESH_OT_select_path(Operator):
         ),
         default='NONE',
         options={'HIDDEN', 'SKIP_SAVE'},
+        update=_update_mark_seam,
         name="Seams",
         description="Mark seam options",
     )
+
+    def _update_mark_sharp(self, context: Context):
+        props = MESH_OT_select_path._get_tool_settings(context)
+        if props:
+            props.mark_sharp = self.mark_sharp
 
     mark_sharp: EnumProperty(
         items=(
@@ -451,6 +476,8 @@ class MESH_OT_select_path(Operator):
             ('TOGGLE', "Toggle", "Toggle sharpness on path", 'ACTION_TWEAK', 4),
         ),
         default="NONE",
+        options={'HIDDEN', 'SKIP_SAVE'},
+        update=_update_mark_sharp,
         name="Sharp",
         description="Mark sharp options",
     )
