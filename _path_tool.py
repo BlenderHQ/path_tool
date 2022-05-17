@@ -571,17 +571,19 @@ class MESH_OT_select_path(Operator):
     def _pack_event(item: Union[KeyMapItem, Event]) -> _PackedEvent_T:
         return item.type, item.value, item.alt, item.ctrl, item.shift
 
-    @staticmethod
-    def _eval_meshes(context: Context) -> tuple[tuple[Object, BMesh]]:
-        ret = []
+    def _eval_meshes(self, context: Context) -> None:
+        ret: list[tuple[Object, BMesh]] = list()
+
         for ob in context.objects_in_mode:
             ob: Object
 
             bm = bmesh.from_edit_mesh(ob.data)
-            for elem_arr in (bm.verts, bm.edges, bm.faces):
-                elem_arr.ensure_lookup_table()
+            if self.prior_ts_msm[1]:
+                bm.edges.ensure_lookup_table()
+            elif self.prior_ts_msm[2]:
+                bm.faces.ensure_lookup_table()
             ret.append((ob, bm))
-        return tuple(ret)
+        self.bm_arr = tuple(ret)
 
     @property
     def active_path(self) -> Path:
@@ -719,35 +721,6 @@ class MESH_OT_select_path(Operator):
 
             path.batch_seq_fills[fill_index] = batch
 
-    def _gen_final_elements_seq(self, context: Context) -> None:
-        self.select_only_seq = {}
-        self.markup_seq = {}
-
-        for ob in context.objects_in_mode:
-            ob: Object
-
-            index_select_seq = []
-            index_markup_seq = []
-
-            for path in self.path_seq:
-                if path.ob != ob:
-                    continue
-                for fill_seq in path.fill_elements:
-                    index_select_seq.extend([n.index for n in fill_seq])
-                if self.prior_ts_msm[1]:  # Edges mesh select mode
-                    index_markup_seq = index_select_seq
-                if self.prior_ts_msm[2]:  # Faces mesh select mode
-                    # For face selection mode control elements are required too
-                    index_select_seq.extend([face.index for face in path.control_elements])
-                    tmp = path.fill_elements
-                    tmp.append(path.control_elements)
-                    for fill_seq in tmp:
-                        for face in fill_seq:
-                            index_markup_seq.extend([e.index for e in face.edges])
-            # Remove duplicates
-            self.select_only_seq[ob] = list(dict.fromkeys(index_select_seq))
-            self.markup_seq[ob] = list(dict.fromkeys(index_markup_seq))
-
     def _remove_path_doubles(self, context: Context, path: Path) -> None:
         for i, control_element in enumerate(path.control_elements):
             if path.control_elements.count(control_element) > 1:
@@ -804,6 +777,34 @@ class MESH_OT_select_path(Operator):
             elem_arr = getattr(bm, mesh_elements)
             ret += tuple((n for n in elem_arr if n.select))
         return ret
+
+    def _gen_final_elements_seq(self, context: Context) -> None:
+        self.select_only_seq = dict()
+        self.markup_seq = dict()
+
+        for ob in context.objects_in_mode:
+            ob: Object
+
+            index_select_seq: list[int] = []
+            index_markup_seq: list[int] = []
+
+            for path in self.path_seq:
+                if path.ob != ob:
+                    continue
+                for fill_seq in path.fill_elements:
+                    index_select_seq.extend([n.index for n in fill_seq])
+                if self.prior_ts_msm[1]:
+                    index_markup_seq = index_select_seq
+                if self.prior_ts_msm[2]:
+                    index_select_seq.extend([face.index for face in path.control_elements])
+                    tmp = path.fill_elements
+                    tmp.append(path.control_elements)
+                    for fill_seq in tmp:
+                        for face in fill_seq:
+                            index_markup_seq.extend([e.index for e in face.edges])
+            # Remove duplicates
+            self.select_only_seq[ob] = list(dict.fromkeys(index_select_seq))
+            self.markup_seq[ob] = list(dict.fromkeys(index_markup_seq))
 
     @staticmethod
     def _gpu_gen_batch_faces_seq(fill_seq, is_active, shader):
@@ -1148,7 +1149,6 @@ class MESH_OT_select_path(Operator):
         # ____________________________________________________________________ #
         # Meshes context setup.
         # Evaluate meshes:
-        self.bm_arr = self._eval_meshes(context)
 
         self.initial_ts_msm = tuple(ts.mesh_select_mode)
         self.initial_mesh_elements = "edges"
@@ -1165,6 +1165,7 @@ class MESH_OT_select_path(Operator):
             self.select_ts_msm = (False, False, True)
             self.select_mesh_elements = "faces"
 
+        self._eval_meshes(context)
         self.initial_select = self._get_selected_elements(self.initial_mesh_elements)
 
         # Tweak operator settings in case if all mesh elements are already selected
@@ -1200,7 +1201,7 @@ class MESH_OT_select_path(Operator):
         self._gpu_remove_handle()
         STATUSBAR_HT_header.remove(self._ui_draw_statusbar)
 
-    def modal(self, context, event):
+    def modal(self, context: Context, event: Event):
         ev = self._pack_event(event)
         modal_action = self.modal_events.get(ev, None)
         undo_redo_action = self.undo_redo_events.get(ev, None)
@@ -1303,10 +1304,7 @@ class MESH_OT_select_path(Operator):
         return {'RUNNING_MODAL'}
 
     def execute(self, context: Context):
-        tool_settings = context.scene.tool_settings
-        tool_settings.mesh_select_mode = self.prior_ts_msm
-
-        self.bm_arr = self._eval_meshes(context)
+        self._eval_meshes(context)
 
         for ob, bm in self.bm_arr:
             if self.mark_select != 'NONE' and ob in self.select_only_seq:
