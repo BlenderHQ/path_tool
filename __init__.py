@@ -200,6 +200,7 @@ class PathToolMesh(WorkSpaceTool):
     bl_label = "Select Path"
     bl_space_type = 'VIEW_3D'
     bl_context_mode = 'EDIT_MESH'
+    bl_options = {}
     bl_description = "Select items using editable pathes"
     bl_icon = os.path.join(os.path.dirname(__file__), "icons", "ops.mesh.path_tool")
     bl_keymap = ((_path_tool.MESH_OT_select_path.bl_idname, dict(type='LEFTMOUSE', value='PRESS',), None),)
@@ -208,13 +209,15 @@ class PathToolMesh(WorkSpaceTool):
     def draw_settings(_context: Context, layout: UILayout, tool: WorkSpaceTool):
         props = tool.operator_properties(_path_tool.MESH_OT_select_path.bl_idname)
         _path_tool.MESH_OT_select_path._ui_draw_func(props, layout)
-
         layout.prop(props, "use_topology_distance")
 
 
 _classes = (
     Preferences,
     _path_tool.MESH_OT_select_path,
+    _path_tool.WM_OT_select_path_presets,
+    _path_tool.MESH_MT_select_path_presets,
+    _path_tool.MESH_OT_select_path_preset_add,
 )
 
 _cls_register, _cls_unregister = bpy.utils.register_classes_factory(classes=_classes)
