@@ -18,11 +18,13 @@ from bpy.types import (
     UILayout,
     UIPieMenu,
     WorkSpaceTool,
+    Menu,
 )
 from bpy.props import (
     BoolProperty,
     EnumProperty,
 )
+from bl_operators.presets import AddPresetBase
 
 import bmesh
 from bmesh.types import (
@@ -420,7 +422,7 @@ class MESH_OT_select_path(Operator):
 
     @staticmethod
     def _get_tool_settings(context: Context) -> Union[None, MESH_OT_select_path]:
-        tool: WorkSpaceTool = context.workspace.tools.from_space_view3d_mode("EDIT_MESH", create=False)
+        tool: WorkSpaceTool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
         if tool:
             props: MESH_OT_select_path = tool.operator_properties(MESH_OT_select_path.__name__)
             return props
@@ -805,6 +807,11 @@ class MESH_OT_select_path(Operator):
             self.markup_seq[ob] = list(dict.fromkeys(index_markup_seq))
 
     def _ui_draw_func(self, layout: UILayout) -> None:
+        row = layout.row(align=True)
+        row.menu(MESH_MT_select_path_presets.__name__)
+        row.operator(operator=MESH_OT_select_path_preset_add.bl_idname, text="", icon='ADD')
+        row.operator(operator=MESH_OT_select_path_preset_add.bl_idname, text="", icon='REMOVE').remove_active = True
+
         layout.use_property_split = True
         layout.row().prop(self, "mark_select", text="Select", icon_only=True, expand=True)
         layout.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
@@ -815,7 +822,9 @@ class MESH_OT_select_path(Operator):
         pie.prop_tabs_enum(self, "context_action")
         col = pie.box().column()
         self._ui_draw_func(col)
-        col.prop(self, "use_topology_distance")
+        col = col.column()
+        col.use_property_split = False
+        col.prop(self, "use_topology_distance", icon='DRIVER_DISTANCE')
 
     @staticmethod
     def _ui_draw_statusbar(self, context: Context) -> None:
@@ -1390,3 +1399,80 @@ class MESH_OT_select_path(Operator):
 
         self._update_meshes()
         return {'FINISHED'}
+
+
+class WM_OT_select_path_presets(Operator):
+    bl_label = "Set Preset"
+    bl_description = "Set operator properties to preset values"
+    bl_idname = "wm.select_path_defaults"
+    bl_options = {'INTERNAL'}
+
+    preset: EnumProperty(
+        items=(
+            ('DEFAULTS', "", ""),
+            ('TOPOLOGY_UV', "", ""),
+            ('TOPOLOGY_SHARP', "", ""),
+        ),
+        default='DEFAULTS',
+        options={'HIDDEN', 'SKIP_SAVE'},
+    )
+
+    def execute(self, context: Context):
+        tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
+        props: MESH_OT_select_path = tool.operator_properties("MESH_OT_select_path")
+
+        if self.preset == 'DEFAULTS':
+            props.mark_select = 'EXTEND'
+            props.mark_seam = 'NONE'
+            props.mark_sharp = 'NONE'
+            props.use_topology_distance = False
+        elif self.preset == 'TOPOLOGY_UV':
+            props.mark_select = 'NONE'
+            props.mark_seam = 'MARK'
+            props.mark_sharp = 'NONE'
+            props.use_topology_distance = True
+        elif self.preset == 'TOPOLOGY_SHARP':
+            props.mark_select = 'NONE'
+            props.mark_seam = 'NONE'
+            props.mark_sharp = 'MARK'
+            props.use_topology_distance = True
+
+        return {'FINISHED'}
+
+
+class MESH_MT_select_path_presets(Menu):
+    bl_label = "Operator Presets"
+    preset_subdir = "select_path"
+    preset_operator = "script.execute_preset"
+
+    def draw(self, context):
+        self.operator = MESH_OT_select_path.bl_idname
+
+        # dummy 'default' menu item
+        layout = self.layout
+        layout.operator(WM_OT_select_path_presets.bl_idname, text="Restore Operator Defaults").preset = 'DEFAULTS'
+        layout.separator()
+        Menu.draw_preset(self, context)
+        layout.separator()
+        layout.operator(WM_OT_select_path_presets.bl_idname, text="Topology UV").preset = 'TOPOLOGY_UV'
+        layout.operator(WM_OT_select_path_presets.bl_idname, text="Topology Sharp").preset = 'TOPOLOGY_SHARP'
+
+
+
+class MESH_OT_select_path_preset_add(AddPresetBase, Operator):
+    """Add \"Select Path\" preset"""
+    bl_idname = "mesh.select_path_preset_add"
+    bl_label = "Add Preset"
+    preset_menu = MESH_MT_select_path_presets.__name__
+    preset_defines = [
+        "tool = bpy.context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)",
+        "props = tool.operator_properties(\"MESH_OT_select_path\")"
+    ]
+
+    preset_values = [
+        "props.mark_select",
+        "props.mark_seam",
+        "props.mark_seam",
+        "props.use_topology_distance",
+    ]
+    preset_subdir = "select_path"
