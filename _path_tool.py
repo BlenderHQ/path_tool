@@ -408,7 +408,7 @@ class MESH_OT_select_path(Operator):
             (
                 InteractEvent.TOPOLOGY_DISTANCE.name,
                 "Change topology",
-                ("Algorithm for calculating the switching path: simple or using a mesh topology"
+                ("Algorithm for calculating the path: simple or using a mesh topology"
                  "(Find the minimum number of steps, ignoring spatial distance)"),
                 'NONE',  # 'DRIVER_DISTANCE',
                 InteractEvent.TOPOLOGY_DISTANCE.value,
@@ -480,6 +480,20 @@ class MESH_OT_select_path(Operator):
         update=_update_mark_sharp,
         name="Sharp",
         description="Mark sharp options",
+    )
+
+    def _update_use_topology_distance(self, context: Context):
+        props = MESH_OT_select_path._get_tool_settings(context)
+        if props:
+            props.use_topology_distance = self.use_topology_distance
+
+    use_topology_distance: BoolProperty(
+        default=False,
+        options={'HIDDEN', 'SKIP_SAVE'},
+        update=_update_use_topology_distance,
+        name="Use Topology Distance",
+        description=("Algorithm for calculating the shortest path for all subsequent created paths"
+                     "(Select means find the minimum number of steps, ignoring spatial distance)"),
     )
 
     # Input events and keys
@@ -801,6 +815,7 @@ class MESH_OT_select_path(Operator):
         pie.prop_tabs_enum(self, "context_action")
         col = pie.box().column()
         self._ui_draw_func(col)
+        col.prop(self, "use_topology_distance")
 
     @staticmethod
     def _ui_draw_statusbar(self, context: Context) -> None:
@@ -999,6 +1014,10 @@ class MESH_OT_select_path(Operator):
         elif elem and interact_event is InteractEvent.ADD_NEW_PATH:
             linked_island_index = self._get_linked_island_index(context, elem)
             new_path = Path(elem, linked_island_index, ob)
+
+            if self.use_topology_distance:
+                new_path.flag |= PathFlag.TOPOLOGY
+
             self.path_seq.append(new_path)
             self.active_path = new_path
             self._just_closed_path = False
