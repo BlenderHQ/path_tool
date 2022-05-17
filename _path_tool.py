@@ -420,7 +420,7 @@ class MESH_OT_select_path(Operator):
     mark_select: EnumProperty(
         items=(
             ('EXTEND', "Extend", "Extend existing selection", 'SELECT_EXTEND', 1),
-            ('NONE', "Do nothing", "Do nothing", "X", 2),
+            ('NONE', "Do nothing", "Do nothing", 'X', 2),
             ('SUBTRACT', "Subtract", "Subtract existing selection", 'SELECT_SUBTRACT', 3),
             ('INVERT', "Invert", "Inverts existing selection", 'SELECT_DIFFERENCE', 4),
         ),
