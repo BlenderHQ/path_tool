@@ -734,7 +734,7 @@ class MESH_OT_select_path(Operator):
                     continue
                 for fill_seq in path.fill_elements:
                     index_select_seq.extend([n.index for n in fill_seq])
-                if self.prior_ts_msm:  # Edges mesh select mode
+                if self.prior_ts_msm[1]:  # Edges mesh select mode
                     index_markup_seq = index_select_seq
                 if self.prior_ts_msm[2]:  # Faces mesh select mode
                     # For face selection mode control elements are required too
@@ -745,10 +745,8 @@ class MESH_OT_select_path(Operator):
                         for face in fill_seq:
                             index_markup_seq.extend([e.index for e in face.edges])
             # Remove duplicates
-            self.select_only_seq[ob.as_pointer()] = list(
-                dict.fromkeys(index_select_seq))
-            self.markup_seq[ob.as_pointer()] = list(
-                dict.fromkeys(index_markup_seq))
+            self.select_only_seq[ob] = list(dict.fromkeys(index_select_seq))
+            self.markup_seq[ob] = list(dict.fromkeys(index_markup_seq))
 
     def _remove_path_doubles(self, context: Context, path: Path) -> None:
         for i, control_element in enumerate(path.control_elements):
@@ -1304,39 +1302,28 @@ class MESH_OT_select_path(Operator):
 
         return {'RUNNING_MODAL'}
 
-    def execute(self, context):
+    def execute(self, context: Context):
         tool_settings = context.scene.tool_settings
-        initial_select_mode = tuple(tool_settings.mesh_select_mode)
-        if initial_select_mode[0]:
-            tool_settings.mesh_select_mode = (False, True, False)
+        tool_settings.mesh_select_mode = self.prior_ts_msm
 
-        self._eval_meshes(context)
+        self.bm_arr = self._eval_meshes(context)
 
         for ob, bm in self.bm_arr:
-            ptr = ob.as_pointer()
+            if self.mark_select != 'NONE' and ob in self.select_only_seq:
+                index_select_seq = self.select_only_seq[ob]
+                elem_seq = getattr(bm, self.prior_mesh_elements)
+                if self.mark_select == 'EXTEND':
+                    for i in index_select_seq:
+                        elem_seq[i].select_set(True)
+                elif self.mark_select == 'SUBTRACT':
+                    for i in index_select_seq:
+                        elem_seq[i].select_set(False)
+                elif self.mark_select == 'INVERT':
+                    for i in index_select_seq:
+                        elem_seq[i].select_set(not elem_seq[i].select)
 
-            if self.mark_select != 'NONE':
-                if ptr not in self.select_only_seq:
-                    print("Not found object %s in self.select_only_seq! This should never happen." % ob.name)
-                else:
-                    index_select_seq = self.select_only_seq[ptr]
-                    elem_seq = bm.edges
-                    if initial_select_mode[2]:
-                        elem_seq = bm.faces
-                    if self.mark_select == 'EXTEND':
-                        for i in index_select_seq:
-                            elem_seq[i].select_set(True)
-                    elif self.mark_select == 'SUBTRACT':
-                        for i in index_select_seq:
-                            elem_seq[i].select_set(False)
-                    elif self.mark_select == 'INVERT':
-                        for i in index_select_seq:
-                            elem_seq[i].select_set(not elem_seq[i].select)
-
-            if ptr not in self.markup_seq:
-                print("Not found object %s in self.markup_seq! This should never happen." % ob.name)
-            else:
-                index_markup_seq = self.markup_seq[ptr]
+            if ob in self.markup_seq:
+                index_markup_seq = self.markup_seq[ob]
                 elem_seq = bm.edges
                 if self.mark_seam != 'NONE':
                     if self.mark_seam == 'MARK':
