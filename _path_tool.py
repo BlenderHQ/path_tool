@@ -17,6 +17,7 @@ from bpy.types import (
     STATUSBAR_HT_header,
     UILayout,
     UIPieMenu,
+    WorkSpaceTool,
 )
 from bpy.props import (
     BoolProperty,
@@ -362,14 +363,17 @@ class MESH_OT_select_path(Operator):
             (
                 InteractEvent.CHANGE_DIRECTION.name,
                 "Change direction",
-                "Changes the direction of the path",
+                ("Change the direction of the active path.\n"
+                 "The active element of the path will be the final element "
+                 "from the opposite end of the path, from it will be formed a section to the next control element that "
+                 "you create."),
                 'NONE',  # 'CON_CHILDOF',
                 InteractEvent.CHANGE_DIRECTION.value,
             ),
             (
                 InteractEvent.CLOSE_PATH.name,
                 "Close Path",
-                "Close the path from the first to the last control point",
+                "Connect between the beginning and end of the active path",
                 'NONE',  # 'MESH_CIRCLE',
                 InteractEvent.CLOSE_PATH.value,
             ),
@@ -383,14 +387,14 @@ class MESH_OT_select_path(Operator):
             (
                 InteractEvent.APPLY_PATHES.name,
                 "Apply",
-                "Apply all paths and make changes to the mesh",
+                "Apply the created mesh paths according to the selected options",
                 'EVENT_RETURN',
                 InteractEvent.APPLY_PATHES.value,
             ),
             (
                 InteractEvent.UNDO.name,
                 "Undo",
-                "Undo previous interaction",
+                "Take a step back",
                 'LOOP_BACK',
                 InteractEvent.UNDO.value,
             ),
@@ -404,7 +408,8 @@ class MESH_OT_select_path(Operator):
             (
                 InteractEvent.TOPOLOGY_DISTANCE.name,
                 "Change topology",
-                "Find the minimum number of steps, ignoring spatial distance",
+                ("Algorithm for calculating the switching path: simple or using a mesh topology"
+                 "(Find the minimum number of steps, ignoring spatial distance)"),
                 'NONE',  # 'DRIVER_DISTANCE',
                 InteractEvent.TOPOLOGY_DISTANCE.value,
             ),
@@ -413,18 +418,36 @@ class MESH_OT_select_path(Operator):
         options={'ENUM_FLAG', 'HIDDEN', 'SKIP_SAVE'},
     )
 
+    @staticmethod
+    def _get_tool_settings(context: Context) -> Union[None, MESH_OT_select_path]:
+        tool: WorkSpaceTool = context.workspace.tools.from_space_view3d_mode("EDIT_MESH", create=False)
+        if tool:
+            props: MESH_OT_select_path = tool.operator_properties(MESH_OT_select_path.__name__)
+            return props
+
+    def _update_mark_select(self, context: Context):
+        props = MESH_OT_select_path._get_tool_settings(context)
+        if props:
+            props.mark_select = self.mark_select
+
     mark_select: EnumProperty(
         items=(
             ('EXTEND', "Extend", "Extend existing selection", 'SELECT_EXTEND', 1),
-            ('NONE', "Do nothing", "Do nothing", "X", 2),
+            ('NONE', "Do nothing", "Do nothing", 'X', 2),
             ('SUBTRACT', "Subtract", "Subtract existing selection", 'SELECT_SUBTRACT', 3),
             ('INVERT', "Invert", "Inverts existing selection", 'SELECT_DIFFERENCE', 4),
         ),
         default='EXTEND',
         options={'HIDDEN', 'SKIP_SAVE'},
+        update=_update_mark_select,
         name="Select",
         description="Selection options",
     )
+
+    def _update_mark_seam(self, context: Context):
+        props = MESH_OT_select_path._get_tool_settings(context)
+        if props:
+            props.mark_seam = self.mark_seam
 
     mark_seam: EnumProperty(
         items=(
@@ -435,9 +458,15 @@ class MESH_OT_select_path(Operator):
         ),
         default='NONE',
         options={'HIDDEN', 'SKIP_SAVE'},
+        update=_update_mark_seam,
         name="Seams",
         description="Mark seam options",
     )
+
+    def _update_mark_sharp(self, context: Context):
+        props = MESH_OT_select_path._get_tool_settings(context)
+        if props:
+            props.mark_sharp = self.mark_sharp
 
     mark_sharp: EnumProperty(
         items=(
@@ -447,15 +476,10 @@ class MESH_OT_select_path(Operator):
             ('TOGGLE', "Toggle", "Toggle sharpness on path", 'ACTION_TWEAK', 4),
         ),
         default="NONE",
+        options={'HIDDEN', 'SKIP_SAVE'},
+        update=_update_mark_sharp,
         name="Sharp",
         description="Mark sharp options",
-    )
-
-    use_topology_distance: BoolProperty(
-        default=False,
-        options={'HIDDEN', 'SKIP_SAVE'},
-        name="Topology Distance",
-        description="Find the minimum number of steps, ignoring spatial distance",
     )
 
     # Input events and keys
@@ -526,46 +550,6 @@ class MESH_OT_select_path(Operator):
 
     select_only_seq: dict  # TODO
     markup_seq: dict  # TODO
-
-    def _ui_draw_func(self, layout: UILayout) -> None:
-        layout.row().prop(self, "mark_select", text="Select", icon_only=True, expand=True)
-        layout.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
-        layout.row().prop(self, "mark_sharp", text="Sharp", icon_only=True, expand=True)
-
-    def _ui_draw_popup_menu_pie(self, popup: UIPieMenu, context: Context) -> None:
-        pie = popup.layout.menu_pie()
-        pie.prop_tabs_enum(self, "context_action")
-        col = pie.box().column()
-        col.use_property_split = True
-        self._ui_draw_func(col)
-
-    @staticmethod
-    def _ui_draw_statusbar(self, context: Context) -> None:
-        layout = self.layout
-        layout: UILayout
-
-        wm = context.window_manager
-
-        cancel_keys = set()
-        apply_keys = {HARDCODED_APPLY_KMI[0]}
-
-        kc = wm.keyconfigs.user
-        for kmi in kc.keymaps["Standard Modal Map"].keymap_items:
-            kmi: KeyMapItem
-            if kmi.propvalue == 'CANCEL':
-                cancel_keys.add(kmi.type)
-            elif kmi.propvalue == 'APPLY' and 'MOUSE' not in kmi.type:
-                apply_keys.add(kmi.type)
-
-        bhqab.utils_ui.template_input_info_kmi_from_type(layout, "Cancel", cancel_keys)
-        bhqab.utils_ui.template_input_info_kmi_from_type(layout, "Apply", apply_keys)
-        bhqab.utils_ui.template_input_info_kmi_from_type(layout, "Close Path", {HARDCODED_CLOSE_PATH_KMI[0]})
-        bhqab.utils_ui.template_input_info_kmi_from_type(
-            layout, "Change Direction", {HARDCODED_CHANGE_DIRECTION_KMI[0]}
-        )
-        bhqab.utils_ui.template_input_info_kmi_from_type(
-            layout, "Topology Distance", {HARDCODED_TOPOLOGY_DISTANCE_KMI[0]}
-        )
 
     @staticmethod
     def _pack_event(item: Union[KeyMapItem, Event]) -> _PackedEvent_T:
@@ -805,6 +789,46 @@ class MESH_OT_select_path(Operator):
             # Remove duplicates
             self.select_only_seq[ob] = list(dict.fromkeys(index_select_seq))
             self.markup_seq[ob] = list(dict.fromkeys(index_markup_seq))
+
+    def _ui_draw_func(self, layout: UILayout) -> None:
+        layout.use_property_split = True
+        layout.row().prop(self, "mark_select", text="Select", icon_only=True, expand=True)
+        layout.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
+        layout.row().prop(self, "mark_sharp", text="Sharp", icon_only=True, expand=True)
+
+    def _ui_draw_popup_menu_pie(self, popup: UIPieMenu, context: Context) -> None:
+        pie = popup.layout.menu_pie()
+        pie.prop_tabs_enum(self, "context_action")
+        col = pie.box().column()
+        self._ui_draw_func(col)
+
+    @staticmethod
+    def _ui_draw_statusbar(self, context: Context) -> None:
+        layout = self.layout
+        layout: UILayout
+
+        wm = context.window_manager
+
+        cancel_keys = set()
+        apply_keys = {HARDCODED_APPLY_KMI[0]}
+
+        kc = wm.keyconfigs.user
+        for kmi in kc.keymaps["Standard Modal Map"].keymap_items:
+            kmi: KeyMapItem
+            if kmi.propvalue == 'CANCEL':
+                cancel_keys.add(kmi.type)
+            elif kmi.propvalue == 'APPLY' and 'MOUSE' not in kmi.type:
+                apply_keys.add(kmi.type)
+
+        bhqab.utils_ui.template_input_info_kmi_from_type(layout, "Cancel", cancel_keys)
+        bhqab.utils_ui.template_input_info_kmi_from_type(layout, "Apply", apply_keys)
+        bhqab.utils_ui.template_input_info_kmi_from_type(layout, "Close Path", {HARDCODED_CLOSE_PATH_KMI[0]})
+        bhqab.utils_ui.template_input_info_kmi_from_type(
+            layout, "Change Direction", {HARDCODED_CHANGE_DIRECTION_KMI[0]}
+        )
+        bhqab.utils_ui.template_input_info_kmi_from_type(
+            layout, "Topology Distance", {HARDCODED_TOPOLOGY_DISTANCE_KMI[0]}
+        )
 
     @staticmethod
     def _gpu_gen_batch_faces_seq(fill_seq, is_active, shader):
