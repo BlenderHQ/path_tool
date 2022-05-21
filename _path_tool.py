@@ -490,6 +490,31 @@ class MESH_OT_select_path(Operator):
         if props:
             props.use_topology_distance = self.use_topology_distance
 
+    skip: IntProperty(
+        min=0,
+        soft_max=100,
+        options={'HIDDEN', 'SKIP_SAVE'},
+        name="Deselected",
+        description="Number of deselected elements in the repetitive sequence",
+    )
+
+    nth: IntProperty(
+        min=1,
+        soft_max=100,
+        default=1,
+        options={'HIDDEN', 'SKIP_SAVE'},
+        name="Selected",
+        description="Number of selected elements in the repetitive sequence",
+    )
+
+    offset: IntProperty(
+        soft_min=-100,
+        soft_max=100,
+        options={'HIDDEN', 'SKIP_SAVE'},
+        name="Offset",
+        description="Offset from the starting point",
+    )
+
     use_topology_distance: BoolProperty(
         default=False,
         options={'HIDDEN', 'SKIP_SAVE'},
@@ -565,7 +590,7 @@ class MESH_OT_select_path(Operator):
     undo_history: collections.deque[tuple[int, tuple[Path]]]
     redo_history: collections.deque[tuple[int, tuple[Path]]]
 
-    select_only_seq: dict  # TODO
+    select_only_seq: dict[Object, tuple[int]]
     markup_seq: dict  # TODO
 
     @staticmethod
@@ -781,36 +806,38 @@ class MESH_OT_select_path(Operator):
             ret += tuple((n for n in elem_arr if n.select))
         return ret
 
-    def _gen_final_elements_seq(self, context: Context) -> None:
+    def _gen_final_elements_seq(self) -> None:
         self.select_only_seq = dict()
         self.markup_seq = dict()
 
-        for ob, bm in self.bm_arr:
-            index_select_seq: list[int] = []
-            index_markup_seq: list[int] = []
+        for ob, _bm in self.bm_arr:
+            index_select_seq: tuple[int] = tuple()
+            index_markup_seq: tuple[int] = tuple()
 
             for path in self.path_seq:
-                if path.ob != ob:
-                    continue
-                for fill_seq in path.fill_elements:
-                    index_select_seq.extend([n.index for n in fill_seq])
-                if self.prior_ts_msm[1]:
-                    index_markup_seq = index_select_seq
-                if self.prior_ts_msm[2]:
-                    index_select_seq.extend([face.index for face in path.control_elements])
-                    tmp = path.fill_elements
-                    tmp.append(path.control_elements)
-                    for fill_seq in tmp:
-                        for face in fill_seq:
-                            index_markup_seq.extend([e.index for e in face.edges])
+                if path.ob == ob:
+                    for fill_seq in path.fill_elements:
+                        index_select_seq += tuple((n.index for n in fill_seq))
+                    if self.prior_ts_msm[1]:
+                        index_markup_seq = index_select_seq
+                    if self.prior_ts_msm[2]:
+                        index_select_seq += tuple((face.index for face in path.control_elements))
+                        tmp = path.fill_elements
+                        tmp.append(path.control_elements)
+                        for fill_seq in tmp:
+                            for face in fill_seq:
+                                index_markup_seq += tuple((e.index for e in face.edges))
             # Remove duplicates
-            self.select_only_seq[ob] = list(dict.fromkeys(index_select_seq))
-            self.markup_seq[ob] = list(dict.fromkeys(index_markup_seq))
+            self.select_only_seq[ob] = tuple(set(index_select_seq))
+            self.markup_seq[ob] = list(set(index_markup_seq))
 
     def _ui_draw_func(self, layout: UILayout) -> None:
         layout.row().prop(self, "mark_select", text="Select", icon_only=True, expand=True)
         layout.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
         layout.row().prop(self, "mark_sharp", text="Sharp", icon_only=True, expand=True)
+        layout.prop(self, "skip")
+        layout.prop(self, "nth")
+        layout.prop(self, "offset")
 
     def _ui_draw_presets(self, layout: UILayout) -> None:
         row = layout.row(align=True)
@@ -1282,7 +1309,7 @@ class MESH_OT_select_path(Operator):
         ):
             self.context_action = set()
 
-            self._gen_final_elements_seq(context)
+            self._gen_final_elements_seq()
             self._gpu_remove_handle()
             STATUSBAR_HT_header.remove(self._ui_draw_statusbar)
             return self.execute(context)
@@ -1362,12 +1389,40 @@ class MESH_OT_select_path(Operator):
         return {'RUNNING_MODAL'}
 
     def execute(self, context: Context):
+        ts = context.tool_settings
+        ts.mesh_select_mode = self.prior_ts_msm
         self._eval_meshes(context)
+        self.initial_select = self._get_selected_elements(self.prior_mesh_elements)
 
         for ob, bm in self.bm_arr:
-            if self.mark_select != 'NONE' and ob in self.select_only_seq:
+            if ob in self.select_only_seq:
                 index_select_seq = self.select_only_seq[ob]
+                index_markup_seq = self.markup_seq[ob]
                 elem_seq = getattr(bm, self.prior_mesh_elements)
+
+                if self.skip and (self.mark_select != 'NONE' or self.mark_seam != 'NONE' or self.mark_sharp != 'NONE'):
+                    bpy.ops.mesh.select_all(action='DESELECT')
+
+                    for i in index_select_seq:
+                        elem_seq[i].select_set(True)
+
+                    # Required for `bpy.ops.mesh.select_nth` call:
+                    bm.select_history.clear()
+                    bm.select_history.add(elem_seq[i])
+                    bpy.ops.mesh.select_nth('EXEC_DEFAULT', skip=self.skip, nth=self.nth, offset=self.offset)
+
+                    index_select_seq = tuple(
+                        (n.index for n in self._get_selected_elements(self.prior_mesh_elements))
+                    )
+                    index_markup_seq = index_select_seq
+                    if self.prior_ts_msm[2]:
+                        index_markup_seq = tuple(
+                            (n.index for n in self._get_selected_elements("edges"))
+                        )
+
+                    bpy.ops.mesh.select_all(action='DESELECT')
+                    self._set_selection_state(self.initial_select, True)
+
                 if self.mark_select == 'EXTEND':
                     for i in index_select_seq:
                         elem_seq[i].select_set(True)
@@ -1378,30 +1433,29 @@ class MESH_OT_select_path(Operator):
                     for i in index_select_seq:
                         elem_seq[i].select_set(not elem_seq[i].select)
 
-            if ob in self.markup_seq:
-                index_markup_seq = self.markup_seq[ob]
-                elem_seq = bm.edges
-                if self.mark_seam != 'NONE':
-                    if self.mark_seam == 'MARK':
-                        for i in index_markup_seq:
-                            elem_seq[i].seam = True
-                    elif self.mark_seam == 'CLEAR':
-                        for i in index_markup_seq:
-                            elem_seq[i].seam = False
-                    elif self.mark_seam == 'TOGGLE':
-                        for i in index_markup_seq:
-                            elem_seq[i].seam = not elem_seq[i].seam
+                if ob in self.markup_seq:
+                    elem_seq = bm.edges
+                    if self.mark_seam != 'NONE':
+                        if self.mark_seam == 'MARK':
+                            for i in index_markup_seq:
+                                elem_seq[i].seam = True
+                        elif self.mark_seam == 'CLEAR':
+                            for i in index_markup_seq:
+                                elem_seq[i].seam = False
+                        elif self.mark_seam == 'TOGGLE':
+                            for i in index_markup_seq:
+                                elem_seq[i].seam = not elem_seq[i].seam
 
-                if self.mark_sharp != 'NONE':
-                    if self.mark_sharp == 'MARK':
-                        for i in index_markup_seq:
-                            elem_seq[i].smooth = False
-                    elif self.mark_sharp == 'CLEAR':
-                        for i in index_markup_seq:
-                            elem_seq[i].smooth = True
-                    elif self.mark_sharp == 'TOGGLE':
-                        for i in index_markup_seq:
-                            elem_seq[i].smooth = not elem_seq[i].smooth
+                    if self.mark_sharp != 'NONE':
+                        if self.mark_sharp == 'MARK':
+                            for i in index_markup_seq:
+                                elem_seq[i].smooth = False
+                        elif self.mark_sharp == 'CLEAR':
+                            for i in index_markup_seq:
+                                elem_seq[i].smooth = True
+                        elif self.mark_sharp == 'TOGGLE':
+                            for i in index_markup_seq:
+                                elem_seq[i].smooth = not elem_seq[i].smooth
 
         self._update_meshes()
         return {'FINISHED'}
@@ -1427,20 +1481,28 @@ class WM_OT_select_path_presets(Operator):
         tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
         props: MESH_OT_select_path = tool.operator_properties("MESH_OT_select_path")
 
-        if self.preset == 'DEFAULTS':
-            props.mark_select = 'EXTEND'
-            props.mark_seam = 'NONE'
-            props.mark_sharp = 'NONE'
-            props.use_topology_distance = False
-        elif self.preset == 'TOPOLOGY_UV':
+        # if self.preset == 'DEFAULTS':
+        props.mark_select = 'EXTEND'
+        props.mark_seam = 'NONE'
+        props.mark_sharp = 'NONE'
+        props.use_topology_distance = False
+        props.skip = 0
+        props.nth = 0
+        props.offset = 0
+
+        if self.preset == 'TOPOLOGY_UV':
             props.mark_select = 'NONE'
             props.mark_seam = 'MARK'
             props.mark_sharp = 'NONE'
             props.use_topology_distance = True
+
         elif self.preset == 'TOPOLOGY_SHARP':
             props.mark_select = 'NONE'
             props.mark_seam = 'NONE'
             props.mark_sharp = 'MARK'
+            props.skip = 0
+            props.nth = 0
+            props.offset = 0
             props.use_topology_distance = True
 
         return {'FINISHED'}
