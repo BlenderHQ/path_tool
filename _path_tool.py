@@ -715,9 +715,11 @@ class MESH_OT_select_path(Operator):
         self.select_only_arr = dict()
         self.markup_arr = dict()
 
-        for ob, _bm in self.bm_arr:
+        for ob, bm in self.bm_arr:
             index_select_seq: tuple[int] = tuple()
             index_markup_seq: tuple[int] = tuple()
+
+            print(bm.select_history.active)
 
             for path in self.path_seq:
                 if path.ob == ob:
@@ -727,7 +729,7 @@ class MESH_OT_select_path(Operator):
                         index_markup_seq = index_select_seq
                     if self.prior_ts_msm[2]:
                         index_select_seq += tuple((face.index for face in path.control_elements))
-                        tmp = path.fill_elements
+                        tmp = path.fill_elements[:]
                         tmp.append(path.control_elements)
                         for fill_seq in tmp:
                             for face in fill_seq:
