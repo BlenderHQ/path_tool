@@ -90,6 +90,11 @@ class WindowManagerProperties(PropertyGroup):
     )
 
     def ui_draw_func(self, layout: UILayout) -> None:
+        row = layout.row(align=True)
+        row.menu(MESH_MT_select_path_presets.__name__)
+        row.operator(operator=MESH_OT_select_path_preset_add.bl_idname, text="", icon='ADD')
+        row.operator(operator=MESH_OT_select_path_preset_add.bl_idname, text="", icon='REMOVE').remove_active = True
+
         layout.row().prop(self, "mark_select", text="Select", icon_only=True, expand=True)
         layout.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
         layout.row().prop(self, "mark_sharp", text="Sharp", icon_only=True, expand=True)
@@ -97,11 +102,9 @@ class WindowManagerProperties(PropertyGroup):
         layout.prop(self, "nth")
         layout.prop(self, "offset")
 
-    def ui_draw_presets(self, layout: UILayout) -> None:
-        row = layout.row(align=True)
-        row.menu(MESH_MT_select_path_presets.__name__)
-        row.operator(operator=MESH_OT_select_path_preset_add.bl_idname, text="", icon='ADD')
-        row.operator(operator=MESH_OT_select_path_preset_add.bl_idname, text="", icon='REMOVE').remove_active = True
+    def ui_draw_func_runtime(self, layout: UILayout) -> None:
+        self.ui_draw_func(layout)
+        layout.prop(self, "use_topology_distance")
 
 
 class WM_OT_select_path_presets(Operator):

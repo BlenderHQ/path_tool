@@ -211,9 +211,7 @@ class PathToolMesh(WorkSpaceTool):
     @staticmethod
     def draw_settings(context: Context, layout: UILayout, tool: WorkSpaceTool):
         props: _properties.WindowManagerProperties = context.window_manager.select_path
-        props.ui_draw_presets(layout)
-        props.ui_draw_func(layout)
-        layout.prop(props, "use_topology_distance")
+        props.ui_draw_func_runtime(layout)
 
 
 _classes = (

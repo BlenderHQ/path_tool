@@ -739,14 +739,7 @@ class MESH_OT_select_path(Operator):
     def _ui_draw_popup_menu_pie(self, popup: UIPieMenu, context: Context) -> None:
         pie = popup.layout.menu_pie()
         pie.prop_tabs_enum(self, "context_action")
-        #col = pie.box().column()
-
         pie.popover(MESH_PT_select_path_context.__name__)
-        # col.use_property_split = True
-        # self._ui_draw_func(col)
-        # col = col.column()
-        # col.use_property_split = False
-        # col.prop(self, "use_topology_distance", icon='DRIVER_DISTANCE')
 
     @staticmethod
     def _ui_draw_statusbar(self, context: Context) -> None:
@@ -1371,5 +1364,4 @@ class MESH_PT_select_path_context(bpy.types.Panel):
         layout = self.layout
         layout.use_property_split = True
         props = context.window_manager.select_path
-        props.ui_draw_presets(layout)
-        props.ui_draw_func(layout)
+        props.ui_draw_func_runtime(layout)
