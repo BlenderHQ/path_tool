@@ -22,6 +22,7 @@ from bpy.types import (
 )
 from bpy.props import (
     BoolProperty,
+    IntProperty,
     EnumProperty,
 )
 from bl_operators.presets import AddPresetBase
@@ -582,6 +583,8 @@ class MESH_OT_select_path(Operator):
                 bm.edges.ensure_lookup_table()
             elif self.prior_ts_msm[2]:
                 bm.faces.ensure_lookup_table()
+                if self.mark_seam != 'NONE' or self.mark_sharp != 'NONE':
+                    bm.edges.ensure_lookup_table()
             ret.append((ob, bm))
         self.bm_arr = tuple(ret)
 
@@ -782,9 +785,7 @@ class MESH_OT_select_path(Operator):
         self.select_only_seq = dict()
         self.markup_seq = dict()
 
-        for ob in context.objects_in_mode:
-            ob: Object
-
+        for ob, bm in self.bm_arr:
             index_select_seq: list[int] = []
             index_markup_seq: list[int] = []
 
