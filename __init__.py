@@ -41,15 +41,18 @@ from bpy.types import (
     Context,
     UILayout,
     AddonPreferences,
+    WindowManager,
 )
 from bpy.props import (
     EnumProperty,
     FloatVectorProperty,
     IntProperty,
+    PointerProperty,
 )
 
 from . import bhqab
 from . import _path_tool
+from . import _properties
 
 
 class Preferences(AddonPreferences):
@@ -206,20 +209,23 @@ class PathToolMesh(WorkSpaceTool):
     bl_keymap = ((_path_tool.MESH_OT_select_path.bl_idname, dict(type='LEFTMOUSE', value='PRESS',), None),)
 
     @staticmethod
-    def draw_settings(_context: Context, layout: UILayout, tool: WorkSpaceTool):
-        props = tool.operator_properties(_path_tool.MESH_OT_select_path.bl_idname)
-
-        _path_tool.MESH_OT_select_path._ui_draw_presets(props, layout)
-        _path_tool.MESH_OT_select_path._ui_draw_func(props, layout)
+    def draw_settings(context: Context, layout: UILayout, tool: WorkSpaceTool):
+        props: _properties.WindowManagerProperties = context.window_manager.select_path
+        props.ui_draw_presets(layout)
+        props.ui_draw_func(layout)
         layout.prop(props, "use_topology_distance")
 
 
 _classes = (
     Preferences,
+
+    _properties.WindowManagerProperties,
+    _properties.WM_OT_select_path_presets,
+    _properties.MESH_MT_select_path_presets,
+    _properties.MESH_OT_select_path_preset_add,
+
     _path_tool.MESH_OT_select_path,
-    _path_tool.WM_OT_select_path_presets,
-    _path_tool.MESH_MT_select_path_presets,
-    _path_tool.MESH_OT_select_path_preset_add,
+    _path_tool.MESH_PT_select_path_context,
 )
 
 _cls_register, _cls_unregister = bpy.utils.register_classes_factory(classes=_classes)
@@ -227,10 +233,12 @@ _cls_register, _cls_unregister = bpy.utils.register_classes_factory(classes=_cla
 
 def register():
     _cls_register()
+    WindowManager.select_path = PointerProperty(type=_properties.WindowManagerProperties)
     bpy.utils.register_tool(PathToolMesh, after={"builtin.select_lasso"}, separator=False, group=False)
     bhqab.gpu_extras.shader.generate_shaders(os.path.join(os.path.dirname(__file__), "shaders"))
 
 
 def unregister():
     bpy.utils.unregister_tool(PathToolMesh)
+    del WindowManager.select_path
     _cls_unregister()

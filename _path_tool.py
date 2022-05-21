@@ -17,15 +17,11 @@ from bpy.types import (
     STATUSBAR_HT_header,
     UILayout,
     UIPieMenu,
-    WorkSpaceTool,
     Menu,
 )
 from bpy.props import (
-    BoolProperty,
-    IntProperty,
     EnumProperty,
 )
-from bl_operators.presets import AddPresetBase
 
 import bmesh
 from bmesh.types import (
@@ -421,109 +417,6 @@ class MESH_OT_select_path(Operator):
         options={'ENUM_FLAG', 'HIDDEN', 'SKIP_SAVE'},
     )
 
-    @staticmethod
-    def _get_tool_settings(context: Context) -> Union[None, MESH_OT_select_path]:
-        tool: WorkSpaceTool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
-        if tool:
-            props: MESH_OT_select_path = tool.operator_properties(MESH_OT_select_path.__name__)
-            return props
-
-    def _update_mark_select(self, context: Context):
-        props = MESH_OT_select_path._get_tool_settings(context)
-        if props:
-            props.mark_select = self.mark_select
-
-    mark_select: EnumProperty(
-        items=(
-            ('EXTEND', "Extend", "Extend existing selection", 'SELECT_EXTEND', 1),
-            ('NONE', "Do nothing", "Do nothing", 'X', 2),
-            ('SUBTRACT', "Subtract", "Subtract existing selection", 'SELECT_SUBTRACT', 3),
-            ('INVERT', "Invert", "Inverts existing selection", 'SELECT_DIFFERENCE', 4),
-        ),
-        default='EXTEND',
-        options={'HIDDEN', 'SKIP_SAVE'},
-        update=_update_mark_select,
-        name="Select",
-        description="Selection options",
-    )
-
-    def _update_mark_seam(self, context: Context):
-        props = MESH_OT_select_path._get_tool_settings(context)
-        if props:
-            props.mark_seam = self.mark_seam
-
-    mark_seam: EnumProperty(
-        items=(
-            ('MARK', "Mark", "Mark seam path elements", 'RESTRICT_SELECT_OFF', 1),
-            ('NONE', "Do nothing", "Do nothing", 'X', 2),
-            ('CLEAR', "Clear", "Clear seam path elements", 'RESTRICT_SELECT_ON', 3),
-            ('TOGGLE', "Toggle", "Toggle seams on path elements", 'ACTION_TWEAK', 4),
-        ),
-        default='NONE',
-        options={'HIDDEN', 'SKIP_SAVE'},
-        update=_update_mark_seam,
-        name="Seams",
-        description="Mark seam options",
-    )
-
-    def _update_mark_sharp(self, context: Context):
-        props = MESH_OT_select_path._get_tool_settings(context)
-        if props:
-            props.mark_sharp = self.mark_sharp
-
-    mark_sharp: EnumProperty(
-        items=(
-            ('MARK', "Mark", "Mark sharp path elements", 'RESTRICT_SELECT_OFF', 1),
-            ('NONE', "Do nothing", "Do nothing", 'X', 2),
-            ('CLEAR', "Clear", "Clear sharp path elements", 'RESTRICT_SELECT_ON', 3),
-            ('TOGGLE', "Toggle", "Toggle sharpness on path", 'ACTION_TWEAK', 4),
-        ),
-        default="NONE",
-        options={'HIDDEN', 'SKIP_SAVE'},
-        update=_update_mark_sharp,
-        name="Sharp",
-        description="Mark sharp options",
-    )
-
-    def _update_use_topology_distance(self, context: Context):
-        props = MESH_OT_select_path._get_tool_settings(context)
-        if props:
-            props.use_topology_distance = self.use_topology_distance
-
-    skip: IntProperty(
-        min=0,
-        soft_max=100,
-        options={'HIDDEN', 'SKIP_SAVE'},
-        name="Deselected",
-        description="Number of deselected elements in the repetitive sequence",
-    )
-
-    nth: IntProperty(
-        min=1,
-        soft_max=100,
-        default=1,
-        options={'HIDDEN', 'SKIP_SAVE'},
-        name="Selected",
-        description="Number of selected elements in the repetitive sequence",
-    )
-
-    offset: IntProperty(
-        soft_min=-100,
-        soft_max=100,
-        options={'HIDDEN', 'SKIP_SAVE'},
-        name="Offset",
-        description="Offset from the starting point",
-    )
-
-    use_topology_distance: BoolProperty(
-        default=False,
-        options={'HIDDEN', 'SKIP_SAVE'},
-        update=_update_use_topology_distance,
-        name="Use Topology Distance",
-        description=("Algorithm for calculating the shortest path for all subsequent created paths"
-                     "(Select means find the minimum number of steps, ignoring spatial distance)"),
-    )
-
     # Input events and keys
     select_mb: Literal['LEFTMOUSE', 'RIGHTMOUSE']
     "Select mouse button"
@@ -600,6 +493,8 @@ class MESH_OT_select_path(Operator):
     def _eval_meshes(self, context: Context) -> None:
         ret: list[tuple[Object, BMesh]] = list()
 
+        props = context.window_manager.select_path
+
         for ob in context.objects_in_mode:
             ob: Object
 
@@ -608,7 +503,7 @@ class MESH_OT_select_path(Operator):
                 bm.edges.ensure_lookup_table()
             elif self.prior_ts_msm[2]:
                 bm.faces.ensure_lookup_table()
-                if self.mark_seam != 'NONE' or self.mark_sharp != 'NONE':
+                if props.mark_seam != 'NONE' or props.mark_sharp != 'NONE':
                     bm.edges.ensure_lookup_table()
             ret.append((ob, bm))
         self.bm_arr = tuple(ret)
@@ -831,30 +726,17 @@ class MESH_OT_select_path(Operator):
             self.select_only_seq[ob] = tuple(set(index_select_seq))
             self.markup_seq[ob] = list(set(index_markup_seq))
 
-    def _ui_draw_func(self, layout: UILayout) -> None:
-        layout.row().prop(self, "mark_select", text="Select", icon_only=True, expand=True)
-        layout.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
-        layout.row().prop(self, "mark_sharp", text="Sharp", icon_only=True, expand=True)
-        layout.prop(self, "skip")
-        layout.prop(self, "nth")
-        layout.prop(self, "offset")
-
-    def _ui_draw_presets(self, layout: UILayout) -> None:
-        row = layout.row(align=True)
-        row.menu(MESH_MT_select_path_presets.__name__)
-        row.operator(operator=MESH_OT_select_path_preset_add.bl_idname, text="", icon='ADD')
-        row.operator(operator=MESH_OT_select_path_preset_add.bl_idname, text="", icon='REMOVE').remove_active = True
-
     def _ui_draw_popup_menu_pie(self, popup: UIPieMenu, context: Context) -> None:
         pie = popup.layout.menu_pie()
         pie.prop_tabs_enum(self, "context_action")
-        col = pie.box().column()
+        #col = pie.box().column()
 
-        col.use_property_split = True
-        self._ui_draw_func(col)
-        col = col.column()
-        col.use_property_split = False
-        col.prop(self, "use_topology_distance", icon='DRIVER_DISTANCE')
+        pie.popover(MESH_PT_select_path_context.__name__)
+        # col.use_property_split = True
+        # self._ui_draw_func(col)
+        # col = col.column()
+        # col.use_property_split = False
+        # col.prop(self, "use_topology_distance", icon='DRIVER_DISTANCE')
 
     @staticmethod
     def _ui_draw_statusbar(self, context: Context) -> None:
@@ -992,6 +874,8 @@ class MESH_OT_select_path(Operator):
                                   elem: Union[None, BMVert, BMFace],
                                   ob: Object,
                                   interact_event: InteractEvent) -> None:
+        props = context.window_manager.select_path
+
         if elem and interact_event is InteractEvent.ADD_CP:
             if not self.path_seq:
                 return self._interact_control_element(context, elem, ob, InteractEvent.ADD_NEW_PATH)
@@ -1054,7 +938,7 @@ class MESH_OT_select_path(Operator):
             linked_island_index = self._get_linked_island_index(context, elem)
             new_path = Path(elem, linked_island_index, ob)
 
-            if self.use_topology_distance:
+            if props.use_topology_distance:
                 new_path.flag |= PathFlag.TOPOLOGY
 
             self.path_seq.append(new_path)
@@ -1141,13 +1025,15 @@ class MESH_OT_select_path(Operator):
 
             self._register_undo_step()
 
-    def draw(self, _context: Context) -> None:
+    def draw(self, context: Context) -> None:
         layout = self.layout
         layout.use_property_split = True
-        self._ui_draw_func(layout)
+        props = context.window_manager.select_path
+        props.ui_draw_func(layout)
 
     def invoke(self, context: bpy.types.Context, event):
         wm = context.window_manager
+        props = wm.select_path
         ts = context.scene.tool_settings
         num_undo_steps = context.preferences.edit.undo_steps
 
@@ -1390,6 +1276,8 @@ class MESH_OT_select_path(Operator):
 
     def execute(self, context: Context):
         ts = context.tool_settings
+        props = context.window_manager.select_path
+
         ts.mesh_select_mode = self.prior_ts_msm
         self._eval_meshes(context)
         self.initial_select = self._get_selected_elements(self.prior_mesh_elements)
@@ -1400,7 +1288,10 @@ class MESH_OT_select_path(Operator):
                 index_markup_seq = self.markup_seq[ob]
                 elem_seq = getattr(bm, self.prior_mesh_elements)
 
-                if self.skip and (self.mark_select != 'NONE' or self.mark_seam != 'NONE' or self.mark_sharp != 'NONE'):
+                if (props.skip
+                    and (props.mark_select != 'NONE'
+                         or props.mark_seam != 'NONE'
+                         or props.mark_sharp != 'NONE')):
                     bpy.ops.mesh.select_all(action='DESELECT')
 
                     for i in index_select_seq:
@@ -1409,7 +1300,7 @@ class MESH_OT_select_path(Operator):
                     # Required for `bpy.ops.mesh.select_nth` call:
                     bm.select_history.clear()
                     bm.select_history.add(elem_seq[i])
-                    bpy.ops.mesh.select_nth('EXEC_DEFAULT', skip=self.skip, nth=self.nth, offset=self.offset)
+                    bpy.ops.mesh.select_nth('EXEC_DEFAULT', skip=props.skip, nth=props.nth, offset=props.offset)
 
                     index_select_seq = tuple(
                         (n.index for n in self._get_selected_elements(self.prior_mesh_elements))
@@ -1423,37 +1314,37 @@ class MESH_OT_select_path(Operator):
                     bpy.ops.mesh.select_all(action='DESELECT')
                     self._set_selection_state(self.initial_select, True)
 
-                if self.mark_select == 'EXTEND':
+                if props.mark_select == 'EXTEND':
                     for i in index_select_seq:
                         elem_seq[i].select_set(True)
-                elif self.mark_select == 'SUBTRACT':
+                elif props.mark_select == 'SUBTRACT':
                     for i in index_select_seq:
                         elem_seq[i].select_set(False)
-                elif self.mark_select == 'INVERT':
+                elif props.mark_select == 'INVERT':
                     for i in index_select_seq:
                         elem_seq[i].select_set(not elem_seq[i].select)
 
                 if ob in self.markup_seq:
                     elem_seq = bm.edges
-                    if self.mark_seam != 'NONE':
-                        if self.mark_seam == 'MARK':
+                    if props.mark_seam != 'NONE':
+                        if props.mark_seam == 'MARK':
                             for i in index_markup_seq:
                                 elem_seq[i].seam = True
-                        elif self.mark_seam == 'CLEAR':
+                        elif props.mark_seam == 'CLEAR':
                             for i in index_markup_seq:
                                 elem_seq[i].seam = False
-                        elif self.mark_seam == 'TOGGLE':
+                        elif props.mark_seam == 'TOGGLE':
                             for i in index_markup_seq:
                                 elem_seq[i].seam = not elem_seq[i].seam
 
-                    if self.mark_sharp != 'NONE':
-                        if self.mark_sharp == 'MARK':
+                    if props.mark_sharp != 'NONE':
+                        if props.mark_sharp == 'MARK':
                             for i in index_markup_seq:
                                 elem_seq[i].smooth = False
-                        elif self.mark_sharp == 'CLEAR':
+                        elif props.mark_sharp == 'CLEAR':
                             for i in index_markup_seq:
                                 elem_seq[i].smooth = True
-                        elif self.mark_sharp == 'TOGGLE':
+                        elif props.mark_sharp == 'TOGGLE':
                             for i in index_markup_seq:
                                 elem_seq[i].smooth = not elem_seq[i].smooth
 
@@ -1461,84 +1352,14 @@ class MESH_OT_select_path(Operator):
         return {'FINISHED'}
 
 
-class WM_OT_select_path_presets(Operator):
-    bl_label = "Set Preset"
-    bl_description = "Set operator properties to preset values"
-    bl_idname = "wm.select_path_defaults"
-    bl_options = {'INTERNAL'}
+class MESH_PT_select_path_context(bpy.types.Panel):
+    bl_label = "Options"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'WINDOW'
 
-    preset: EnumProperty(
-        items=(
-            ('DEFAULTS', "", ""),
-            ('TOPOLOGY_UV', "", ""),
-            ('TOPOLOGY_SHARP', "", ""),
-        ),
-        default='DEFAULTS',
-        options={'HIDDEN', 'SKIP_SAVE'},
-    )
-
-    def execute(self, context: Context):
-        tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
-        props: MESH_OT_select_path = tool.operator_properties("MESH_OT_select_path")
-
-        # if self.preset == 'DEFAULTS':
-        props.mark_select = 'EXTEND'
-        props.mark_seam = 'NONE'
-        props.mark_sharp = 'NONE'
-        props.use_topology_distance = False
-        props.skip = 0
-        props.nth = 0
-        props.offset = 0
-
-        if self.preset == 'TOPOLOGY_UV':
-            props.mark_select = 'NONE'
-            props.mark_seam = 'MARK'
-            props.mark_sharp = 'NONE'
-            props.use_topology_distance = True
-
-        elif self.preset == 'TOPOLOGY_SHARP':
-            props.mark_select = 'NONE'
-            props.mark_seam = 'NONE'
-            props.mark_sharp = 'MARK'
-            props.skip = 0
-            props.nth = 0
-            props.offset = 0
-            props.use_topology_distance = True
-
-        return {'FINISHED'}
-
-
-class MESH_MT_select_path_presets(Menu):
-    bl_label = "Operator Presets"
-    preset_subdir = "select_path"
-    preset_operator = "script.execute_preset"
-
-    def draw(self, context):
-        self.operator = MESH_OT_select_path.bl_idname
-
+    def draw(self, context: Context) -> None:
         layout = self.layout
-        layout.operator(WM_OT_select_path_presets.bl_idname, text="Restore Operator Defaults").preset = 'DEFAULTS'
-        layout.separator()
-        Menu.draw_preset(self, context)
-        layout.separator()
-        layout.operator(WM_OT_select_path_presets.bl_idname, text="Topology UV").preset = 'TOPOLOGY_UV'
-        layout.operator(WM_OT_select_path_presets.bl_idname, text="Topology Sharp").preset = 'TOPOLOGY_SHARP'
-
-
-class MESH_OT_select_path_preset_add(AddPresetBase, Operator):
-    """Add \"Select Path\" preset"""
-    bl_idname = "mesh.select_path_preset_add"
-    bl_label = "Add Preset"
-    preset_menu = MESH_MT_select_path_presets.__name__
-    preset_defines = [
-        "tool = bpy.context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)",
-        "props = tool.operator_properties(\"MESH_OT_select_path\")"
-    ]
-
-    preset_values = [
-        "props.mark_select",
-        "props.mark_seam",
-        "props.mark_seam",
-        "props.use_topology_distance",
-    ]
-    preset_subdir = "select_path"
+        layout.use_property_split = True
+        props = context.window_manager.select_path
+        props.ui_draw_presets(layout)
+        props.ui_draw_func(layout)
