@@ -1,6 +1,9 @@
 {
     "cSpell.words": [
         "bmesh",
+        "keyconfigs",
+        "keymap",
+        "propvalue",
         "verts"
     ],
     "python.pythonPath": "C:\\Program Files\\Python39\\python.exe"
