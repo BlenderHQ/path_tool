@@ -353,8 +353,8 @@ class MESH_OT_select_path(Operator):
     #     "undo_history",
     #     "redo_history",
 
-    #     "select_only_seq",
-    #     "markup_seq",
+    #     "select_only_arr",
+    #     "markup_arr",
     # )
 
     context_action: EnumProperty(
@@ -493,8 +493,8 @@ class MESH_OT_select_path(Operator):
     undo_history: collections.deque[tuple[int, tuple[Path]]]
     redo_history: collections.deque[tuple[int, tuple[Path]]]
 
-    select_only_seq: dict[Object, tuple[int]]
-    markup_seq: dict  # TODO
+    select_only_arr: dict[Object, tuple[int]]
+    markup_arr: dict[Object, tuple[int]]
 
     @staticmethod
     def _pack_event(item: Union[KeyMapItem, Event]) -> _PackedEvent_T:
@@ -711,9 +711,9 @@ class MESH_OT_select_path(Operator):
             ret += tuple((n for n in elem_arr if n.select))
         return ret
 
-    def _gen_final_elements_seq(self) -> None:
-        self.select_only_seq = dict()
-        self.markup_seq = dict()
+    def _eval_final_element_indices_arrays(self) -> None:
+        self.select_only_arr = dict()
+        self.markup_arr = dict()
 
         for ob, _bm in self.bm_arr:
             index_select_seq: tuple[int] = tuple()
@@ -733,8 +733,8 @@ class MESH_OT_select_path(Operator):
                             for face in fill_seq:
                                 index_markup_seq += tuple((e.index for e in face.edges))
             # Remove duplicates
-            self.select_only_seq[ob] = tuple(set(index_select_seq))
-            self.markup_seq[ob] = list(set(index_markup_seq))
+            self.select_only_arr[ob] = tuple(set(index_select_seq))
+            self.markup_arr[ob] = tuple(set(index_markup_seq))
 
     def _ui_draw_popup_menu_pie(self, popup: UIPieMenu, context: Context) -> None:
         pie = popup.layout.menu_pie()
@@ -1116,8 +1116,8 @@ class MESH_OT_select_path(Operator):
         self.undo_history = collections.deque(maxlen=num_undo_steps)
         self.redo_history = collections.deque(maxlen=num_undo_steps)
 
-        self.select_only_seq = dict()
-        self.markup_seq = dict()
+        self.select_only_arr = dict()
+        self.markup_arr = dict()
 
         # ____________________________________________________________________ #
         # Meshes context setup.
@@ -1198,7 +1198,7 @@ class MESH_OT_select_path(Operator):
         ):
             self.context_action = set()
 
-            self._gen_final_elements_seq()
+            self._eval_final_element_indices_arrays()
             self._gpu_remove_handle()
             STATUSBAR_HT_header.remove(self._ui_draw_statusbar)
             return self.execute(context)
@@ -1286,9 +1286,9 @@ class MESH_OT_select_path(Operator):
         self.initial_select = self._get_selected_elements(self.prior_mesh_elements)
 
         for ob, bm in self.bm_arr:
-            if ob in self.select_only_seq:
-                index_select_seq = self.select_only_seq[ob]
-                index_markup_seq = self.markup_seq[ob]
+            if ob in self.select_only_arr:
+                index_select_seq = self.select_only_arr[ob]
+                index_markup_seq = self.markup_arr[ob]
                 elem_seq = getattr(bm, self.prior_mesh_elements)
 
                 if (props.skip
@@ -1327,7 +1327,7 @@ class MESH_OT_select_path(Operator):
                     for i in index_select_seq:
                         elem_seq[i].select_set(not elem_seq[i].select)
 
-                if ob in self.markup_seq:
+                if ob in self.markup_arr:
                     elem_seq = bm.edges
                     if props.mark_seam != 'NONE':
                         if props.mark_seam == 'MARK':
