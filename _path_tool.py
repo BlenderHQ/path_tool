@@ -358,10 +358,20 @@ class MESH_OT_select_path(Operator):
     # )
 
     context_action: EnumProperty(
+        # NOTE: Keep items display names length for visual symmetry.
+        # UI layout of pie-menu is next:
+        # |----------------------------------------
+        # |                 Apply
+        # |        Undo                Redo
+        # | Direction                    Close Path
+        # |    Topology                Options
+        # |                 Cancel
+        # |----------------------------------------
+        # "Options" is `bl_label` of `MESH_PT_select_path_context`.
         items=(
             (
                 InteractEvent.CHANGE_DIRECTION.name,
-                "Change direction",
+                "Direction",  # 16 chars
                 ("Change the direction of the active path.\n"
                  "The active element of the path will be the final element "
                  "from the opposite end of the path, from it will be formed a section to the next control element that "
@@ -371,42 +381,42 @@ class MESH_OT_select_path(Operator):
             ),
             (
                 InteractEvent.CLOSE_PATH.name,
-                "Close Path",
+                "Close Path",  # 10 chars
                 "Connect between the beginning and end of the active path",
                 'NONE',  # 'MESH_CIRCLE',
                 InteractEvent.CLOSE_PATH.value,
             ),
             (
                 InteractEvent.CANCEL.name,
-                "Cancel",
+                "Cancel",  # 6 chars
                 "Cancel editing pathes",
                 'EVENT_ESC',
                 InteractEvent.CANCEL.value,
             ),
             (
                 InteractEvent.APPLY_PATHES.name,
-                "Apply",
+                "Apply",  # 5 chars
                 "Apply the created mesh paths according to the selected options",
                 'EVENT_RETURN',
                 InteractEvent.APPLY_PATHES.value,
             ),
             (
                 InteractEvent.UNDO.name,
-                "Undo",
+                "Undo",  # 4 chars
                 "Take a step back",
                 'LOOP_BACK',
                 InteractEvent.UNDO.value,
             ),
             (
                 InteractEvent.REDO.name,
-                "Redo",
+                "Redo",  # 4 chars
                 "Redo previous undo",
                 'LOOP_FORWARDS',
                 InteractEvent.REDO.value,
             ),
             (
                 InteractEvent.TOPOLOGY_DISTANCE.name,
-                "Change topology",
+                "Topology",  # 8 chars
                 ("Algorithm for calculating the path: simple or using a mesh topology"
                  "(Find the minimum number of steps, ignoring spatial distance)"),
                 'NONE',  # 'DRIVER_DISTANCE',
