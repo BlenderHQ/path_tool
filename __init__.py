@@ -33,6 +33,7 @@ if "bpy" in locals():
 
     del reload
 
+from email.policy import default
 import os
 
 import bpy
@@ -48,6 +49,7 @@ from bpy.props import (
     FloatVectorProperty,
     IntProperty,
     PointerProperty,
+    BoolProperty,
 )
 
 from . import bhqab
@@ -172,6 +174,12 @@ class Preferences(AddonPreferences):
         description="",
     )
 
+    default_presets: BoolProperty(
+        default=True,
+        name="Default Presets",
+        description="Show standard presets in the preset menu",
+    )
+
     def draw(self, context: Context) -> None:
         layout: UILayout = self.layout
 
@@ -193,6 +201,8 @@ class Preferences(AddonPreferences):
             col.separator()
             col.prop(self, "point_size")
             col.prop(self, "line_width")
+            col.separator()
+            col.prop(self, "default_presets")
 
         elif self.tab == 'KEYMAP':
             bhqab.utils_ui.template_tool_keymap(context, layout, "3D View Tool: Edit Mesh, Select Path")
