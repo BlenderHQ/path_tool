@@ -807,20 +807,22 @@ class MESH_OT_select_path(Operator):
             self.markup_seq[ob] = list(dict.fromkeys(index_markup_seq))
 
     def _ui_draw_func(self, layout: UILayout) -> None:
+        layout.row().prop(self, "mark_select", text="Select", icon_only=True, expand=True)
+        layout.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
+        layout.row().prop(self, "mark_sharp", text="Sharp", icon_only=True, expand=True)
+
+    def _ui_draw_presets(self, layout: UILayout) -> None:
         row = layout.row(align=True)
         row.menu(MESH_MT_select_path_presets.__name__)
         row.operator(operator=MESH_OT_select_path_preset_add.bl_idname, text="", icon='ADD')
         row.operator(operator=MESH_OT_select_path_preset_add.bl_idname, text="", icon='REMOVE').remove_active = True
 
-        layout.use_property_split = True
-        layout.row().prop(self, "mark_select", text="Select", icon_only=True, expand=True)
-        layout.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
-        layout.row().prop(self, "mark_sharp", text="Sharp", icon_only=True, expand=True)
-
     def _ui_draw_popup_menu_pie(self, popup: UIPieMenu, context: Context) -> None:
         pie = popup.layout.menu_pie()
         pie.prop_tabs_enum(self, "context_action")
         col = pie.box().column()
+
+        col.use_property_split = True
         self._ui_draw_func(col)
         col = col.column()
         col.use_property_split = False
@@ -1112,7 +1114,9 @@ class MESH_OT_select_path(Operator):
             self._register_undo_step()
 
     def draw(self, _context: Context) -> None:
-        self._ui_draw_func(self.layout)
+        layout = self.layout
+        layout.use_property_split = True
+        self._ui_draw_func(layout)
 
     def invoke(self, context: bpy.types.Context, event):
         wm = context.window_manager
@@ -1448,7 +1452,6 @@ class MESH_MT_select_path_presets(Menu):
     def draw(self, context):
         self.operator = MESH_OT_select_path.bl_idname
 
-        # dummy 'default' menu item
         layout = self.layout
         layout.operator(WM_OT_select_path_presets.bl_idname, text="Restore Operator Defaults").preset = 'DEFAULTS'
         layout.separator()
@@ -1456,7 +1459,6 @@ class MESH_MT_select_path_presets(Menu):
         layout.separator()
         layout.operator(WM_OT_select_path_presets.bl_idname, text="Topology UV").preset = 'TOPOLOGY_UV'
         layout.operator(WM_OT_select_path_presets.bl_idname, text="Topology Sharp").preset = 'TOPOLOGY_SHARP'
-
 
 
 class MESH_OT_select_path_preset_add(AddPresetBase, Operator):

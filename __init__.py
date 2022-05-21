@@ -208,6 +208,8 @@ class PathToolMesh(WorkSpaceTool):
     @staticmethod
     def draw_settings(_context: Context, layout: UILayout, tool: WorkSpaceTool):
         props = tool.operator_properties(_path_tool.MESH_OT_select_path.bl_idname)
+
+        _path_tool.MESH_OT_select_path._ui_draw_presets(props, layout)
         _path_tool.MESH_OT_select_path._ui_draw_func(props, layout)
         layout.prop(props, "use_topology_distance")
 
