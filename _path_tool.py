@@ -1316,6 +1316,7 @@ class MESH_OT_select_path(Operator):
             self._redo(context)
 
         elif ev == (self.pie_mb, 'PRESS', False, False, False):
+            self.is_mouse_pressed = False
             context.window_manager.popup_menu_pie(
                 event=event,
                 draw_func=self._ui_draw_popup_menu_pie,
