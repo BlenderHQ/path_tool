@@ -353,8 +353,8 @@ class MESH_OT_select_path(Operator):
     #     "undo_history",
     #     "redo_history",
 
-    #     "select_only_arr",
-    #     "markup_arr",
+    #     "exec_select_arr",
+    #     "exec_markup_arr",
     # )
 
     context_action: EnumProperty(
@@ -483,7 +483,7 @@ class MESH_OT_select_path(Operator):
     # BMesh elements caches
     bm_arr: tuple[tuple[Object, BMesh]]
 
-    path_seq: list[Path]
+    path_arr: list[Path]
     mesh_islands: list[tuple[Union[BMVert, BMEdge, BMFace]]]
     drag_elem_indices: list[Union[None, int]]
     _active_path_index: int
@@ -493,8 +493,9 @@ class MESH_OT_select_path(Operator):
     undo_history: collections.deque[tuple[int, tuple[Path]]]
     redo_history: collections.deque[tuple[int, tuple[Path]]]
 
-    select_only_arr: dict[Object, tuple[int]]
-    markup_arr: dict[Object, tuple[int]]
+    exec_select_arr: dict[Object, list[tuple[int]]]
+    exec_active_arr: dict[Object, list[tuple[int]]]
+    exec_markup_arr: dict[Object, list[tuple[int]]]
 
     @staticmethod
     def _pack_event(item: Union[KeyMapItem, Event]) -> _PackedEvent_T:
@@ -520,13 +521,13 @@ class MESH_OT_select_path(Operator):
 
     @property
     def active_path(self) -> Path:
-        if self._active_path_index <= len(self.path_seq) - 1:
-            return self.path_seq[self._active_path_index]
-        return self.path_seq[-1]
+        if self._active_path_index <= len(self.path_arr) - 1:
+            return self.path_arr[self._active_path_index]
+        return self.path_arr[-1]
 
     @active_path.setter
     def active_path(self, value: Path) -> None:
-        self._active_path_index = self.path_seq.index(value)
+        self._active_path_index = self.path_arr.index(value)
 
     @staticmethod
     def _set_selection_state(elem_seq: tuple[Union[BMVert, BMEdge, BMFace]], state: bool = True) -> None:
@@ -548,12 +549,14 @@ class MESH_OT_select_path(Operator):
         for ob, bm in self.bm_arr:
             elem = bm.select_history.active
             if elem:
+                elem.select = False
+                bm.select_history.clear()
                 break
         ts.mesh_select_mode = self.prior_ts_msm
         return elem, ob
 
     def _get_current_state_copy(self) -> tuple[int, tuple[Path]]:
-        return tuple((self._active_path_index, tuple(n.copy() for n in self.path_seq)))
+        return tuple((self._active_path_index, tuple(n.copy() for n in self.path_arr)))
 
     def _undo(self, context: Context) -> set[Literal['CANCELLED', 'RUNNING_MODAL']]:
         if len(self.undo_history) == 1:
@@ -565,7 +568,7 @@ class MESH_OT_select_path(Operator):
             self.redo_history.append(step)
             undo_step_active_path_index, undo_step_path_seq = self.undo_history[-1]
             self._active_path_index = undo_step_active_path_index
-            self.path_seq = list(undo_step_path_seq)
+            self.path_arr = list(undo_step_path_seq)
             self._just_closed_path = False
 
         context.area.tag_redraw()
@@ -578,7 +581,7 @@ class MESH_OT_select_path(Operator):
             self.undo_history.append(step)
             undo_step_active_path_index, undo_step_path_seq = self.undo_history[-1]
             self._active_path_index = undo_step_active_path_index
-            self.path_seq = undo_step_path_seq
+            self.path_arr = undo_step_path_seq
             context.area.tag_redraw()
         else:
             self.report({'WARNING'}, message="Can not redo anymore")
@@ -612,14 +615,13 @@ class MESH_OT_select_path(Operator):
     def _update_meshes(self) -> None:
         for ob, bm in self.bm_arr:
             bm.select_flush_mode()
-            bmesh.update_edit_mesh(mesh=ob.data, loop_triangles=False, destructive=False)
+            bmesh.update_edit_mesh(mesh=ob.data, loop_triangles=True, destructive=False)
 
     def _update_fills_by_element_index(self, context: Context, path: Path, elem_index: int) -> None:
         ts = context.tool_settings
 
         pairs_items = path.get_pairs_items(elem_index)
-        for item in pairs_items:
-            elem_0, elem_1, fill_index = item
+        for elem_0, elem_1, fill_index in pairs_items:
 
             ts.mesh_select_mode = self.select_ts_msm
 
@@ -658,9 +660,7 @@ class MESH_OT_select_path(Operator):
         for i, control_element in enumerate(path.control_elements):
             if path.control_elements.count(control_element) > 1:
                 for j, other_control_element in enumerate(path.control_elements):
-                    if i == j:  # Skip current control element
-                        continue
-                    if other_control_element == control_element:
+                    if i != j and other_control_element == control_element:
                         # First-last control element same path
                         if i == 0 and j == len(path.control_elements) - 1:
                             path.pop_control_element(-1)
@@ -681,12 +681,12 @@ class MESH_OT_select_path(Operator):
                             batch, _ = self._gpu_gen_batch_control_elements(path == self.active_path, path)
                             path.batch_control_elements = batch
                             self.report(type={'INFO'}, message="Merged adjacent control elements")
-                        else:
-                            # Maybe, undo here?
-                            pass
+                        # else:
+                        #     # Maybe, undo here?
+                        #     pass
 
     def _join_adjacent_to_active_path(self) -> None:
-        for i, path in enumerate(self.path_seq):
+        for i, path in enumerate(self.path_arr):
             if (((i != self._active_path_index)  # Skip active path itself
                 # Closed pathes can not be merged
                  and (self.active_path.flag ^ PathFlag.CLOSED and path.flag ^ PathFlag.CLOSED))
@@ -696,7 +696,7 @@ class MESH_OT_select_path(Operator):
                     or (self.active_path.control_elements[-1] == path.control_elements[0])  # End to start
                     or (self.active_path.control_elements[0] == path.control_elements[-1])  # Start to end
             )):
-                self.active_path += self.path_seq.pop(i)
+                self.active_path += self.path_arr.pop(i)
 
                 batch, _ = self._gpu_gen_batch_control_elements(True, self.active_path)
                 self.active_path.batch_control_elements = batch
@@ -710,33 +710,6 @@ class MESH_OT_select_path(Operator):
             elem_arr = getattr(bm, mesh_elements)
             ret += tuple((n for n in elem_arr if n.select))
         return ret
-
-    def _eval_final_element_indices_arrays(self) -> None:
-        self.select_only_arr = dict()
-        self.markup_arr = dict()
-
-        for ob, bm in self.bm_arr:
-            index_select_seq: tuple[int] = tuple()
-            index_markup_seq: tuple[int] = tuple()
-
-            print(bm.select_history.active)
-
-            for path in self.path_seq:
-                if path.ob == ob:
-                    for fill_seq in path.fill_elements:
-                        index_select_seq += tuple((n.index for n in fill_seq))
-                    if self.prior_ts_msm[1]:
-                        index_markup_seq = index_select_seq
-                    if self.prior_ts_msm[2]:
-                        index_select_seq += tuple((face.index for face in path.control_elements))
-                        tmp = path.fill_elements[:]
-                        tmp.append(path.control_elements)
-                        for fill_seq in tmp:
-                            for face in fill_seq:
-                                index_markup_seq += tuple((e.index for e in face.edges))
-            # Remove duplicates
-            self.select_only_arr[ob] = tuple(set(index_select_seq))
-            self.markup_arr[ob] = tuple(set(index_markup_seq))
 
     def _ui_draw_popup_menu_pie(self, popup: UIPieMenu, context: Context) -> None:
         pie = popup.layout.menu_pie()
@@ -832,7 +805,7 @@ class MESH_OT_select_path(Operator):
         gpu.state.depth_test_set('LESS_EQUAL')
         gpu.state.face_culling_set('NONE')
 
-        draw_list: list[Path] = [_ for _ in self.path_seq if _ != self.active_path]
+        draw_list: list[Path] = [_ for _ in self.path_arr if _ != self.active_path]
         draw_list.append(self.active_path)
 
         shader_ce = bhqab.gpu_extras.shader.vert_uniform_color
@@ -882,7 +855,7 @@ class MESH_OT_select_path(Operator):
         props = context.window_manager.select_path
 
         if elem and interact_event is InteractEvent.ADD_CP:
-            if not self.path_seq:
+            if not self.path_arr:
                 return self._interact_control_element(context, elem, ob, InteractEvent.ADD_NEW_PATH)
 
             new_elem_index = None
@@ -894,7 +867,7 @@ class MESH_OT_select_path(Operator):
                 fill_index = self.active_path.is_in_fill_elements(elem)
                 if fill_index is None:
                     is_found_in_other_path = False
-                    for path in self.path_seq:
+                    for path in self.path_arr:
                         if path == self.active_path:
                             continue
                         other_elem_index = path.is_in_control_elements(elem)
@@ -919,7 +892,7 @@ class MESH_OT_select_path(Operator):
                 self.active_path.batch_control_elements = batch
 
             if elem_index is not None:
-                self.drag_elem_indices = [path.is_in_control_elements(elem) for path in self.path_seq]
+                self.drag_elem_indices = [path.is_in_control_elements(elem) for path in self.path_arr]
                 self._just_closed_path = False
             self._drag_elem = elem
 
@@ -937,7 +910,7 @@ class MESH_OT_select_path(Operator):
                 batch, self.active_index = self._gpu_gen_batch_control_elements(True, self.active_path)
                 self.active_path.batch_control_elements = batch
 
-                self.drag_elem_indices = [path.is_in_control_elements(elem) for path in self.path_seq]
+                self.drag_elem_indices = [path.is_in_control_elements(elem) for path in self.path_arr]
 
         elif elem and interact_event is InteractEvent.ADD_NEW_PATH:
             linked_island_index = self._get_linked_island_index(context, elem)
@@ -946,7 +919,7 @@ class MESH_OT_select_path(Operator):
             if props.use_topology_distance:
                 new_path.flag |= PathFlag.TOPOLOGY
 
-            self.path_seq.append(new_path)
+            self.path_arr.append(new_path)
             self.active_path = new_path
             self._just_closed_path = False
             self._interact_control_element(context, elem, ob, InteractEvent.ADD_CP)
@@ -958,7 +931,7 @@ class MESH_OT_select_path(Operator):
 
             elem_index = self.active_path.is_in_control_elements(elem)
             if elem_index is None:
-                for path in self.path_seq:
+                for path in self.path_arr:
                     other_elem_index = path.is_in_control_elements(elem)
                     if other_elem_index is not None:
                         self.active_path = path
@@ -968,16 +941,16 @@ class MESH_OT_select_path(Operator):
                 self.active_path.pop_control_element(elem_index)
 
                 if not len(self.active_path.control_elements):
-                    self.path_seq.remove(self.active_path)
-                    if len(self.path_seq):
-                        self.active_path = self.path_seq[-1]
+                    self.path_arr.remove(self.active_path)
+                    if len(self.path_arr):
+                        self.active_path = self.path_arr[-1]
                 else:
                     self._update_fills_by_element_index(context, self.active_path, elem_index)
                     batch, self.active_index = self._gpu_gen_batch_control_elements(True, self.active_path)
                     self.active_path.batch_control_elements = batch
 
         elif elem and interact_event is InteractEvent.DRAG_CP:
-            if (not self._drag_elem) or (len(self.drag_elem_indices) != len(self.path_seq)):
+            if (not self._drag_elem) or (len(self.drag_elem_indices) != len(self.path_arr)):
                 return
             self._just_closed_path = False
 
@@ -985,7 +958,7 @@ class MESH_OT_select_path(Operator):
             if self.active_path.island_index == linked_island_index:
                 self._drag_elem = elem
 
-                for i, path in enumerate(self.path_seq):
+                for i, path in enumerate(self.path_arr):
                     j = self.drag_elem_indices[i]
                     if j is not None:
                         path.control_elements[j] = elem
@@ -1024,7 +997,7 @@ class MESH_OT_select_path(Operator):
             self.drag_elem_indices = []
             self._drag_elem = None
 
-            for path in self.path_seq:
+            for path in self.path_arr:
                 self._remove_path_doubles(context, path)
             self._join_adjacent_to_active_path()
 
@@ -1107,7 +1080,7 @@ class MESH_OT_select_path(Operator):
         # ____________________________________________________________________ #
         # Initialize variables.
 
-        self.path_seq = list()
+        self.path_arr = list()
         self.mesh_islands = list()
         self.drag_elem_indices = list()
 
@@ -1118,9 +1091,9 @@ class MESH_OT_select_path(Operator):
         self.undo_history = collections.deque(maxlen=num_undo_steps)
         self.redo_history = collections.deque(maxlen=num_undo_steps)
 
-        self.select_only_arr = dict()
-        self.markup_arr = dict()
-
+        self.exec_select_arr = dict()
+        self.exec_markup_arr = dict()
+        self.exec_active_arr = dict()
         # ____________________________________________________________________ #
         # Meshes context setup.
         # Evaluate meshes:
@@ -1152,8 +1125,8 @@ class MESH_OT_select_path(Operator):
             for _, bm in self.bm_arr:
                 num_elements_total += len(bm.faces)
 
-        if num_elements_total == len(self.initial_select) and self.mark_select == 'EXTEND':
-            self.mark_select = 'NONE'
+        if num_elements_total == len(self.initial_select) and props.mark_select == 'EXTEND':
+            props.mark_select = 'NONE'
 
         # Prevent first click empty space
         elem, _ = self._get_element_by_mouse(context, event)
@@ -1242,6 +1215,7 @@ class MESH_OT_select_path(Operator):
                 title="Path Tool",
                 icon='NONE',
             )
+            return {'RUNNING_MODAL'}
 
         elif ev == (self.select_mb, 'PRESS', False, False, False):
             self.is_mouse_pressed = True
@@ -1262,22 +1236,118 @@ class MESH_OT_select_path(Operator):
             self.is_mouse_pressed = False
             interact_event = InteractEvent.RELEASE_PATH
 
-        if self.is_mouse_pressed:
-            if ev[0] == 'MOUSEMOVE':
-                interact_event = InteractEvent.DRAG_CP
+        elif self.is_mouse_pressed and ev[0] == 'MOUSEMOVE':
+            interact_event = InteractEvent.DRAG_CP
 
         if interact_event is not None:
             elem, ob = self._get_element_by_mouse(context, event)
             self._interact_control_element(context, elem, ob, interact_event)
 
             self._set_selection_state(self.initial_select, True)
-            self._update_meshes()
+            # self._update_meshes()
 
-        if not len(self.path_seq):
+        if not len(self.path_arr):
             self.cancel(context)
             return {'CANCELLED'}
 
         return {'RUNNING_MODAL'}
+
+    def _eval_final_element_indices_arrays(self) -> None:
+        for ob, _bm in self.bm_arr:
+            self.exec_select_arr[ob] = list()
+            self.exec_markup_arr[ob] = list()
+
+            _exec_select_arr: list[list[int, set[int]]] = list()
+
+            for path in self.path_arr:
+                _indices_select: set[int] = set()
+                _indices_markup: set[int] = set()
+
+                if path.ob == ob:
+                    fills = path.fill_elements
+                    if self.prior_ts_msm[2]:
+                        fills += [path.control_elements, ]
+
+                    for fill in fills:
+                        _indices_select |= set((_.index for _ in fill))
+
+                        if self.prior_ts_msm[1]:
+                            _indices_markup = _indices_select
+                        elif self.prior_ts_msm[2]:
+                            for face in fill:
+                                face: BMFace
+
+                                _indices_markup |= set((_.index for _ in face.edges))
+
+                    # Determine path's active element
+                    active_index = path.control_elements[-1].index
+                    # For edges selection mode, would be determined edge which exists in last fill from active control
+                    # element of the path.
+                    if self.prior_ts_msm[1]:
+                        fill = path.fill_elements[-2]
+                        for edge in path.control_elements[-1].link_edges:
+                            if edge in fill:
+                                active_index = edge.index
+
+                    # Check intersections with other paths which was evaluated previously
+                    if _exec_select_arr:
+                        other_select_arr_i = 0
+                        while other_select_arr_i < len(_exec_select_arr):
+                            if _indices_select & _exec_select_arr[other_select_arr_i][1]:
+                                _exec_select_arr[other_select_arr_i][1] |= _indices_select
+                                other_select_arr_i = len(_exec_select_arr)  # break
+                            else:
+                                other_select_arr_i += 1
+                    else:
+                        _exec_select_arr.append([active_index, _indices_select])
+
+            for active_index, _indices_select in _exec_select_arr:
+                self.exec_select_arr[ob].append(tuple(_indices_select) + (active_index,))
+            # _exec_select_arr: list[set[int]] = list()
+
+            # for path in self.path_arr:
+            #     indices_select: set[int] = set()
+            #     indices_markup: set[int] = set()
+
+            #     if path.ob == ob:
+            #         fills = path.fill_elements
+            #         if self.prior_ts_msm[2]:
+            #             fills += [path.control_elements, ]
+
+            #         for fill in fills:
+            #             indices_select |= set((_.index for _ in fill))
+
+            #             if self.prior_ts_msm[2]:
+            #                 for face in fill:
+            #                     indices_markup |= set(_.index for _ in face.edges)
+
+            #         is_intersecting = False
+
+            #         for i, indices in enumerate(_exec_select_arr):
+            #             if indices_select & indices:
+            #                 _exec_select_arr[i] |= indices_select
+            #                 is_intersecting = True
+            #                 break
+
+            #         if not is_intersecting:
+            #             _exec_select_arr.append(indices_select)
+
+            #             if self.prior_ts_msm[1]:
+            #                 indices_markup = indices_select
+
+            #             active_index = path.control_elements[-1].index
+            #             if self.prior_ts_msm[1]:
+            #                 fill = path.fill_elements[-2]
+            #                 for edge in path.control_elements[-1].link_edges:
+            #                     if edge in fill:
+            #                         active_index = edge.index
+
+            #             indices_select.remove(active_index)
+
+            #             self.exec_select_arr[ob].append(tuple(indices_select) + (active_index,))
+            #             self.exec_markup_arr[ob].append(tuple(indices_markup))
+
+        self._update_meshes()
 
     def execute(self, context: Context):
         ts = context.tool_settings
@@ -1288,72 +1358,104 @@ class MESH_OT_select_path(Operator):
         self.initial_select = self._get_selected_elements(self.prior_mesh_elements)
 
         for ob, bm in self.bm_arr:
-            if ob in self.select_only_arr:
-                index_select_seq = self.select_only_arr[ob]
-                index_markup_seq = self.markup_arr[ob]
-                elem_seq = getattr(bm, self.prior_mesh_elements)
+            elem_seq = getattr(bm, self.prior_mesh_elements)
 
-                if (props.skip
-                    and (props.mark_select != 'NONE'
-                         or props.mark_seam != 'NONE'
-                         or props.mark_sharp != 'NONE')):
-                    bpy.ops.mesh.select_all(action='DESELECT')
+            if ob in self.exec_select_arr:
+                select_indices: tuple[int] = tuple()
+                #markup_indices: tuple[int] = tuple()
 
-                    for i in index_select_seq:
-                        elem_seq[i].select_set(True)
+                for i in range(len(self.exec_select_arr[ob])):
+                    index_select_seq = self.exec_select_arr[ob][i]
+                    #index_markup_seq = self.exec_markup_arr[ob][i]
+                    if (props.skip
+                        and (props.mark_select != 'NONE'
+                             or props.mark_seam != 'NONE'
+                             or props.mark_sharp != 'NONE')):
 
-                    # Required for `bpy.ops.mesh.select_nth` call:
-                    bm.select_history.clear()
-                    bm.select_history.add(elem_seq[i])
-                    bpy.ops.mesh.select_nth('EXEC_DEFAULT', skip=props.skip, nth=props.nth, offset=props.offset)
+                        bpy.ops.mesh.select_all(action='DESELECT')
 
-                    index_select_seq = tuple(
-                        (n.index for n in self._get_selected_elements(self.prior_mesh_elements))
-                    )
-                    index_markup_seq = index_select_seq
-                    if self.prior_ts_msm[2]:
-                        index_markup_seq = tuple(
-                            (n.index for n in self._get_selected_elements("edges"))
+                        bm.select_history.clear()
+                        for i in index_select_seq:
+                            elem_seq[i].select_set(True)
+
+                        active_elem = elem_seq[index_select_seq[-1]]
+                        bm.select_history.add(active_elem)
+
+                        bpy.ops.mesh.select_nth('EXEC_DEFAULT', skip=props.skip, nth=props.nth, offset=props.offset)
+
+                        select_indices += tuple(
+                            (_.index for _ in self._get_selected_elements(self.prior_mesh_elements))
                         )
 
-                    bpy.ops.mesh.select_all(action='DESELECT')
-                    self._set_selection_state(self.initial_select, True)
+                    else:
+                        select_indices += index_select_seq
+        #                 #markup_indices += index_markup_seq
+        # #             # if ob in self.exec_active_arr:
+        # #             #     active_elem = elem_seq[self.exec_active_arr[ob]]
+        # #             #     bm.select_history.clear()
+        # #             #     active_elem.select_set(True)
+        # #             #     bm.select_history.add(active_elem)
+        # #             #     bm.select_flush(True)
+        # #             bpy.ops.mesh.select_nth('EXEC_DEFAULT', skip=props.skip, nth=props.nth, offset=props.offset)
 
-                if props.mark_select == 'EXTEND':
-                    for i in index_select_seq:
-                        elem_seq[i].select_set(True)
-                elif props.mark_select == 'SUBTRACT':
-                    for i in index_select_seq:
-                        elem_seq[i].select_set(False)
-                elif props.mark_select == 'INVERT':
-                    for i in index_select_seq:
-                        elem_seq[i].select_set(not elem_seq[i].select)
+        # #             index_select_seq = tuple(
+        # #                 (n.index for n in self._get_selected_elements(self.prior_mesh_elements))
+        # #             )
+        # #             index_markup_seq = index_select_seq
+        # #             if self.prior_ts_msm[2]:
+        # #                 index_markup_seq = tuple(
+        # #                     (n.index for n in self._get_selected_elements("edges"))
+        # #                 )
 
-                if ob in self.markup_arr:
-                    elem_seq = bm.edges
-                    if props.mark_seam != 'NONE':
-                        if props.mark_seam == 'MARK':
-                            for i in index_markup_seq:
-                                elem_seq[i].seam = True
-                        elif props.mark_seam == 'CLEAR':
-                            for i in index_markup_seq:
-                                elem_seq[i].seam = False
-                        elif props.mark_seam == 'TOGGLE':
-                            for i in index_markup_seq:
-                                elem_seq[i].seam = not elem_seq[i].seam
+        # #             bpy.ops.mesh.select_all(action='DESELECT')
+        # #             self._set_selection_state(self.initial_select, True)
 
-                    if props.mark_sharp != 'NONE':
-                        if props.mark_sharp == 'MARK':
-                            for i in index_markup_seq:
-                                elem_seq[i].smooth = False
-                        elif props.mark_sharp == 'CLEAR':
-                            for i in index_markup_seq:
-                                elem_seq[i].smooth = True
-                        elif props.mark_sharp == 'TOGGLE':
-                            for i in index_markup_seq:
-                                elem_seq[i].smooth = not elem_seq[i].smooth
+        # #             self._update_meshes()
 
-        self._update_meshes()
+            bpy.ops.mesh.select_all(action='DESELECT')
+            self._set_selection_state(self.initial_select, True)
+
+            if props.mark_select == 'EXTEND':
+                for i in select_indices:
+                    elem_seq[i].select_set(True)
+            elif props.mark_select == 'SUBTRACT':
+                for i in select_indices:
+                    elem_seq[i].select_set(False)
+            elif props.mark_select == 'INVERT':
+                for i in select_indices:
+                    elem_seq[i].select_set(not elem_seq[i].select)
+
+            # Set active element
+            bm.select_history.clear()
+            active_elem = elem_seq[index_select_seq[-1]]
+            if active_elem.select:
+                bm.select_history.add(active_elem)
+
+        # if ob in self.exec_markup_arr:
+        #     elem_seq = bm.edges
+        #     if props.mark_seam != 'NONE':
+        #         if props.mark_seam == 'MARK':
+        #             for i in markup_indices:
+        #                 elem_seq[i].seam = True
+        #         elif props.mark_seam == 'CLEAR':
+        #             for i in markup_indices:
+        #                 elem_seq[i].seam = False
+        #         elif props.mark_seam == 'TOGGLE':
+        #             for i in markup_indices:
+        #                 elem_seq[i].seam = not elem_seq[i].seam
+
+        #     if props.mark_sharp != 'NONE':
+        #         if props.mark_sharp == 'MARK':
+        #             for i in markup_indices:
+        #                 elem_seq[i].smooth = False
+        #         elif props.mark_sharp == 'CLEAR':
+        #             for i in markup_indices:
+        #                 elem_seq[i].smooth = True
+        #         elif props.mark_sharp == 'TOGGLE':
+        #             for i in markup_indices:
+        #                 elem_seq[i].smooth = not elem_seq[i].smooth
+
+        # self._update_meshes()
         return {'FINISHED'}
 
 
