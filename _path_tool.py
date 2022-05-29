@@ -1,6 +1,6 @@
 from __future__ import annotations
-from pickle import TRUE
 from typing import (
+    Iterator,
     Literal,
     Union,
 )
@@ -11,6 +11,8 @@ import bpy
 from bpy.types import (
     Context,
     Event,
+    Area,
+    Region,
     KeyMapItem,
     Object,
     Operator,
@@ -35,7 +37,10 @@ import gpu
 from gpu.types import GPUBatch
 from gpu_extras.batch import batch_for_shader
 
-from mathutils import Matrix
+from mathutils import (
+    Vector,
+    Matrix
+)
 
 from . import bhqab
 from . import __package__ as addon_pkg
@@ -539,15 +544,51 @@ class MESH_OT_select_path(Operator):
         for elem in elem_seq:
             elem.select = state
 
+    @staticmethod
+    def _iter_view_3d_areas(context: Context) -> Iterator[Area]:
+        for area in context.screen.areas:
+            area: Area
+            if area.type == 'VIEW_3D':
+                yield area
+
+    @staticmethod
+    def _eval_context_override_region_under_mouse(context: Context, event: Event) -> Context:
+        mx, my = event.mouse_x, event.mouse_y
+
+        for area in MESH_OT_select_path._iter_view_3d_areas(context):
+            if ((area.x < mx < area.x + area.width) and (area.y < my < area.y + area.height)):
+                for region in area.regions:
+                    if region.type == 'WINDOW':
+                        break
+                for space in area.spaces:
+                    if space.type == 'VIEW_3D':
+                        region_data = space.region_3d
+                        break
+
+                override: Context = context.copy()
+                override.update(
+                    area=area,
+                    region=region,
+                    region_data=region_data,
+                )
+                return override
+
+        return context
+
     def _get_element_by_mouse(self, context: Context, event: Event) -> tuple[
             Union[None, BMVert, BMEdge, BMFace], Union[None, Object]]:
-
         ts = context.tool_settings
         ts.mesh_select_mode = self.select_ts_msm
 
         bpy.ops.mesh.select_all(action='DESELECT')
-        mouse_location = (event.mouse_region_x, event.mouse_region_y)
-        bpy.ops.view3d.select(location=mouse_location)
+
+        override = self._eval_context_override_region_under_mouse(context, event)
+        override_area = override["area"]
+        bpy.ops.view3d.select(
+            override,
+            'EXEC_DEFAULT',
+            location=(event.mouse_x - override_area.x, event.mouse_y - override_area.y)
+        )
 
         elem = None
         ob = None
@@ -808,13 +849,29 @@ class MESH_OT_select_path(Operator):
         self.post_fx_batch = batch_for_shader(bhqab.gpu_extras.shader.fx, 'TRI_FAN',
                                               dict(Coord=((0, 0), (1, 0), (1, 1), (0, 1))))
 
+    def _gpu_eval_offscreen_arr(self, context: Context) -> None:
+        def _update_area_offscreen(_region: Region) -> None:
+            self.view3d_offscreen[_region] = gpu.types.GPUOffScreen(_region.width, _region.height, format='RGBA8')
+
+        for area in self._iter_view_3d_areas(context):
+            area: Area
+
+            for region in area.regions:
+                region: Region
+
+                if region.type == 'WINDOW':
+                    if region in self.view3d_offscreen:
+                        offscreen = self.view3d_offscreen[region]
+                        if offscreen.width != region.width or offscreen.height != region.height:
+                            _update_area_offscreen(region)
+                    else:
+                        _update_area_offscreen(region)
+
     def _gpu_draw_callback(self, context: Context) -> None:
-        #if self.viewport != context.region_data:
-        #    return
-
-        self._gpu_eval_offscreen()
-
         preferences = context.preferences.addons[addon_pkg].preferences
+
+        self._gpu_eval_offscreen_arr(context)
+        offscreen = self.view3d_offscreen[context.region]
 
         draw_list: list[Path] = [_ for _ in self.path_arr if _ != self.active_path]
         draw_list.append(self.active_path)
@@ -828,11 +885,11 @@ class MESH_OT_select_path(Operator):
 
         w, h = gpu.state.viewport_get()[2:]
         fb = gpu.state.active_framebuffer_get()
-        view3d_depth_map = gpu.types.GPUTexture((w, h), data=fb.read_depth(0, 0, w, h), format='R32F')
+        view3d_depth_map = gpu.types.GPUTexture((w, h), data=fb.read_depth(*fb.viewport_get()), format='R32F')
 
         mvp = gpu.matrix.get_projection_matrix() @ gpu.matrix.get_model_view_matrix()
 
-        with self.offscreen.bind():
+        with offscreen.bind():
             fb = gpu.state.active_framebuffer_get()
             fb.clear(color=(0.0, 0.0, 0.0, 0.0))
 
@@ -903,7 +960,7 @@ class MESH_OT_select_path(Operator):
             shader.bind()
             mvp = gpu.matrix.get_model_view_matrix()
             shader.uniform_float("ModelViewProjectionMatrix", mvp)
-            shader.uniform_sampler("ViewOverlay", self.offscreen.texture_color)
+            shader.uniform_sampler("ViewOverlay", offscreen.texture_color)
             shader.uniform_float("ViewResolution", (w, h))
             self.post_fx_batch.draw(shader)
 
@@ -1149,7 +1206,7 @@ class MESH_OT_select_path(Operator):
         self._just_closed_path = False
 
         self.gpu_handles = list()
-        self.view_res = (0, 0)
+        self.view3d_offscreen = dict()
 
         self.undo_history = collections.deque(maxlen=num_undo_steps)
         self.redo_history = collections.deque(maxlen=num_undo_steps)
@@ -1204,17 +1261,10 @@ class MESH_OT_select_path(Operator):
             SpaceView3D.draw_handler_add(self._gpu_draw_callback, (context,), 'WINDOW', 'POST_VIEW'),
         ]
 
-        self.viewport = context.region_data
-        self._gpu_eval_offscreen()
+        self._gpu_eval_offscreen_arr(context)
         wm.modal_handler_add(self)
         self.modal(context, event)
         return {'RUNNING_MODAL'}
-
-    def _gpu_eval_offscreen(self) -> None:
-        w, h = gpu.state.viewport_get()[2:]
-        if w != self.view_res[0] or h != self.view_res[1]:
-            self.offscreen = gpu.types.GPUOffScreen(w, h, format='RGBA8')
-            self.view_res = w, h
 
     def cancel(self, context: Context):
         ts = context.tool_settings
@@ -1229,7 +1279,6 @@ class MESH_OT_select_path(Operator):
         modal_action = self.modal_events.get(ev, None)
         undo_redo_action = self.undo_redo_events.get(ev, None)
         interact_event = None
-        print(context.region_data)
         if ev in self.nav_events:
             return {'PASS_THROUGH'}
 
