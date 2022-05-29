@@ -499,6 +499,7 @@ class MESH_OT_select_path(Operator):
     _just_closed_path: bool
 
     gpu_handles: list
+    view3d_offscreen: dict[Region, gpu.types.GPUOffScreen]
 
     undo_history: collections.deque[tuple[int, tuple[Path]]]
     redo_history: collections.deque[tuple[int, tuple[Path]]]
