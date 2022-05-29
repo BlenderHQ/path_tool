@@ -895,11 +895,12 @@ class MESH_OT_select_path(Operator):
 
         shader_path = bhqab.gpu_extras.shader.path
 
-        w, h = gpu.state.viewport_get()[2:]
+        view_resolution = gpu.state.viewport_get()[2:]
         fb = gpu.state.active_framebuffer_get()
-        view3d_depth_map = gpu.types.GPUTexture((w, h), data=fb.read_depth(*fb.viewport_get()), format='R32F')
+        original_view_depth_map = gpu.types.GPUTexture(
+            view_resolution, data=fb.read_depth(*fb.viewport_get()), format='R32F')
 
-        mvp = gpu.matrix.get_projection_matrix() @ gpu.matrix.get_model_view_matrix()
+        MVP_mat = gpu.matrix.get_projection_matrix() @ gpu.matrix.get_model_view_matrix()
 
         with offscreen.bind():
             fb = gpu.state.active_framebuffer_get()
@@ -913,7 +914,7 @@ class MESH_OT_select_path(Operator):
                 gpu.state.face_culling_set('NONE')
 
                 for path in draw_list:
-                    active_index = 0
+                    active_ce_index = 0
                     color_ce = preferences.color_control_element
                     color_active_ce = color_ce
                     color_path = preferences.color_path
@@ -921,7 +922,7 @@ class MESH_OT_select_path(Operator):
                         color_path = preferences.color_path_topology
 
                     if path == self.active_path:
-                        active_index = self.active_index
+                        active_ce_index = self.active_index
 
                         color_ce = preferences.color_active_path_control_element
                         color_active_ce = preferences.color_active_control_element
@@ -931,49 +932,47 @@ class MESH_OT_select_path(Operator):
                             color_path = preferences.color_active_path_topology
 
                     shader_path.bind()
-                    shader_path.uniform_float("ModelViewProjectionMatrix", mvp)
+                    shader_path.uniform_float("ModelViewProjectionMatrix", MVP_mat)
                     for batch in path.batch_seq_fills:
                         if batch:
                             shader_path.uniform_float("ModelMatrix", path.ob.matrix_world)
                             shader_path.uniform_float("ColorPath", color_path)
-                            shader_path.uniform_sampler("OriginalViewDepthMap", view3d_depth_map)
-                            shader_path.uniform_float("ViewResolution", (w, h))
+                            shader_path.uniform_sampler("OriginalViewDepthMap", original_view_depth_map)
+                            shader_path.uniform_float("ViewResolution", view_resolution)
                             batch.draw(shader_path)
 
                     shader_ce.bind()
 
                     if path.batch_control_elements:
                         shader_ce.uniform_float("ModelMatrix", path.ob.matrix_world)
-                        shader_ce.uniform_float("ModelViewProjectionMatrix", mvp)
+                        shader_ce.uniform_float("ModelViewProjectionMatrix", MVP_mat)
                         shader_ce.uniform_float("ColorControlElement", color_ce)
                         shader_ce.uniform_float("ColorActiveControlElement", color_active_ce)
-                        shader_ce.uniform_int("ActiveControlElementIndex", (active_index,))
-                        shader_ce.uniform_sampler("OriginalViewDepthMap", view3d_depth_map)
+                        shader_ce.uniform_int("ActiveControlElementIndex", (active_ce_index,))
+                        shader_ce.uniform_sampler("OriginalViewDepthMap", original_view_depth_map)
 
-                        shader_ce.uniform_float("ViewResolution", (w, h))
+                        shader_ce.uniform_float("ViewResolution", view_resolution)
                         if self.prior_ts_msm[1]:
                             shader_ce.uniform_float("DiskRadius", preferences.point_size + 6)
 
                         path.batch_control_elements.draw(shader_ce)
 
         shader = bhqab.gpu_extras.shader.fx
-        mvp = Matrix.Identity(4)
-        shader.uniform_float("ModelViewProjectionMatrix", mvp)
-
-        gpu.state.depth_mask_set(False)
-        gpu.state.blend_set('ALPHA')
-        gpu.state.clip_distances_set(2)
 
         with gpu.matrix.push_pop():
+            gpu.state.depth_mask_set(False)
+            gpu.state.blend_set('ALPHA')
+
             gpu.matrix.load_matrix(Matrix.Identity(4))
             gpu.matrix.load_projection_matrix(Matrix.Identity(4))
             gpu.matrix.translate((-1, -1))
             gpu.matrix.scale((2.0, 2.0))
+            
             shader.bind()
-            mvp = gpu.matrix.get_model_view_matrix()
-            shader.uniform_float("ModelViewProjectionMatrix", mvp)
+            MVP_mat = gpu.matrix.get_model_view_matrix()
+            shader.uniform_float("ModelViewProjectionMatrix", MVP_mat)
             shader.uniform_sampler("ViewOverlay", offscreen.texture_color)
-            shader.uniform_float("ViewResolution", (w, h))
+            shader.uniform_float("ViewResolution", view_resolution)
             self.post_fx_batch.draw(shader)
 
     def _interact_control_element(self,
