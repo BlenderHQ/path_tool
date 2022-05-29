@@ -13,6 +13,7 @@ from bpy.types import (
     Event,
     Area,
     Region,
+    RegionView3D,
     KeyMapItem,
     Object,
     Operator,
@@ -49,6 +50,16 @@ HARDCODED_APPLY_KMI = ('SPACE', 'PRESS', False, False, False)
 HARDCODED_CLOSE_PATH_KMI = ('C', 'PRESS', False, False, False)
 HARDCODED_CHANGE_DIRECTION_KMI = ('D', 'PRESS', False, False, False)
 HARDCODED_TOPOLOGY_DISTANCE_KMI = ('T', 'PRESS', False, False, False)
+
+# _____________________________________________________
+# TODO: Move to `bhqab`?
+_REGION_VIEW_3D_N_PANEL_TABS_WIDTH_PX = 21
+
+
+def eval_view3d_n_panel_width(context: Context) -> int:
+    return _REGION_VIEW_3D_N_PANEL_TABS_WIDTH_PX * context.preferences.view.ui_scale
+
+# _____________________________________________________
 
 
 class InteractEvent(IntFlag):
@@ -553,28 +564,20 @@ class MESH_OT_select_path(Operator):
                 yield area
 
     @staticmethod
-    def _eval_context_override_region_under_mouse(context: Context, event: Event) -> Context:
+    def _get_interactive_ui_under_mouse(
+            context: Context,
+            event: Event) -> Union[None, tuple[Area, Region, RegionView3D]]:
         mx, my = event.mouse_x, event.mouse_y
 
         for area in MESH_OT_select_path._iter_view_3d_areas(context):
-            if ((area.x < mx < area.x + area.width) and (area.y < my < area.y + area.height)):
-                for region in area.regions:
-                    if region.type == 'WINDOW':
-                        break
-                for space in area.spaces:
-                    if space.type == 'VIEW_3D':
-                        region_data = space.region_3d
-                        break
-
-                override: Context = context.copy()
-                override.update(
-                    area=area,
-                    region=region,
-                    region_data=region_data,
-                )
-                return override
-
-        return context
+            for region in area.regions:
+                if region.type == 'WINDOW':
+                    if ((region.x < mx < region.x + region.width - eval_view3d_n_panel_width(context))
+                            and (region.y < my < region.y + region.height)):
+                        for space in area.spaces:
+                            if space.type == 'VIEW_3D':
+                                region_data = space.region_3d
+                        return area, region, region_data
 
     def _get_element_by_mouse(self, context: Context, event: Event) -> tuple[
             Union[None, BMVert, BMEdge, BMFace], Union[None, Object]]:
@@ -583,7 +586,15 @@ class MESH_OT_select_path(Operator):
 
         bpy.ops.mesh.select_all(action='DESELECT')
 
-        override = self._eval_context_override_region_under_mouse(context, event)
+        ui = MESH_OT_select_path._get_interactive_ui_under_mouse(context, event)
+        override: Context = context.copy()
+        if ui is not None:
+            area, region, region_data = ui
+            override.update(
+                area=area,
+                region=region,
+                region_data=region_data
+            )
         override_area = override["area"]
         bpy.ops.view3d.select(
             override,
@@ -1280,10 +1291,8 @@ class MESH_OT_select_path(Operator):
         modal_action = self.modal_events.get(ev, None)
         undo_redo_action = self.undo_redo_events.get(ev, None)
         interact_event = None
-        if ev in self.nav_events:
-            return {'PASS_THROUGH'}
 
-        elif (
+        if (
             modal_action == 'CANCEL'
             or InteractEvent.CANCEL.name in self.context_action
         ):
@@ -1302,6 +1311,12 @@ class MESH_OT_select_path(Operator):
             self._gpu_remove_handles()
             STATUSBAR_HT_header.remove(self._ui_draw_statusbar)
             return self.execute(context)
+
+        elif self._get_interactive_ui_under_mouse(context, event) is None:
+            return {'RUNNING_MODAL'}
+
+        elif ev in self.nav_events:
+            return {'PASS_THROUGH'}
 
         elif (
             InteractEvent.CLOSE_PATH.name in self.context_action
@@ -1487,11 +1502,11 @@ class MESH_OT_select_path(Operator):
 
             if ob in self.exec_select_arr:
                 select_indices: tuple[int] = tuple()
-                #markup_indices: tuple[int] = tuple()
+                # markup_indices: tuple[int] = tuple()
 
                 for i in range(len(self.exec_select_arr[ob])):
                     index_select_seq = self.exec_select_arr[ob][i]
-                    #index_markup_seq = self.exec_markup_arr[ob][i]
+                    # index_markup_seq = self.exec_markup_arr[ob][i]
                     if (props.skip
                         and (props.mark_select != 'NONE'
                              or props.mark_seam != 'NONE'
