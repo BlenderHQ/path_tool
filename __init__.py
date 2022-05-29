@@ -93,7 +93,7 @@ class Preferences(AddonPreferences):
     )
 
     color_active_path_control_element: FloatVectorProperty(
-        default=(0.969922, 0.969922, 0.969922),
+        default=(0.304987, 0.708376, 0.450786),
         subtype='COLOR',
         size=3,
         min=0.0,
@@ -113,7 +113,7 @@ class Preferences(AddonPreferences):
     )
 
     color_path: FloatVectorProperty(
-        default=(0.0, 0.7, 1.0),
+        default=(0.622574, 0.685957, 0.666101),
         subtype='COLOR',
         size=3,
         min=0.0,
@@ -133,7 +133,7 @@ class Preferences(AddonPreferences):
     )
 
     color_active_path: FloatVectorProperty(
-        default=(1.0, 0.1, 0.1),
+        default=(0.304987, 0.708376, 0.450786),
         subtype='COLOR',
         size=3,
         min=0.0,
@@ -153,12 +153,11 @@ class Preferences(AddonPreferences):
     )
 
     point_size: IntProperty(
-        default=4,
-        min=1,
-        max=9,
-        soft_min=3,
-        soft_max=6,
-        subtype='PIXEL',
+        default=3,
+        min=0,
+        max=50,
+        soft_max=20,
+        subtype='FACTOR',
         name="Vertex Size",
         description="",
     )
