@@ -957,23 +957,24 @@ class MESH_OT_select_path(Operator):
 
                         path.batch_control_elements.draw(shader_ce)
 
+        original_MVP_mat = MVP_mat
+
         shader = bhqab.gpu_extras.shader.fx
 
-        with gpu.matrix.push_pop():
-            gpu.state.depth_mask_set(False)
-            gpu.state.blend_set('ALPHA')
+        gpu.matrix.reset()
+        gpu.state.depth_mask_set(False)
+        gpu.state.blend_set('ALPHA')
 
-            gpu.matrix.load_matrix(Matrix.Identity(4))
-            gpu.matrix.load_projection_matrix(Matrix.Identity(4))
-            gpu.matrix.translate((-1, -1))
-            gpu.matrix.scale((2.0, 2.0))
-            
-            shader.bind()
-            MVP_mat = gpu.matrix.get_model_view_matrix()
-            shader.uniform_float("ModelViewProjectionMatrix", MVP_mat)
-            shader.uniform_sampler("ViewOverlay", offscreen.texture_color)
-            shader.uniform_float("ViewResolution", view_resolution)
-            self.post_fx_batch.draw(shader)
+        gpu.matrix.translate((-1, -1))
+        gpu.matrix.scale((2, 2))
+
+        shader.bind()
+        MVP_mat = gpu.matrix.get_model_view_matrix()
+        shader.uniform_float("ModelViewProjectionMatrix", MVP_mat)
+        shader.uniform_sampler("ViewOverlay", offscreen.texture_color)
+        shader.uniform_float("ViewResolution", view_resolution)
+        self.post_fx_batch.draw(shader)
+        gpu.matrix.load_matrix(original_MVP_mat)
 
     def _interact_control_element(self,
                                   context: Context,
