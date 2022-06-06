@@ -742,7 +742,6 @@ class MESH_OT_select_path(Operator):
                             self.report(type={'INFO'}, message="Merged adjacent control elements")
                         # else:
                         #     # Maybe, undo here?
-                        #     pass
 
     def _join_adjacent_to_active_path(self) -> None:
         for i, path in enumerate(self.path_arr):
