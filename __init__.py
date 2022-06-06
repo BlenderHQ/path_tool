@@ -17,8 +17,8 @@
 bl_info = {
     "name": "Path Tool",
     "author": "Vlad Kuzmin (ssh4), Ivan Perevala (ivpe)",
-    "version": (3, 0, 0),
-    "blender": (3, 1, 0),
+    "version": (3, 2, 0),
+    "blender": (3, 2, 0),
     "location": "Toolbar",
     "description": "Tool for selecting and marking up mesh object elements",
     "category": "Mesh",
@@ -33,7 +33,6 @@ if "bpy" in locals():
 
     del reload
 
-from email.policy import default
 import os
 
 import bpy
@@ -63,7 +62,6 @@ class Preferences(AddonPreferences):
     __slots__ = (
         "tab",
         "color_control_element",
-        "color_active_path_control_element",
         "color_active_control_element",
         "color_path",
         "color_active_path",
@@ -83,22 +81,13 @@ class Preferences(AddonPreferences):
     )
 
     color_control_element: FloatVectorProperty(
-        default=(0.622574, 0.685957, 0.666101),
+        default=(0.8, 0.8, 0.8),
         subtype='COLOR',
         size=3,
         min=0.0,
         max=1.0,
+        options={'HIDDEN', 'SKIP_SAVE'},
         name="Control Element",
-        description="Control element color",
-    )
-
-    color_active_path_control_element: FloatVectorProperty(
-        default=(0.304987, 0.708376, 0.450786),
-        subtype='COLOR',
-        size=3,
-        min=0.0,
-        max=1.0,
-        name="Active Path Control Element",
         description="Control element color",
     )
 
@@ -108,28 +97,31 @@ class Preferences(AddonPreferences):
         size=3,
         min=0.0,
         max=1.0,
+        options={'HIDDEN', 'SKIP_SAVE'},
         name="Active Control Element",
-        description="Control element color",
+        description="Color of active control element",
     )
 
     color_path: FloatVectorProperty(
-        default=(0.622574, 0.685957, 0.666101),
+        default=(0.593397, 0.708376, 0.634955),
         subtype='COLOR',
         size=3,
         min=0.0,
         max=1.0,
+        options={'HIDDEN', 'SKIP_SAVE'},
         name="Path",
-        description="Path color",
+        description="Regular path color",
     )
 
     color_path_topology: FloatVectorProperty(
-        default=(0.0, 0.9, 0.5),
+        default=(1.0, 0.952328, 0.652213),
         subtype='COLOR',
         size=3,
         min=0.0,
         max=1.0,
+        options={'HIDDEN', 'SKIP_SAVE'},
         name="Topology Path",
-        description="Color of path",
+        description="Color of paths which uses topology calculation method",
     )
 
     color_active_path: FloatVectorProperty(
@@ -138,18 +130,20 @@ class Preferences(AddonPreferences):
         size=3,
         min=0.0,
         max=1.0,
+        options={'HIDDEN', 'SKIP_SAVE'},
         name="Active Path",
-        description="Path color",
+        description="Active path color",
     )
 
     color_active_path_topology: FloatVectorProperty(
-        default=(1.0, 0.8, 0.1),
+        default=(1.0, 0.883791, 0.152213),
         subtype='COLOR',
         size=3,
         min=0.0,
         max=1.0,
+        options={'HIDDEN', 'SKIP_SAVE'},
         name="Active Topology Path",
-        description="Path color",
+        description="Color of active path which uses topology calculation method",
     )
 
     point_size: IntProperty(
@@ -158,6 +152,7 @@ class Preferences(AddonPreferences):
         max=50,
         soft_max=20,
         subtype='FACTOR',
+        options={'HIDDEN', 'SKIP_SAVE'},
         name="Vertex Size",
         description="",
     )
@@ -169,12 +164,14 @@ class Preferences(AddonPreferences):
         soft_min=3,
         soft_max=6,
         subtype='PIXEL',
+        options={'HIDDEN', 'SKIP_SAVE'},
         name="Edge Width",
         description="",
     )
 
     default_presets: BoolProperty(
         default=True,
+        options={'HIDDEN', 'SKIP_SAVE'},
         name="Default Presets",
         description="Show standard presets in the preset menu",
     )
@@ -191,10 +188,11 @@ class Preferences(AddonPreferences):
             col = layout.column(align=True)
 
             col.prop(self, "color_control_element")
-            col.prop(self, "color_active_path_control_element")
             col.prop(self, "color_active_control_element")
+            col.separator()
             col.prop(self, "color_path")
             col.prop(self, "color_active_path")
+            col.separator()
             col.prop(self, "color_path_topology")
             col.prop(self, "color_active_path_topology")
             col.separator()

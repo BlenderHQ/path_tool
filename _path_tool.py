@@ -924,7 +924,6 @@ class MESH_OT_select_path(Operator):
                     if path == self.active_path:
                         active_ce_index = self.active_index
 
-                        color_ce = preferences.color_active_path_control_element
                         color_active_ce = preferences.color_active_control_element
                         color_path = preferences.color_active_path
 
