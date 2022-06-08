@@ -44,7 +44,7 @@ from mathutils import (
 )
 
 from . import bhqab
-from . import _smaa_textures
+from . import _smaa
 from . import __package__ as addon_pkg
 
 HARDCODED_APPLY_KMI = ('SPACE', 'PRESS', False, False, False)
@@ -857,10 +857,6 @@ class MESH_OT_select_path(Operator):
             SpaceView3D.draw_handler_remove(handle, 'WINDOW')
         self.gpu_handles.clear()
 
-    def _gpu_prepare_post_fx_batch(self):
-        self.post_fx_batch = batch_for_shader(bhqab.gpu_extras.shader.smaa_edges, 'TRI_FAN',
-                                              dict(aPosition=((-1, -1), (1, -1), (1, 1), (-1, 1))))
-
     def _gpu_eval_offscreen_arr(self, context: Context) -> None:
         def _update_area_offscreen(_region: Region) -> None:
             self.view3d_offscreen[_region] = tuple((
@@ -899,6 +895,8 @@ class MESH_OT_select_path(Operator):
         shader_path = bhqab.gpu_extras.shader.path
 
         view_resolution = gpu.state.viewport_get()[2:]
+        viewportMetrics = (1.0 / view_resolution[0], 1.0 / view_resolution[1], view_resolution[0], view_resolution[1])
+
         fb = gpu.state.active_framebuffer_get()
         original_view_depth_map = gpu.types.GPUTexture(
             view_resolution, data=fb.read_depth(*fb.viewport_get()), format='R32F')
@@ -959,7 +957,7 @@ class MESH_OT_select_path(Operator):
 
                         path.batch_control_elements.draw(shader_ce)
 
-        shader = bhqab.gpu_extras.shader.smaa_edges
+        shader = _smaa.smaa_stage_0
 
         with offscreens[1].bind():
             fb = gpu.state.active_framebuffer_get()
@@ -971,12 +969,10 @@ class MESH_OT_select_path(Operator):
                 gpu.state.blend_set('ALPHA_PREMULT')
                 shader.bind()
                 shader.uniform_sampler("colorTex", offscreens[0].texture_color)
-                shader.uniform_float("resolution", view_resolution)
-                shader.uniform_sampler("searchTex", _smaa_textures.searchTex)
-                shader.uniform_sampler("areaTex", _smaa_textures.areaTex)
-                self.post_fx_batch.draw(shader)
+                shader.uniform_float("viewportMetrics", viewportMetrics)
+                _smaa.post_fx_batch.draw(shader)
 
-        shader = bhqab.gpu_extras.shader.smaa_weights
+        shader = _smaa.smaa_stage_1
         with offscreens[2].bind():
 
             fb = gpu.state.active_framebuffer_get()
@@ -989,25 +985,24 @@ class MESH_OT_select_path(Operator):
                 shader.bind()
 
                 shader.uniform_sampler("edgesTex", offscreens[1].texture_color)
-                shader.uniform_sampler("searchTex", _smaa_textures.searchTex)
-                shader.uniform_sampler("areaTex", _smaa_textures.areaTex)
-                shader.uniform_float("resolution", view_resolution)
-                self.post_fx_batch.draw(shader)
+                shader.uniform_sampler("searchTex", _smaa.searchTex)
+                shader.uniform_sampler("areaTex", _smaa.areaTex)
+                shader.uniform_float("viewportMetrics", viewportMetrics)
+                _smaa.post_fx_batch.draw(shader)
 
+        shader = _smaa.smaa_stage_2
         with gpu.matrix.push_pop():
             gpu.matrix.load_matrix(Matrix.Identity(4))
             gpu.matrix.load_projection_matrix(Matrix.Identity(4))
             gpu.state.blend_set('ALPHA_PREMULT')
-            
-            shader = bhqab.gpu_extras.shader.smaa_blend
 
             shader.bind()
 
             shader.uniform_sampler("colorTex", offscreens[0].texture_color)
             shader.uniform_sampler("blendTex", offscreens[2].texture_color)
-            shader.uniform_float("resolution", view_resolution)
-            self.post_fx_batch.draw(shader)
-            
+            shader.uniform_float("viewportMetrics", viewportMetrics)
+            _smaa.post_fx_batch.draw(shader)
+
         gpu.matrix.load_matrix(original_MVP_mat)
 
     def _interact_control_element(self,
@@ -1302,7 +1297,6 @@ class MESH_OT_select_path(Operator):
 
         STATUSBAR_HT_header.prepend(self._ui_draw_statusbar)
 
-        self._gpu_prepare_post_fx_batch()
         self.gpu_handles = [
             SpaceView3D.draw_handler_add(self._gpu_draw_callback, (context,), 'WINDOW', 'POST_VIEW'),
         ]
