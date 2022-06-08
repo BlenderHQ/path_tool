@@ -44,6 +44,7 @@ from mathutils import (
 )
 
 from . import bhqab
+from . import _smaa_textures
 from . import __package__ as addon_pkg
 
 HARDCODED_APPLY_KMI = ('SPACE', 'PRESS', False, False, False)
@@ -510,7 +511,7 @@ class MESH_OT_select_path(Operator):
     _just_closed_path: bool
 
     gpu_handles: list
-    view3d_offscreen: dict[Region, gpu.types.GPUOffScreen]
+    view3d_offscreen: dict[Region, tuple[gpu.types.GPUOffScreen]]
 
     undo_history: collections.deque[tuple[int, tuple[Path]]]
     redo_history: collections.deque[tuple[int, tuple[Path]]]
@@ -857,12 +858,15 @@ class MESH_OT_select_path(Operator):
         self.gpu_handles.clear()
 
     def _gpu_prepare_post_fx_batch(self):
-        self.post_fx_batch = batch_for_shader(bhqab.gpu_extras.shader.fx, 'TRI_FAN',
-                                              dict(Coord=((0, 0), (1, 0), (1, 1), (0, 1))))
+        self.post_fx_batch = batch_for_shader(bhqab.gpu_extras.shader.smaa_edges, 'TRI_FAN',
+                                              dict(aPosition=((-1, -1), (1, -1), (1, 1), (-1, 1))))
 
     def _gpu_eval_offscreen_arr(self, context: Context) -> None:
         def _update_area_offscreen(_region: Region) -> None:
-            self.view3d_offscreen[_region] = gpu.types.GPUOffScreen(_region.width, _region.height, format='RGBA8')
+            self.view3d_offscreen[_region] = tuple((
+                gpu.types.GPUOffScreen(_region.width, _region.height, format='RGBA32F')
+                for _ in range(3)
+            ))
 
         for area in self._iter_view_3d_areas(context):
             area: Area
@@ -872,7 +876,7 @@ class MESH_OT_select_path(Operator):
 
                 if region.type == 'WINDOW':
                     if region in self.view3d_offscreen:
-                        offscreen = self.view3d_offscreen[region]
+                        offscreen = self.view3d_offscreen[region][0]
                         if offscreen.width != region.width or offscreen.height != region.height:
                             _update_area_offscreen(region)
                     else:
@@ -882,7 +886,7 @@ class MESH_OT_select_path(Operator):
         preferences = context.preferences.addons[addon_pkg].preferences
 
         self._gpu_eval_offscreen_arr(context)
-        offscreen = self.view3d_offscreen[context.region]
+        offscreens = self.view3d_offscreen[context.region]
 
         draw_list: list[Path] = [_ for _ in self.path_arr if _ != self.active_path]
         draw_list.append(self.active_path)
@@ -901,15 +905,15 @@ class MESH_OT_select_path(Operator):
 
         MVP_mat = gpu.matrix.get_projection_matrix() @ gpu.matrix.get_model_view_matrix()
 
-        with offscreen.bind():
+        original_MVP_mat = MVP_mat
+
+        with offscreens[0].bind():
             fb = gpu.state.active_framebuffer_get()
             fb.clear(color=(0.0, 0.0, 0.0, 0.0))
 
             with gpu.matrix.push_pop():
                 gpu.state.line_width_set(preferences.line_width)
-                gpu.state.blend_set('ALPHA')
-                # gpu.state.depth_mask_set(True)
-                # gpu.state.depth_test_set('LESS_EQUAL')
+                gpu.state.blend_set('ALPHA_PREMULT')
                 gpu.state.face_culling_set('NONE')
 
                 for path in draw_list:
@@ -955,23 +959,55 @@ class MESH_OT_select_path(Operator):
 
                         path.batch_control_elements.draw(shader_ce)
 
-        original_MVP_mat = MVP_mat
+        shader = bhqab.gpu_extras.shader.smaa_edges
 
-        shader = bhqab.gpu_extras.shader.fx
+        with offscreens[1].bind():
+            fb = gpu.state.active_framebuffer_get()
+            fb.clear(color=(0.0, 0.0, 0.0, 0.0))
 
-        gpu.matrix.reset()
-        gpu.state.depth_mask_set(False)
-        gpu.state.blend_set('ALPHA')
+            with gpu.matrix.push_pop():
+                gpu.matrix.load_matrix(Matrix.Identity(4))
+                gpu.matrix.load_projection_matrix(Matrix.Identity(4))
+                gpu.state.blend_set('ALPHA_PREMULT')
+                shader.bind()
+                shader.uniform_sampler("colorTex", offscreens[0].texture_color)
+                shader.uniform_float("resolution", view_resolution)
+                shader.uniform_sampler("searchTex", _smaa_textures.searchTex)
+                shader.uniform_sampler("areaTex", _smaa_textures.areaTex)
+                self.post_fx_batch.draw(shader)
 
-        gpu.matrix.translate((-1, -1))
-        gpu.matrix.scale((2, 2))
+        shader = bhqab.gpu_extras.shader.smaa_weights
+        with offscreens[2].bind():
 
-        shader.bind()
-        MVP_mat = gpu.matrix.get_model_view_matrix()
-        shader.uniform_float("ModelViewProjectionMatrix", MVP_mat)
-        shader.uniform_sampler("ViewOverlay", offscreen.texture_color)
-        shader.uniform_float("ViewResolution", view_resolution)
-        self.post_fx_batch.draw(shader)
+            fb = gpu.state.active_framebuffer_get()
+            fb.clear(color=(0.0, 0.0, 0.0, 0.0))
+
+            with gpu.matrix.push_pop():
+                gpu.matrix.load_matrix(Matrix.Identity(4))
+                gpu.matrix.load_projection_matrix(Matrix.Identity(4))
+                gpu.state.blend_set('ALPHA_PREMULT')
+                shader.bind()
+
+                shader.uniform_sampler("edgesTex", offscreens[1].texture_color)
+                shader.uniform_sampler("searchTex", _smaa_textures.searchTex)
+                shader.uniform_sampler("areaTex", _smaa_textures.areaTex)
+                shader.uniform_float("resolution", view_resolution)
+                self.post_fx_batch.draw(shader)
+
+        with gpu.matrix.push_pop():
+            gpu.matrix.load_matrix(Matrix.Identity(4))
+            gpu.matrix.load_projection_matrix(Matrix.Identity(4))
+            gpu.state.blend_set('ALPHA_PREMULT')
+            
+            shader = bhqab.gpu_extras.shader.smaa_blend
+
+            shader.bind()
+
+            shader.uniform_sampler("colorTex", offscreens[0].texture_color)
+            shader.uniform_sampler("blendTex", offscreens[2].texture_color)
+            shader.uniform_float("resolution", view_resolution)
+            self.post_fx_batch.draw(shader)
+            
         gpu.matrix.load_matrix(original_MVP_mat)
 
     def _interact_control_element(self,
