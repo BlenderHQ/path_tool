@@ -169,6 +169,8 @@ class Preferences(AddonPreferences):
         description="",
     )
 
+    smaa_preset: bhqab.gpu_extras.GPUDrawFramework.smaa_preset_enum
+
     default_presets: BoolProperty(
         default=True,
         options={'HIDDEN', 'SKIP_SAVE'},
@@ -187,6 +189,8 @@ class Preferences(AddonPreferences):
         if self.tab == 'APPEARANCE':
             col = layout.column(align=True)
 
+            col.prop(self, "default_presets")
+            col.separator()
             col.prop(self, "color_control_element")
             col.prop(self, "color_active_control_element")
             col.separator()
@@ -199,7 +203,7 @@ class Preferences(AddonPreferences):
             col.prop(self, "point_size")
             col.prop(self, "line_width")
             col.separator()
-            col.prop(self, "default_presets")
+            col.prop(self, "smaa_preset")
 
         elif self.tab == 'KEYMAP':
             bhqab.utils_ui.template_tool_keymap(context, layout, "3D View Tool: Edit Mesh, Select Path")
@@ -241,6 +245,7 @@ def register():
     WindowManager.select_path = PointerProperty(type=_properties.WindowManagerProperties)
     bpy.utils.register_tool(PathToolMesh, after={"builtin.select_lasso"}, separator=False, group=False)
     bhqab.gpu_extras.shader.generate_shaders(os.path.join(os.path.dirname(__file__), "shaders"))
+    bhqab.gpu_extras.GPUDrawFramework.setup()
 
 
 def unregister():

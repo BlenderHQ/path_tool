@@ -44,7 +44,7 @@ from mathutils import (
 )
 
 from . import bhqab
-from . import _smaa
+#from . import _smaa
 from . import __package__ as addon_pkg
 
 HARDCODED_APPLY_KMI = ('SPACE', 'PRESS', False, False, False)
@@ -511,7 +511,6 @@ class MESH_OT_select_path(Operator):
     _just_closed_path: bool
 
     gpu_handles: list
-    view3d_offscreen: dict[Region, tuple[gpu.types.GPUOffScreen]]
 
     undo_history: collections.deque[tuple[int, tuple[Path]]]
     redo_history: collections.deque[tuple[int, tuple[Path]]]
@@ -857,32 +856,8 @@ class MESH_OT_select_path(Operator):
             SpaceView3D.draw_handler_remove(handle, 'WINDOW')
         self.gpu_handles.clear()
 
-    def _gpu_eval_offscreen_arr(self, context: Context) -> None:
-        def _update_area_offscreen(_region: Region) -> None:
-            self.view3d_offscreen[_region] = tuple((
-                gpu.types.GPUOffScreen(_region.width, _region.height, format='RGBA32F')
-                for _ in range(3)
-            ))
-
-        for area in self._iter_view_3d_areas(context):
-            area: Area
-
-            for region in area.regions:
-                region: Region
-
-                if region.type == 'WINDOW':
-                    if region in self.view3d_offscreen:
-                        offscreen = self.view3d_offscreen[region][0]
-                        if offscreen.width != region.width or offscreen.height != region.height:
-                            _update_area_offscreen(region)
-                    else:
-                        _update_area_offscreen(region)
-
     def _gpu_draw_callback(self, context: Context) -> None:
         preferences = context.preferences.addons[addon_pkg].preferences
-
-        self._gpu_eval_offscreen_arr(context)
-        offscreens = self.view3d_offscreen[context.region]
 
         draw_list: list[Path] = [_ for _ in self.path_arr if _ != self.active_path]
         draw_list.append(self.active_path)
@@ -895,115 +870,88 @@ class MESH_OT_select_path(Operator):
         shader_path = bhqab.gpu_extras.shader.path
 
         view_resolution = gpu.state.viewport_get()[2:]
-        viewportMetrics = (1.0 / view_resolution[0], 1.0 / view_resolution[1], view_resolution[0], view_resolution[1])
+
+        viewport = gpu.state.viewport_get()
+        viewport_metrics = (1.0 / viewport[2], 1.0 / viewport[3], viewport[2], viewport[3])
 
         fb = gpu.state.active_framebuffer_get()
         original_view_depth_map = gpu.types.GPUTexture(
             view_resolution, data=fb.read_depth(*fb.viewport_get()), format='R32F')
 
-        MVP_mat = gpu.matrix.get_projection_matrix() @ gpu.matrix.get_model_view_matrix()
+        import bgl
 
-        original_MVP_mat = MVP_mat
+        with bhqab.gpu_extras.GPUDrawFramework(context, 1) as offscreens:
+            with offscreens[0].bind():
+                fb = gpu.state.active_framebuffer_get()
+                fb.clear(color=(0.0, 0.0, 0.0, 0.0))
 
-        with offscreens[0].bind():
-            fb = gpu.state.active_framebuffer_get()
-            fb.clear(color=(0.0, 0.0, 0.0, 0.0))
+                with gpu.matrix.push_pop():
+                    gpu.state.line_width_set(0.5)
+                    gpu.state.blend_set('ALPHA_PREMULT')
+                    gpu.state.face_culling_set('NONE')
 
-            with gpu.matrix.push_pop():
-                gpu.state.line_width_set(preferences.line_width)
-                gpu.state.blend_set('ALPHA_PREMULT')
-                gpu.state.face_culling_set('NONE')
-
-                for path in draw_list:
-                    active_ce_index = 0
-                    color_ce = preferences.color_control_element
-                    color_active_ce = color_ce
-                    color_path = preferences.color_path
-                    if path.flag & PathFlag.TOPOLOGY:
-                        color_path = preferences.color_path_topology
-
-                    if path == self.active_path:
-                        active_ce_index = self.active_index
-
-                        color_active_ce = preferences.color_active_control_element
-                        color_path = preferences.color_active_path
-
+                    for path in draw_list:
+                        active_ce_index = 0
+                        color_ce = preferences.color_control_element
+                        color_active_ce = color_ce
+                        color_path = preferences.color_path
                         if path.flag & PathFlag.TOPOLOGY:
-                            color_path = preferences.color_active_path_topology
+                            color_path = preferences.color_path_topology
 
-                    shader_path.bind()
-                    shader_path.uniform_float("ModelViewProjectionMatrix", MVP_mat)
-                    for batch in path.batch_seq_fills:
-                        if batch:
-                            shader_path.uniform_float("ModelMatrix", path.ob.matrix_world)
-                            shader_path.uniform_float("ColorPath", color_path)
-                            shader_path.uniform_sampler("OriginalViewDepthMap", original_view_depth_map)
-                            shader_path.uniform_float("ViewResolution", view_resolution)
-                            batch.draw(shader_path)
+                        if path == self.active_path:
+                            active_ce_index = self.active_index
 
-                    shader_ce.bind()
+                            color_active_ce = preferences.color_active_control_element
+                            color_path = preferences.color_active_path
 
-                    if path.batch_control_elements:
-                        shader_ce.uniform_float("ModelMatrix", path.ob.matrix_world)
-                        shader_ce.uniform_float("ModelViewProjectionMatrix", MVP_mat)
-                        shader_ce.uniform_float("ColorControlElement", color_ce)
-                        shader_ce.uniform_float("ColorActiveControlElement", color_active_ce)
-                        shader_ce.uniform_int("ActiveControlElementIndex", (active_ce_index,))
-                        shader_ce.uniform_sampler("OriginalViewDepthMap", original_view_depth_map)
+                            if path.flag & PathFlag.TOPOLOGY:
+                                color_path = preferences.color_active_path_topology
 
-                        shader_ce.uniform_float("ViewResolution", view_resolution)
-                        if self.prior_ts_msm[1]:
-                            shader_ce.uniform_float("DiskRadius", preferences.point_size + 6)
+                        shader_path.bind()
+                        #shader_path.uniform_float("ModelViewProjectionMatrix", MVP_mat)
+                        for batch in path.batch_seq_fills:
+                            if batch:
+                                shader_path.uniform_float("ModelMatrix", path.ob.matrix_world)
+                                shader_path.uniform_float("ColorPath", color_path)
+                                shader_path.uniform_sampler("OriginalViewDepthMap", original_view_depth_map)
+                                shader_path.uniform_float("ViewResolution", view_resolution)
+                                batch.draw(shader_path)
 
-                        path.batch_control_elements.draw(shader_ce)
+                        shader_ce.bind()
 
-        shader = _smaa.smaa_stage_0
+                        if path.batch_control_elements:
+                            shader_ce.uniform_float("ModelMatrix", path.ob.matrix_world)
+                            #shader_ce.uniform_float("ModelViewProjectionMatrix", MVP_mat)
+                            shader_ce.uniform_float("ColorControlElement", color_ce)
+                            shader_ce.uniform_float("ColorActiveControlElement", color_active_ce)
+                            shader_ce.uniform_int("ActiveControlElementIndex", (active_ce_index,))
+                            shader_ce.uniform_sampler("OriginalViewDepthMap", original_view_depth_map)
 
-        with offscreens[1].bind():
-            fb = gpu.state.active_framebuffer_get()
-            fb.clear(color=(0.0, 0.0, 0.0, 0.0))
+                            shader_ce.uniform_float("ViewResolution", view_resolution)
+                            if self.prior_ts_msm[1]:
+                                shader_ce.uniform_float("DiskRadius", preferences.point_size + 6)
 
-            with gpu.matrix.push_pop():
-                gpu.matrix.load_matrix(Matrix.Identity(4))
-                gpu.matrix.load_projection_matrix(Matrix.Identity(4))
-                gpu.state.blend_set('ALPHA_PREMULT')
-                shader.bind()
-                shader.uniform_sampler("colorTex", offscreens[0].texture_color)
-                shader.uniform_float("viewportMetrics", viewportMetrics)
-                _smaa.post_fx_batch.draw(shader)
+                            path.batch_control_elements.draw(shader_ce)
 
-        shader = _smaa.smaa_stage_1
-        with offscreens[2].bind():
+            # with offscreens[1].bind():
+            #     fb = gpu.state.active_framebuffer_get()
+            #     fb.clear(color=(0.0, 0.0, 0.0, 0.0))
 
-            fb = gpu.state.active_framebuffer_get()
-            fb.clear(color=(0.0, 0.0, 0.0, 0.0))
+            #     shader = bhqab.gpu_extras.shader.fx_outline
 
-            with gpu.matrix.push_pop():
-                gpu.matrix.load_matrix(Matrix.Identity(4))
-                gpu.matrix.load_projection_matrix(Matrix.Identity(4))
-                gpu.state.blend_set('ALPHA_PREMULT')
-                shader.bind()
+            #     with gpu.matrix.push_pop():
+            #         gpu.state.line_width_set(preferences.line_width)
+            #         gpu.state.blend_set('ADDITIVE_PREMULT')
+            #         gpu.state.face_culling_set('NONE')
 
-                shader.uniform_sampler("edgesTex", offscreens[1].texture_color)
-                shader.uniform_sampler("searchTex", _smaa.searchTex)
-                shader.uniform_sampler("areaTex", _smaa.areaTex)
-                shader.uniform_float("viewportMetrics", viewportMetrics)
-                _smaa.post_fx_batch.draw(shader)
+            #         shader.bind()
 
-        shader = _smaa.smaa_stage_2
-        with gpu.matrix.push_pop():
-            gpu.matrix.load_matrix(Matrix.Identity(4))
-            gpu.matrix.load_projection_matrix(Matrix.Identity(4))
-            gpu.state.blend_set('ALPHA_PREMULT')
+            #         shader.uniform_sampler("colorTex", offscreens[0].texture_color)
+            #         #shader.uniform_float("viewportMetrics", viewport_metrics)
 
-            shader.bind()
+            #         bhqab.gpu_extras.GPUDrawFramework.post_fx_batch.draw(shader)
 
-            shader.uniform_sampler("colorTex", offscreens[0].texture_color)
-            shader.uniform_sampler("blendTex", offscreens[2].texture_color)
-            shader.uniform_float("viewportMetrics", viewportMetrics)
-            _smaa.post_fx_batch.draw(shader)
-
-        gpu.matrix.load_matrix(original_MVP_mat)
+            # context.area.tag_redraw()
 
     def _interact_control_element(self,
                                   context: Context,
@@ -1247,7 +1195,6 @@ class MESH_OT_select_path(Operator):
         self._just_closed_path = False
 
         self.gpu_handles = list()
-        self.view3d_offscreen = dict()
 
         self.undo_history = collections.deque(maxlen=num_undo_steps)
         self.redo_history = collections.deque(maxlen=num_undo_steps)
@@ -1301,7 +1248,6 @@ class MESH_OT_select_path(Operator):
             SpaceView3D.draw_handler_add(self._gpu_draw_callback, (context,), 'WINDOW', 'POST_VIEW'),
         ]
 
-        self._gpu_eval_offscreen_arr(context)
         wm.modal_handler_add(self)
         self.modal(context, event)
         return {'RUNNING_MODAL'}
