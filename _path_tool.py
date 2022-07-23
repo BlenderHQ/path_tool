@@ -857,7 +857,7 @@ class MESH_OT_select_path(Operator):
         self.gpu_handles.clear()
 
     def _gpu_draw_callback(self, context: Context) -> None:
-        preferences = context.preferences.addons[addon_pkg].preferences
+        addon_pref = context.preferences.addons[addon_pkg].preferences
 
         draw_list: list[Path] = [_ for _ in self.path_arr if _ != self.active_path]
         draw_list.append(self.active_path)
@@ -878,9 +878,13 @@ class MESH_OT_select_path(Operator):
         original_view_depth_map = gpu.types.GPUTexture(
             view_resolution, data=fb.read_depth(*fb.viewport_get()), format='R32F')
 
-        import bgl
-
-        with bhqab.gpu_extras.GPUDrawFramework(context, 1) as offscreens:
+        with bhqab.gpu_extras.GPUDrawFramework(
+            context,
+            num_offscreens=1,
+            smaa_preset=addon_pref.smaa_preset,
+            fxaa_preset=addon_pref.fxaa_preset,
+            fxaa_value=addon_pref.fxaa_value
+        ) as offscreens:
             with offscreens[0].bind():
                 fb = gpu.state.active_framebuffer_get()
                 fb.clear(color=(0.0, 0.0, 0.0, 0.0))
@@ -892,20 +896,20 @@ class MESH_OT_select_path(Operator):
 
                     for path in draw_list:
                         active_ce_index = 0
-                        color_ce = preferences.color_control_element
+                        color_ce = addon_pref.color_control_element
                         color_active_ce = color_ce
-                        color_path = preferences.color_path
+                        color_path = addon_pref.color_path
                         if path.flag & PathFlag.TOPOLOGY:
-                            color_path = preferences.color_path_topology
+                            color_path = addon_pref.color_path_topology
 
                         if path == self.active_path:
                             active_ce_index = self.active_index
 
-                            color_active_ce = preferences.color_active_control_element
-                            color_path = preferences.color_active_path
+                            color_active_ce = addon_pref.color_active_control_element
+                            color_path = addon_pref.color_active_path
 
                             if path.flag & PathFlag.TOPOLOGY:
-                                color_path = preferences.color_active_path_topology
+                                color_path = addon_pref.color_active_path_topology
 
                         shader_path.bind()
                         #shader_path.uniform_float("ModelViewProjectionMatrix", MVP_mat)
@@ -929,10 +933,10 @@ class MESH_OT_select_path(Operator):
 
                             shader_ce.uniform_float("ViewResolution", view_resolution)
                             if self.prior_ts_msm[1]:
-                                shader_ce.uniform_float("DiskRadius", preferences.point_size + 6)
+                                shader_ce.uniform_float("DiskRadius", addon_pref.point_size + 6)
 
                             path.batch_control_elements.draw(shader_ce)
-
+        # context.area.tag_redraw()
             # with offscreens[1].bind():
             #     fb = gpu.state.active_framebuffer_get()
             #     fb.clear(color=(0.0, 0.0, 0.0, 0.0))

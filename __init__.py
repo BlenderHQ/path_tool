@@ -45,6 +45,7 @@ from bpy.types import (
 )
 from bpy.props import (
     EnumProperty,
+    FloatProperty,
     FloatVectorProperty,
     IntProperty,
     PointerProperty,
@@ -169,7 +170,9 @@ class Preferences(AddonPreferences):
         description="",
     )
 
-    smaa_preset: bhqab.gpu_extras.GPUDrawFramework.smaa_preset_enum
+    smaa_preset: bhqab.gpu_extras.GPUDrawFramework.prop_smaa_preset_enum
+    fxaa_preset: bhqab.gpu_extras.GPUDrawFramework.prop_fxaa_preset_enum
+    fxaa_value: bhqab.gpu_extras.GPUDrawFramework.prop_fxaa_value
 
     default_presets: BoolProperty(
         default=True,
@@ -202,6 +205,11 @@ class Preferences(AddonPreferences):
             col.separator()
             col.prop(self, "point_size")
             col.prop(self, "line_width")
+            col.separator()
+            col.prop(self, "fxaa_preset")
+            scol = col.column(align=True)
+            scol.enabled = (self.fxaa_preset not in {'NONE', 'ULTRA'})
+            scol.prop(self, "fxaa_value")
             col.separator()
             col.prop(self, "smaa_preset")
 
@@ -245,7 +253,7 @@ def register():
     WindowManager.select_path = PointerProperty(type=_properties.WindowManagerProperties)
     bpy.utils.register_tool(PathToolMesh, after={"builtin.select_lasso"}, separator=False, group=False)
     bhqab.gpu_extras.shader.generate_shaders(os.path.join(os.path.dirname(__file__), "shaders"))
-    bhqab.gpu_extras.GPUDrawFramework.setup()
+    #bhqab.gpu_extras.GPUDrawFramework.initialize()
 
 
 def unregister():
