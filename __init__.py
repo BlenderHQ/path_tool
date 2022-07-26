@@ -170,16 +170,17 @@ class Preferences(AddonPreferences):
         description="",
     )
 
-    smaa_preset: bhqab.gpu_extras.GPUDrawFramework.prop_smaa_preset_enum
-    fxaa_preset: bhqab.gpu_extras.GPUDrawFramework.prop_fxaa_preset_enum
-    fxaa_value: bhqab.gpu_extras.GPUDrawFramework.prop_fxaa_value
-
     default_presets: BoolProperty(
         default=True,
         options={'HIDDEN', 'SKIP_SAVE'},
         name="Default Presets",
         description="Show standard presets in the preset menu",
     )
+
+    smaa_preset: bhqab.gpu_extras.GPUDrawFramework.prop_smaa_preset_enum
+    fxaa_preset: bhqab.gpu_extras.GPUDrawFramework.prop_fxaa_preset_enum
+    fxaa_value: bhqab.gpu_extras.GPUDrawFramework.prop_fxaa_value
+    res_mult: bhqab.gpu_extras.GPUDrawFramework.prop_res_mult
 
     def draw(self, context: Context) -> None:
         layout: UILayout = self.layout
@@ -212,6 +213,8 @@ class Preferences(AddonPreferences):
             scol.prop(self, "fxaa_value")
             col.separator()
             col.prop(self, "smaa_preset")
+            col.separator()
+            col.prop(self, "res_mult")
 
         elif self.tab == 'KEYMAP':
             bhqab.utils_ui.template_tool_keymap(context, layout, "3D View Tool: Edit Mesh, Select Path")
@@ -253,7 +256,7 @@ def register():
     WindowManager.select_path = PointerProperty(type=_properties.WindowManagerProperties)
     bpy.utils.register_tool(PathToolMesh, after={"builtin.select_lasso"}, separator=False, group=False)
     bhqab.gpu_extras.shader.generate_shaders(os.path.join(os.path.dirname(__file__), "shaders"))
-    #bhqab.gpu_extras.GPUDrawFramework.initialize()
+    # bhqab.gpu_extras.GPUDrawFramework.initialize()
 
 
 def unregister():

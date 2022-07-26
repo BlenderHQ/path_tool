@@ -4,7 +4,7 @@ layout(triangle_strip, max_vertices = 12) out;
 uniform mat4 ModelViewProjectionMatrix;
 uniform mat4 ModelMatrix;
 
-uniform vec2 ViewResolution;
+uniform vec4 viewportMetrics;
 uniform int ActiveControlElementIndex;
 uniform float DiskRadius;
 
@@ -35,7 +35,7 @@ void main()
     
     IsActive = (gl_PrimitiveIDIn < ActiveControlElementIndex) ? 0 : 1;
     
-    const float _ViewAspect = ViewResolution.x / ViewResolution.y;
+    const float _ViewAspect = viewportMetrics.z / viewportMetrics.w;
     
     for (int i = 0; i < 12; ++i) {
         gl_Position = _Center + vec4(_DiskR1Coord[i].xy * vec2(1.0f, _ViewAspect) * (DiskRadius * 1e-3), 0.0f, 0.0f);

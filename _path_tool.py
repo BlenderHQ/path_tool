@@ -510,6 +510,7 @@ class MESH_OT_select_path(Operator):
     _drag_elem: Union[None, BMVert, BMFace]
     _just_closed_path: bool
 
+    gpu_draw_framework: bhqab.gpu_extras.GPUDrawFramework
     gpu_handles: list
 
     undo_history: collections.deque[tuple[int, tuple[Path]]]
@@ -702,15 +703,16 @@ class MESH_OT_select_path(Operator):
 
             path.fill_elements[fill_index] = fill_seq
 
-            shader = bhqab.gpu_extras.shader.path
             batch = None
             if self.prior_ts_msm[1]:  # Edge mesh select mode
+                shader = bhqab.gpu_extras.shader.path_edge
                 coord = []
                 for edge in fill_seq:
                     coord.extend([vert.co for vert in edge.verts])
                 batch = batch_for_shader(shader, 'LINES', dict(Coord=coord))
 
             elif self.prior_ts_msm[2]:  # Faces mesh select mode
+                shader = bhqab.gpu_extras.shader.path_face
                 batch, _ = self._gpu_gen_batch_faces_seq(fill_seq, False, shader)
 
             path.batch_seq_fills[fill_index] = batch
@@ -867,30 +869,25 @@ class MESH_OT_select_path(Operator):
         if self.prior_ts_msm[2]:
             shader_ce = bhqab.gpu_extras.shader.cp_face
 
-        shader_path = bhqab.gpu_extras.shader.path
+        shader_path = bhqab.gpu_extras.shader.path_edge
+        if self.prior_ts_msm[2]:
+            shader_path = bhqab.gpu_extras.shader.path_face
 
         view_resolution = gpu.state.viewport_get()[2:]
 
-        viewport = gpu.state.viewport_get()
-        viewport_metrics = (1.0 / viewport[2], 1.0 / viewport[3], viewport[2], viewport[3])
-
         fb = gpu.state.active_framebuffer_get()
         original_view_depth_map = gpu.types.GPUTexture(
-            view_resolution, data=fb.read_depth(*fb.viewport_get()), format='R32F')
+            view_resolution, data=fb.read_depth(*fb.viewport_get()), format='DEPTH_COMPONENT32F')
 
-        with bhqab.gpu_extras.GPUDrawFramework(
-            context,
-            num_offscreens=1,
-            smaa_preset=addon_pref.smaa_preset,
-            fxaa_preset=addon_pref.fxaa_preset,
-            fxaa_value=addon_pref.fxaa_value
-        ) as offscreens:
+        with self.gpu_draw_framework as offscreens:
             with offscreens[0].bind():
                 fb = gpu.state.active_framebuffer_get()
                 fb.clear(color=(0.0, 0.0, 0.0, 0.0))
 
+                view_resolution = gpu.state.viewport_get()[2:]
+
                 with gpu.matrix.push_pop():
-                    gpu.state.line_width_set(0.5)
+                    gpu.state.line_width_set(addon_pref.line_width * self.gpu_draw_framework.res_mult)
                     gpu.state.blend_set('ALPHA_PREMULT')
                     gpu.state.face_culling_set('NONE')
 
@@ -912,50 +909,28 @@ class MESH_OT_select_path(Operator):
                                 color_path = addon_pref.color_active_path_topology
 
                         shader_path.bind()
-                        #shader_path.uniform_float("ModelViewProjectionMatrix", MVP_mat)
                         for batch in path.batch_seq_fills:
                             if batch:
                                 shader_path.uniform_float("ModelMatrix", path.ob.matrix_world)
                                 shader_path.uniform_float("ColorPath", color_path)
                                 shader_path.uniform_sampler("OriginalViewDepthMap", original_view_depth_map)
-                                shader_path.uniform_float("ViewResolution", view_resolution)
+                                shader_path.uniform_float(
+                                    "viewportMetrics", self.gpu_draw_framework.viewport_metrics)
                                 batch.draw(shader_path)
 
                         shader_ce.bind()
 
                         if path.batch_control_elements:
                             shader_ce.uniform_float("ModelMatrix", path.ob.matrix_world)
-                            #shader_ce.uniform_float("ModelViewProjectionMatrix", MVP_mat)
                             shader_ce.uniform_float("ColorControlElement", color_ce)
                             shader_ce.uniform_float("ColorActiveControlElement", color_active_ce)
                             shader_ce.uniform_int("ActiveControlElementIndex", (active_ce_index,))
                             shader_ce.uniform_sampler("OriginalViewDepthMap", original_view_depth_map)
-
-                            shader_ce.uniform_float("ViewResolution", view_resolution)
+                            shader_ce.uniform_float("viewportMetrics", self.gpu_draw_framework.viewport_metrics)
                             if self.prior_ts_msm[1]:
-                                shader_ce.uniform_float("DiskRadius", addon_pref.point_size + 6)
+                                shader_ce.uniform_float("DiskRadius", (addon_pref.point_size + 6))
 
                             path.batch_control_elements.draw(shader_ce)
-        # context.area.tag_redraw()
-            # with offscreens[1].bind():
-            #     fb = gpu.state.active_framebuffer_get()
-            #     fb.clear(color=(0.0, 0.0, 0.0, 0.0))
-
-            #     shader = bhqab.gpu_extras.shader.fx_outline
-
-            #     with gpu.matrix.push_pop():
-            #         gpu.state.line_width_set(preferences.line_width)
-            #         gpu.state.blend_set('ADDITIVE_PREMULT')
-            #         gpu.state.face_culling_set('NONE')
-
-            #         shader.bind()
-
-            #         shader.uniform_sampler("colorTex", offscreens[0].texture_color)
-            #         #shader.uniform_float("viewportMetrics", viewport_metrics)
-
-            #         bhqab.gpu_extras.GPUDrawFramework.post_fx_batch.draw(shader)
-
-            # context.area.tag_redraw()
 
     def _interact_control_element(self,
                                   context: Context,
@@ -1124,6 +1099,7 @@ class MESH_OT_select_path(Operator):
         props = wm.select_path
         ts = context.scene.tool_settings
         num_undo_steps = context.preferences.edit.undo_steps
+        addon_pref = context.preferences.addons[addon_pkg].preferences
 
         # ____________________________________________________________________ #
         # Input keymaps:
@@ -1252,6 +1228,14 @@ class MESH_OT_select_path(Operator):
             SpaceView3D.draw_handler_add(self._gpu_draw_callback, (context,), 'WINDOW', 'POST_VIEW'),
         ]
 
+        self.gpu_draw_framework = bhqab.gpu_extras.GPUDrawFramework(
+            num_offscreens=1,
+            smaa_preset=addon_pref.smaa_preset,
+            fxaa_preset=addon_pref.fxaa_preset,
+            fxaa_value=addon_pref.fxaa_value,
+            res_mult=addon_pref.res_mult,
+        )
+
         wm.modal_handler_add(self)
         self.modal(context, event)
         return {'RUNNING_MODAL'}
@@ -1265,6 +1249,7 @@ class MESH_OT_select_path(Operator):
         STATUSBAR_HT_header.remove(self._ui_draw_statusbar)
 
     def modal(self, context: Context, event: Event):
+        addon_pref = context.preferences.addons[addon_pkg].preferences
         ev = self._pack_event(event)
         modal_action = self.modal_events.get(ev, None)
         undo_redo_action = self.undo_redo_events.get(ev, None)
@@ -1367,6 +1352,11 @@ class MESH_OT_select_path(Operator):
         if not len(self.path_arr):
             self.cancel(context)
             return {'CANCELLED'}
+
+        self.gpu_draw_framework.smaa_preset = addon_pref.smaa_preset
+        self.gpu_draw_framework.fxaa_preset = addon_pref.fxaa_preset
+        self.gpu_draw_framework.fxaa_value = addon_pref.fxaa_value
+        self.gpu_draw_framework.res_mult = addon_pref.res_mult
 
         return {'RUNNING_MODAL'}
 
