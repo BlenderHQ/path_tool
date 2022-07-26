@@ -577,7 +577,12 @@ class MESH_OT_select_path(Operator):
                             and (region.y < my < region.y + region.height)):
                         for space in area.spaces:
                             if space.type == 'VIEW_3D':
-                                region_data = space.region_3d
+                                space: SpaceView3D
+
+                                if space.region_quadviews:
+                                    region_data = space.region_quadviews
+                                else:
+                                    region_data = space.region_3d
                         return area, region, region_data
 
     def _get_element_by_mouse(self, context: Context, event: Event) -> tuple[
@@ -588,20 +593,14 @@ class MESH_OT_select_path(Operator):
         bpy.ops.mesh.select_all(action='DESELECT')
 
         ui = MESH_OT_select_path._get_interactive_ui_under_mouse(context, event)
-        override: Context = context.copy()
+
         if ui is not None:
             area, region, region_data = ui
-            override.update(
-                area=area,
-                region=region,
-                region_data=region_data
-            )
-        override_area = override["area"]
-        bpy.ops.view3d.select(
-            override,
-            'EXEC_DEFAULT',
-            location=(event.mouse_x - override_area.x, event.mouse_y - override_area.y)
-        )
+            with context.temp_override(window=context.window, area=area, region=region, region_data=region_data):
+                bpy.ops.view3d.select(
+                    'EXEC_DEFAULT',
+                    location=(event.mouse_x - region.x, event.mouse_y - region.y)
+                )
 
         elem = None
         ob = None
