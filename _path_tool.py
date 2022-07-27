@@ -784,10 +784,9 @@ class MESH_OT_select_path(Operator):
             ret += tuple((n for n in elem_arr if n.select))
         return ret
 
-    @classmethod
-    def _ui_draw_popup_menu_pie(cls, popup: UIPieMenu, context: Context) -> None:
+    def _ui_draw_popup_menu_pie(self, popup: UIPieMenu, context: Context) -> None:
         pie = popup.layout.menu_pie()
-        pie.prop_tabs_enum(cls, "context_action")
+        pie.prop_tabs_enum(self, "context_action")
         pie.popover(MESH_PT_select_path_context.__name__)
 
     @staticmethod
@@ -1331,7 +1330,7 @@ class MESH_OT_select_path(Operator):
             cls._eval_final_element_indices_arrays()
             cls._gpu_remove_handles()
             STATUSBAR_HT_header.remove(cls._ui_draw_statusbar)
-            return cls.execute(context)
+            return self.execute(context)
 
         elif cls._get_interactive_ui_under_mouse(context, event) is None:
             return {'RUNNING_MODAL'}
@@ -1372,7 +1371,7 @@ class MESH_OT_select_path(Operator):
             cls.is_mouse_pressed = False
             context.window_manager.popup_menu_pie(
                 event=event,
-                draw_func=cls._ui_draw_popup_menu_pie,
+                draw_func=self._ui_draw_popup_menu_pie,
                 title="Path Tool",
                 icon='NONE',
             )
