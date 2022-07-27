@@ -19,22 +19,20 @@ from enum import auto, IntFlag
 
 import bpy
 from bpy.types import (
+    Area,
     Context,
     Event,
-    Area,
-    Region,
-    RegionView3D,
     KeyMapItem,
     Object,
     Object,
-    Space,
-    Window,
     Operator,
+    Region,
+    RegionView3D,
     SpaceView3D,
     STATUSBAR_HT_header,
     UILayout,
     UIPieMenu,
-    Menu,
+    Window,
 )
 from bpy.props import (
     EnumProperty,
@@ -42,22 +40,16 @@ from bpy.props import (
 
 import bmesh
 from bmesh.types import (
-    BMesh,
-    BMVert,
     BMEdge,
+    BMesh,
     BMFace,
+    BMVert,
 )
 import gpu
 from gpu.types import GPUBatch
 from gpu_extras.batch import batch_for_shader
 
-from mathutils import (
-    Vector,
-    Matrix
-)
-
 from . import bhqab
-#from . import _smaa
 from . import __package__ as addon_pkg
 
 HARDCODED_APPLY_KMI = ('SPACE', 'PRESS', False, False, False)
@@ -636,7 +628,7 @@ class MESH_OT_select_path(Operator):
         cls = self.__class__
 
         if len(cls.undo_history) == 1:
-            self.cancel(context)
+            cls._cancel_all_instances(context)
             return {'CANCELLED'}
 
         elif len(cls.undo_history) > 1:
@@ -1276,7 +1268,7 @@ class MESH_OT_select_path(Operator):
         # Prevent first click empty space
         elem, _ = cls._get_element_by_mouse(context, event)
         if not elem:
-            self.cancel(context)
+            cls._cancel_all_instances(context)
             return {'CANCELLED'}
 
         STATUSBAR_HT_header.prepend(cls._ui_draw_statusbar)
@@ -1297,6 +1289,17 @@ class MESH_OT_select_path(Operator):
         self.modal(context, event)
         return {'RUNNING_MODAL'}
 
+    @classmethod
+    def _cancel_all_instances(cls, context: Context) -> None:
+        cls.instances.clear()
+        ts = context.tool_settings
+
+        ts.mesh_select_mode = cls.initial_ts_msm
+        cls._set_selection_state(cls.initial_select, True)
+        cls._update_meshes()
+        cls._gpu_remove_handles()
+        STATUSBAR_HT_header.remove(cls._ui_draw_statusbar)
+
     def cancel(self, context: Context):
         cls = self.__class__
 
@@ -1304,12 +1307,7 @@ class MESH_OT_select_path(Operator):
             cls.instances.remove(self)
 
         if not cls.instances:
-            ts = context.tool_settings
-            ts.mesh_select_mode = cls.initial_ts_msm
-            cls._set_selection_state(cls.initial_select, True)
-            cls._update_meshes()
-            cls._gpu_remove_handles()
-            STATUSBAR_HT_header.remove(cls._ui_draw_statusbar)
+            cls._cancel_all_instances(context)
 
     def modal(self, context: Context, event: Event):
         cls = self.__class__
@@ -1329,7 +1327,7 @@ class MESH_OT_select_path(Operator):
             or InteractEvent.CANCEL.name in self.context_action
         ):
             self.context_action = set()
-            self.cancel(context)
+            cls._cancel_all_instances(context)
             return {'CANCELLED'}
 
         elif (
@@ -1339,6 +1337,7 @@ class MESH_OT_select_path(Operator):
         ):
             self.context_action = set()
 
+            cls.instances.clear()
             cls._eval_final_element_indices_arrays()
             cls._gpu_remove_handles()
             STATUSBAR_HT_header.remove(cls._ui_draw_statusbar)
@@ -1419,7 +1418,7 @@ class MESH_OT_select_path(Operator):
             # cls._update_meshes()
 
         if not len(cls.path_arr):
-            self.cancel(context)
+            cls._cancel_all_instances(context)
             return {'CANCELLED'}
 
         cls.gpu_draw_framework.smaa_preset = addon_pref.smaa_preset
