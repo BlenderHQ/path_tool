@@ -1,8 +1,6 @@
 from __future__ import annotations
 from typing import (
-    Iterator,
     Literal,
-    Union,
 )
 import collections
 from enum import auto, IntFlag
@@ -115,9 +113,7 @@ class PathFlag(IntFlag):
     "Path uses topology distance operator method"
 
 
-_PackedEvent_T = tuple[
-    Union[int, str], Union[int, str],
-    Union[int, bool], Union[int, bool], Union[int, bool]]
+_PackedEvent_T = tuple[int | str, int | str, int | bool, int | bool, int | bool]
 
 
 class Path:
@@ -147,16 +143,16 @@ class Path:
 
     island_index: int
     ob: Object
-    batch_control_elements: Union[None, GPUBatch]
-    control_elements: list[Union[BMVert, BMFace]]
-    fill_elements: list[list[Union[BMEdge, BMFace]]]
+    batch_control_elements: None | GPUBatch
+    control_elements: list[BMVert | BMFace]
+    fill_elements: list[list[BMEdge | BMFace]]
     batch_seq_fills: list[GPUBatch]
     flag: PathFlag
 
     def __init__(self,
-                 elem: Union[None, BMVert, BMFace] = None,
+                 elem: None | BMVert | BMFace = None,
                  linked_island_index: int = 0,
-                 ob: Union[None, Object] = None) -> None:
+                 ob: None | Object = None) -> None:
 
         self.island_index = linked_island_index
         self.ob = ob
@@ -466,7 +462,7 @@ class MESH_OT_select_path(Operator):
     is_mouse_pressed: bool
 
     # Tool settings mesh select modes and mesh elements
-    initial_ts_msm: tuple[Union[int, bool], Union[int, bool], Union[int, bool]]
+    initial_ts_msm: tuple[int | bool, int | bool, int | bool]
     """Initial tool settings mesh select mode with which operator was
     initialized"""
     initial_mesh_elements: Literal['edges', 'faces']
@@ -474,7 +470,7 @@ class MESH_OT_select_path(Operator):
     mesh elements. If operator would run in faces mode, it would be ``"faces"``,
     and ``"edges"`` otherwise"""
 
-    prior_ts_msm: tuple[Union[int, bool], Union[int, bool], Union[int, bool]]
+    prior_ts_msm: tuple[int | bool, int | bool, int | bool]
     """If operator was initialized with verts or edges tool settings mesh
     selection mode flag enabled and faces flag disabled this attribute would be
     set to ``(False, True, False)`` (edges selection only). If faces flag was
@@ -488,7 +484,7 @@ class MESH_OT_select_path(Operator):
     enabled (in any set of flags), it would be ``"faces"`` (faces only)
     """
 
-    select_ts_msm: tuple[Union[int, bool], Union[int, bool], Union[int, bool]]
+    select_ts_msm: tuple[int | bool, int | bool, int | bool]
     """If operator was initialized with verts or edges tool settings mesh
     selection mode flag enabled and faces flag disabled this attribute would be
     set to ``(True, False, False)`` (vertices selection only). If faces flag was
@@ -503,16 +499,16 @@ class MESH_OT_select_path(Operator):
     """
 
     # Initial selected mesh elements
-    initial_select: tuple[Union[BMVert, BMEdge, BMFace]]
+    initial_select: tuple[BMVert | BMEdge | BMFace]
 
     # BMesh elements caches
     bm_arr: tuple[tuple[Object, BMesh]]
 
     path_arr: list[Path]
-    mesh_islands: list[tuple[Union[BMVert, BMEdge, BMFace]]]
-    drag_elem_indices: list[Union[None, int]]
+    mesh_islands: list[tuple[BMVert | BMEdge | BMFace]]
+    drag_elem_indices: list[None | int]
     _active_path_index: int
-    _drag_elem: Union[None, BMVert, BMFace]
+    _drag_elem: None | BMVert | BMFace
     _just_closed_path: bool
 
     gpu_draw_framework: bhqab.gpu_extras.GPUDrawFramework
@@ -526,7 +522,7 @@ class MESH_OT_select_path(Operator):
     exec_markup_arr: dict[Object, list[tuple[int]]]
 
     @staticmethod
-    def _pack_event(item: Union[KeyMapItem, Event]) -> _PackedEvent_T:
+    def _pack_event(item: KeyMapItem | Event) -> _PackedEvent_T:
         return item.type, item.value, item.alt, item.ctrl, item.shift
 
     @classmethod
@@ -560,14 +556,14 @@ class MESH_OT_select_path(Operator):
         cls._active_path_index = cls.path_arr.index(value)
 
     @staticmethod
-    def _set_selection_state(elem_seq: tuple[Union[BMVert, BMEdge, BMFace]], state: bool = True) -> None:
+    def _set_selection_state(elem_seq: tuple[BMVert | BMEdge | BMFace], state: bool = True) -> None:
         for elem in elem_seq:
             elem.select = state
 
     @staticmethod
     def _get_interactive_ui_under_mouse(
             context: Context,
-            event: Event) -> Union[None, tuple[Area, Region, RegionView3D]]:
+            event: Event) -> None | tuple[Area, Region, RegionView3D]:
         mx, my = event.mouse_x, event.mouse_y
 
         for area in bpy.context.window.screen.areas:
@@ -590,7 +586,8 @@ class MESH_OT_select_path(Operator):
 
     @classmethod
     def _get_element_by_mouse(cls, context: Context, event: Event) -> tuple[
-            Union[None, BMVert, BMEdge, BMFace], Union[None, Object]]:
+            None | BMVert | BMEdge | BMFace,
+            None | Object]:
         ts = context.tool_settings
         ts.mesh_select_mode = cls.select_ts_msm
 
@@ -662,7 +659,7 @@ class MESH_OT_select_path(Operator):
         cls.redo_history.clear()
 
     @classmethod
-    def _get_linked_island_index(cls, context: Context, elem: Union[BMVert, BMFace]) -> int:
+    def _get_linked_island_index(cls, context: Context, elem: BMVert | BMFace) -> int:
         ts = context.tool_settings
 
         for i, linked_island in enumerate(cls.mesh_islands):
@@ -779,7 +776,7 @@ class MESH_OT_select_path(Operator):
                 break
 
     @classmethod
-    def _get_selected_elements(cls, mesh_elements: str) -> tuple[Union[BMVert, BMEdge, BMFace]]:
+    def _get_selected_elements(cls, mesh_elements: str) -> tuple[BMVert | BMEdge | BMFace]:
         ret = tuple()
 
         for _, bm in cls.bm_arr:
@@ -956,7 +953,7 @@ class MESH_OT_select_path(Operator):
 
     def _interact_control_element(self,
                                   context: Context,
-                                  elem: Union[None, BMVert, BMFace],
+                                  elem: None | BMVert | BMFace,
                                   ob: Object,
                                   interact_event: InteractEvent) -> None:
         cls = self.__class__
@@ -1307,7 +1304,7 @@ class MESH_OT_select_path(Operator):
         cls = self.__class__
 
         if cls.instances and cls.instances[0] != self:
-            
+
             return cls.instances[0].modal(context, event)
 
         addon_pref = context.preferences.addons[addon_pkg].preferences
