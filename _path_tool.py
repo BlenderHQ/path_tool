@@ -16,6 +16,9 @@ from bpy.types import (
     RegionView3D,
     KeyMapItem,
     Object,
+    Object,
+    Space,
+    Window,
     Operator,
     SpaceView3D,
     STATUSBAR_HT_header,
@@ -110,6 +113,11 @@ class PathFlag(IntFlag):
 
     TOPOLOGY = auto()
     "Path uses topology distance operator method"
+
+
+_PackedEvent_T = tuple[
+    Union[int, str], Union[int, str],
+    Union[int, bool], Union[int, bool], Union[int, bool]]
 
 
 class Path:
@@ -334,15 +342,12 @@ class Path:
         return r_pairs
 
 
-_PackedEvent_T = tuple[
-    Union[int, str], Union[int, str],
-    Union[int, bool], Union[int, bool], Union[int, bool]]
-
-
 class MESH_OT_select_path(Operator):
     bl_idname = "mesh.select_path"
     bl_label = "Select Path"
-    bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {'REGISTER', 'UNDO', 'INTERNAL'}
+
+    instances: list[MESH_OT_select_path] = list()
 
     # __slots__ = (
     #     "select_mb",
@@ -524,7 +529,8 @@ class MESH_OT_select_path(Operator):
     def _pack_event(item: Union[KeyMapItem, Event]) -> _PackedEvent_T:
         return item.type, item.value, item.alt, item.ctrl, item.shift
 
-    def _eval_meshes(self, context: Context) -> None:
+    @classmethod
+    def _eval_meshes(cls, context: Context) -> None:
         ret: list[tuple[Object, BMesh]] = list()
 
         props = context.window_manager.select_path
@@ -533,24 +539,25 @@ class MESH_OT_select_path(Operator):
             ob: Object
 
             bm = bmesh.from_edit_mesh(ob.data)
-            if self.prior_ts_msm[1]:
+            if cls.prior_ts_msm[1]:
                 bm.edges.ensure_lookup_table()
-            elif self.prior_ts_msm[2]:
+            elif cls.prior_ts_msm[2]:
                 bm.faces.ensure_lookup_table()
                 if props.mark_seam != 'NONE' or props.mark_sharp != 'NONE':
                     bm.edges.ensure_lookup_table()
             ret.append((ob, bm))
-        self.bm_arr = tuple(ret)
+        cls.bm_arr = tuple(ret)
 
+    @classmethod
     @property
-    def active_path(self) -> Path:
-        if self._active_path_index <= len(self.path_arr) - 1:
-            return self.path_arr[self._active_path_index]
-        return self.path_arr[-1]
+    def active_path(cls) -> Path:
+        if cls._active_path_index <= len(cls.path_arr) - 1:
+            return cls.path_arr[cls._active_path_index]
+        return cls.path_arr[-1]
 
-    @active_path.setter
-    def active_path(self, value: Path) -> None:
-        self._active_path_index = self.path_arr.index(value)
+    @classmethod
+    def set_active_path(cls, value: Path) -> None:
+        cls._active_path_index = cls.path_arr.index(value)
 
     @staticmethod
     def _set_selection_state(elem_seq: tuple[Union[BMVert, BMEdge, BMFace]], state: bool = True) -> None:
@@ -558,37 +565,34 @@ class MESH_OT_select_path(Operator):
             elem.select = state
 
     @staticmethod
-    def _iter_view_3d_areas(context: Context) -> Iterator[Area]:
-        for area in context.screen.areas:
-            area: Area
-            if area.type == 'VIEW_3D':
-                yield area
-
-    @staticmethod
     def _get_interactive_ui_under_mouse(
             context: Context,
             event: Event) -> Union[None, tuple[Area, Region, RegionView3D]]:
         mx, my = event.mouse_x, event.mouse_y
 
-        for area in MESH_OT_select_path._iter_view_3d_areas(context):
-            for region in area.regions:
-                if region.type == 'WINDOW':
-                    if ((region.x < mx < region.x + region.width - eval_view3d_n_panel_width(context))
-                            and (region.y < my < region.y + region.height)):
-                        for space in area.spaces:
-                            if space.type == 'VIEW_3D':
-                                space: SpaceView3D
+        for area in bpy.context.window.screen.areas:
+            area: Area
 
-                                if space.region_quadviews:
-                                    region_data = space.region_quadviews
-                                else:
-                                    region_data = space.region_3d
-                        return area, region, region_data
+            if area.type == 'VIEW_3D':
+                for region in area.regions:
+                    if region.type == 'WINDOW':
+                        if ((region.x < mx < region.x + region.width - eval_view3d_n_panel_width(context))
+                                and (region.y < my < region.y + region.height)):
+                            for space in area.spaces:
+                                if space.type == 'VIEW_3D':
+                                    space: SpaceView3D
 
-    def _get_element_by_mouse(self, context: Context, event: Event) -> tuple[
+                                    if space.region_quadviews:
+                                        region_data = space.region_quadviews
+                                    else:
+                                        region_data = space.region_3d
+                            return area, region, region_data
+
+    @classmethod
+    def _get_element_by_mouse(cls, context: Context, event: Event) -> tuple[
             Union[None, BMVert, BMEdge, BMFace], Union[None, Object]]:
         ts = context.tool_settings
-        ts.mesh_select_mode = self.select_ts_msm
+        ts.mesh_select_mode = cls.select_ts_msm
 
         bpy.ops.mesh.select_all(action='DESELECT')
 
@@ -596,7 +600,8 @@ class MESH_OT_select_path(Operator):
 
         if ui is not None:
             area, region, region_data = ui
-            with context.temp_override(window=context.window, area=area, region=region, region_data=region_data):
+
+            with context.temp_override(window=bpy.context.window, area=area, region=region, region_data=region_data):
                 bpy.ops.view3d.select(
                     'EXEC_DEFAULT',
                     location=(event.mouse_x - region.x, event.mouse_y - region.y)
@@ -604,91 +609,100 @@ class MESH_OT_select_path(Operator):
 
         elem = None
         ob = None
-        for ob, bm in self.bm_arr:
+        for ob, bm in cls.bm_arr:
             elem = bm.select_history.active
             if elem:
                 elem.select = False
                 bm.select_history.clear()
                 break
 
-        ts.mesh_select_mode = self.prior_ts_msm
+        ts.mesh_select_mode = cls.prior_ts_msm
         return elem, ob
 
-    def _get_current_state_copy(self) -> tuple[int, tuple[Path]]:
-        return tuple((self._active_path_index, tuple(n.copy() for n in self.path_arr)))
+    @classmethod
+    def _get_current_state_copy(cls) -> tuple[int, tuple[Path]]:
+        return tuple((cls._active_path_index, tuple(n.copy() for n in cls.path_arr)))
 
     def _undo(self, context: Context) -> set[Literal['CANCELLED', 'RUNNING_MODAL']]:
-        if len(self.undo_history) == 1:
+        cls = self.__class__
+
+        if len(cls.undo_history) == 1:
             self.cancel(context)
             return {'CANCELLED'}
 
-        elif len(self.undo_history) > 1:
-            step = self.undo_history.pop()
-            self.redo_history.append(step)
-            undo_step_active_path_index, undo_step_path_seq = self.undo_history[-1]
-            self._active_path_index = undo_step_active_path_index
-            self.path_arr = list(undo_step_path_seq)
-            self._just_closed_path = False
+        elif len(cls.undo_history) > 1:
+            step = cls.undo_history.pop()
+            cls.redo_history.append(step)
+            undo_step_active_path_index, undo_step_path_seq = cls.undo_history[-1]
+            cls._active_path_index = undo_step_active_path_index
+            cls.path_arr = list(undo_step_path_seq)
+            cls._just_closed_path = False
 
         context.area.tag_redraw()
 
         return {'RUNNING_MODAL'}
 
     def _redo(self, context: Context) -> None:
-        if len(self.redo_history) > 0:
-            step = self.redo_history.pop()
-            self.undo_history.append(step)
-            undo_step_active_path_index, undo_step_path_seq = self.undo_history[-1]
-            self._active_path_index = undo_step_active_path_index
-            self.path_arr = undo_step_path_seq
+        cls = self.__class__
+
+        if len(cls.redo_history) > 0:
+            step = cls.redo_history.pop()
+            cls.undo_history.append(step)
+            undo_step_active_path_index, undo_step_path_seq = cls.undo_history[-1]
+            cls._active_path_index = undo_step_active_path_index
+            cls.path_arr = undo_step_path_seq
             context.area.tag_redraw()
         else:
             self.report({'WARNING'}, message="Can not redo anymore")
 
-    def _register_undo_step(self) -> None:
-        step = self._get_current_state_copy()
-        self.undo_history.append(step)
-        self.redo_history.clear()
+    @classmethod
+    def _register_undo_step(cls) -> None:
+        step = cls._get_current_state_copy()
+        cls.undo_history.append(step)
+        cls.redo_history.clear()
 
-    def _get_linked_island_index(self, context: Context, elem: Union[BMVert, BMFace]) -> int:
+    @classmethod
+    def _get_linked_island_index(cls, context: Context, elem: Union[BMVert, BMFace]) -> int:
         ts = context.tool_settings
 
-        for i, linked_island in enumerate(self.mesh_islands):
+        for i, linked_island in enumerate(cls.mesh_islands):
             if elem in linked_island:
                 return i
 
-        ts.mesh_select_mode = self.select_ts_msm
+        ts.mesh_select_mode = cls.select_ts_msm
 
         bpy.ops.mesh.select_all(action='DESELECT')
         elem.select_set(True)
         bpy.ops.mesh.select_linked(delimit={'NORMAL'})
 
-        linked_island = self._get_selected_elements(self.select_mesh_elements)
+        linked_island = cls._get_selected_elements(cls.select_mesh_elements)
 
-        ts.mesh_select_mode = self.prior_ts_msm
+        ts.mesh_select_mode = cls.prior_ts_msm
 
         bpy.ops.mesh.select_all(action='DESELECT')
-        self.mesh_islands.append(linked_island)
-        return len(self.mesh_islands) - 1
+        cls.mesh_islands.append(linked_island)
+        return len(cls.mesh_islands) - 1
 
-    def _update_meshes(self) -> None:
-        for ob, bm in self.bm_arr:
+    @classmethod
+    def _update_meshes(cls) -> None:
+        for ob, bm in cls.bm_arr:
             bm.select_flush_mode()
             bmesh.update_edit_mesh(mesh=ob.data, loop_triangles=True, destructive=False)
 
-    def _update_fills_by_element_index(self, context: Context, path: Path, elem_index: int) -> None:
+    @classmethod
+    def _update_fills_by_element_index(cls, context: Context, path: Path, elem_index: int) -> None:
         ts = context.tool_settings
 
         pairs_items = path.get_pairs_items(elem_index)
         for elem_0, elem_1, fill_index in pairs_items:
 
-            ts.mesh_select_mode = self.select_ts_msm
+            ts.mesh_select_mode = cls.select_ts_msm
 
             bpy.ops.mesh.select_all(action='DESELECT')
-            self._set_selection_state((elem_0, elem_1), True)
+            cls._set_selection_state((elem_0, elem_1), True)
             bpy.ops.mesh.shortest_path_select(use_topology_distance=bool(path.flag & PathFlag.TOPOLOGY))
-            self._set_selection_state((elem_0, elem_1), False)
-            fill_seq = self._get_selected_elements(self.prior_mesh_elements)
+            cls._set_selection_state((elem_0, elem_1), False)
+            fill_seq = cls._get_selected_elements(cls.prior_mesh_elements)
             bpy.ops.mesh.select_all(action='DESELECT')
 
             # Exception if control points in one edge
@@ -698,25 +712,26 @@ class MESH_OT_select_path(Operator):
                     if edge.other_vert(elem_0) == elem_1:
                         fill_seq = tuple((edge,))
 
-            ts.mesh_select_mode = self.prior_ts_msm
+            ts.mesh_select_mode = cls.prior_ts_msm
 
             path.fill_elements[fill_index] = fill_seq
 
             batch = None
-            if self.prior_ts_msm[1]:  # Edge mesh select mode
+            if cls.prior_ts_msm[1]:  # Edge mesh select mode
                 shader = bhqab.gpu_extras.shader.path_edge
                 coord = []
                 for edge in fill_seq:
                     coord.extend([vert.co for vert in edge.verts])
                 batch = batch_for_shader(shader, 'LINES', dict(Coord=coord))
 
-            elif self.prior_ts_msm[2]:  # Faces mesh select mode
+            elif cls.prior_ts_msm[2]:  # Faces mesh select mode
                 shader = bhqab.gpu_extras.shader.path_face
-                batch, _ = self._gpu_gen_batch_faces_seq(fill_seq, False, shader)
+                batch, _ = cls._gpu_gen_batch_faces_seq(fill_seq, False, shader)
 
             path.batch_seq_fills[fill_index] = batch
 
     def _remove_path_doubles(self, context: Context, path: Path) -> None:
+        cls = self.__class__
         for i, control_element in enumerate(path.control_elements):
             if path.control_elements.count(control_element) > 1:
                 for j, other_control_element in enumerate(path.control_elements):
@@ -726,53 +741,56 @@ class MESH_OT_select_path(Operator):
                             path.pop_control_element(-1)
                             if (path.flag ^ PathFlag.CLOSED):
                                 path.flag |= PathFlag.CLOSED
-                                self._update_fills_by_element_index(context, path, 0)
+                                cls._update_fills_by_element_index(context, path, 0)
 
                                 message = "Closed path"
-                                if path == self.active_path:
-                                    self._just_closed_path = True
+                                if path == cls.active_path:
+                                    cls._just_closed_path = True
                                     message = "Closed active path"
                                 self.report(type={'INFO'}, message=message)
                             else:
-                                self._update_fills_by_element_index(context, path, 0)
+                                cls._update_fills_by_element_index(context, path, 0)
                         # Adjacent control elements
                         elif i in (j - 1, j + 1):
                             path.pop_control_element(j)
-                            batch, _ = self._gpu_gen_batch_control_elements(path == self.active_path, path)
+                            batch, _ = cls._gpu_gen_batch_control_elements(path == cls.active_path, path)
                             path.batch_control_elements = batch
                             self.report(type={'INFO'}, message="Merged adjacent control elements")
                         # else:
                         #     # Maybe, undo here?
 
     def _join_adjacent_to_active_path(self) -> None:
-        for i, path in enumerate(self.path_arr):
-            if (((i != self._active_path_index)  # Skip active path itself
+        cls = self.__class__
+        for i, path in enumerate(cls.path_arr):
+            if (((i != cls._active_path_index)  # Skip active path itself
                 # Closed pathes can not be merged
-                 and (self.active_path.flag ^ PathFlag.CLOSED and path.flag ^ PathFlag.CLOSED))
+                 and (cls.active_path.flag ^ PathFlag.CLOSED and path.flag ^ PathFlag.CLOSED))
                 and (
-                    (self.active_path.control_elements[0] == path.control_elements[0])  # Start to start
-                    or (self.active_path.control_elements[-1] == path.control_elements[-1])  # End to end
-                    or (self.active_path.control_elements[-1] == path.control_elements[0])  # End to start
-                    or (self.active_path.control_elements[0] == path.control_elements[-1])  # Start to end
+                    (cls.active_path.control_elements[0] == path.control_elements[0])  # Start to start
+                    or (cls.active_path.control_elements[-1] == path.control_elements[-1])  # End to end
+                    or (cls.active_path.control_elements[-1] == path.control_elements[0])  # End to start
+                    or (cls.active_path.control_elements[0] == path.control_elements[-1])  # Start to end
             )):
-                self.active_path += self.path_arr.pop(i)
+                cls.active_path += cls.path_arr.pop(i)
 
-                batch, _ = self._gpu_gen_batch_control_elements(True, self.active_path)
-                self.active_path.batch_control_elements = batch
+                batch, _ = cls._gpu_gen_batch_control_elements(True, cls.active_path)
+                cls.active_path.batch_control_elements = batch
                 self.report(type={'INFO'}, message="Joined two paths")
                 break
 
-    def _get_selected_elements(self, mesh_elements: str) -> tuple[Union[BMVert, BMEdge, BMFace]]:
+    @classmethod
+    def _get_selected_elements(cls, mesh_elements: str) -> tuple[Union[BMVert, BMEdge, BMFace]]:
         ret = tuple()
 
-        for _, bm in self.bm_arr:
+        for _, bm in cls.bm_arr:
             elem_arr = getattr(bm, mesh_elements)
             ret += tuple((n for n in elem_arr if n.select))
         return ret
 
-    def _ui_draw_popup_menu_pie(self, popup: UIPieMenu, context: Context) -> None:
+    @classmethod
+    def _ui_draw_popup_menu_pie(cls, popup: UIPieMenu, context: Context) -> None:
         pie = popup.layout.menu_pie()
-        pie.prop_tabs_enum(self, "context_action")
+        pie.prop_tabs_enum(cls, "context_action")
         pie.popover(MESH_PT_select_path_context.__name__)
 
     @staticmethod
@@ -831,20 +849,21 @@ class MESH_OT_select_path(Operator):
 
         return r_batch, r_active_face_tri_start_index
 
-    def _gpu_gen_batch_control_elements(self, is_active, path):
+    @classmethod
+    def _gpu_gen_batch_control_elements(cls, is_active, path):
         shader = bhqab.gpu_extras.shader.cp_vert
-        if self.prior_ts_msm[2]:
+        if cls.prior_ts_msm[2]:
             shader = bhqab.gpu_extras.shader.cp_face
 
         r_batch = None
         r_active_elem_start_index = 0
 
-        if self.prior_ts_msm[1]:
+        if cls.prior_ts_msm[1]:
             r_batch = batch_for_shader(shader, 'POINTS', dict(Coord=tuple((v.co for v in path.control_elements))))
             if is_active:
                 r_active_elem_start_index = len(path.control_elements) - 1
-        elif self.prior_ts_msm[2]:
-            r_batch, r_active_elem_start_index = self._gpu_gen_batch_faces_seq(
+        elif cls.prior_ts_msm[2]:
+            r_batch, r_active_elem_start_index = cls._gpu_gen_batch_faces_seq(
                 path.control_elements,
                 is_active,
                 shader
@@ -852,24 +871,28 @@ class MESH_OT_select_path(Operator):
 
         return r_batch, r_active_elem_start_index
 
-    def _gpu_remove_handles(self) -> None:
-        for handle in self.gpu_handles:
+    @classmethod
+    def _gpu_remove_handles(cls) -> None:
+        for handle in cls.gpu_handles:
             SpaceView3D.draw_handler_remove(handle, 'WINDOW')
-        self.gpu_handles.clear()
+        cls.gpu_handles.clear()
 
-    def _gpu_draw_callback(self, context: Context) -> None:
-        addon_pref = context.preferences.addons[addon_pkg].preferences
+    @staticmethod
+    def _gpu_draw_callback() -> None:
+        cls = MESH_OT_select_path
 
-        draw_list: list[Path] = [_ for _ in self.path_arr if _ != self.active_path]
-        draw_list.append(self.active_path)
+        addon_pref = bpy.context.preferences.addons[addon_pkg].preferences
 
-        # if self.prior_ts_msm[1]:
+        draw_list: list[Path] = [_ for _ in cls.path_arr if _ != cls.active_path]
+        draw_list.append(cls.active_path)
+
+        # if cls.prior_ts_msm[1]:
         shader_ce = bhqab.gpu_extras.shader.cp_vert
-        if self.prior_ts_msm[2]:
+        if cls.prior_ts_msm[2]:
             shader_ce = bhqab.gpu_extras.shader.cp_face
 
         shader_path = bhqab.gpu_extras.shader.path_edge
-        if self.prior_ts_msm[2]:
+        if cls.prior_ts_msm[2]:
             shader_path = bhqab.gpu_extras.shader.path_face
 
         view_resolution = gpu.state.viewport_get()[2:]
@@ -878,7 +901,7 @@ class MESH_OT_select_path(Operator):
         original_view_depth_map = gpu.types.GPUTexture(
             view_resolution, data=fb.read_depth(*fb.viewport_get()), format='DEPTH_COMPONENT32F')
 
-        with self.gpu_draw_framework as offscreens:
+        with cls.gpu_draw_framework as offscreens:
             with offscreens[0].bind():
                 fb = gpu.state.active_framebuffer_get()
                 fb.clear(color=(0.0, 0.0, 0.0, 0.0))
@@ -886,7 +909,7 @@ class MESH_OT_select_path(Operator):
                 view_resolution = gpu.state.viewport_get()[2:]
 
                 with gpu.matrix.push_pop():
-                    gpu.state.line_width_set(addon_pref.line_width * self.gpu_draw_framework.res_mult)
+                    gpu.state.line_width_set(addon_pref.line_width * cls.gpu_draw_framework.res_mult)
                     gpu.state.blend_set('ALPHA_PREMULT')
                     gpu.state.face_culling_set('NONE')
 
@@ -898,8 +921,8 @@ class MESH_OT_select_path(Operator):
                         if path.flag & PathFlag.TOPOLOGY:
                             color_path = addon_pref.color_path_topology
 
-                        if path == self.active_path:
-                            active_ce_index = self.active_index
+                        if path == cls.active_path:
+                            active_ce_index = cls.active_index
 
                             color_active_ce = addon_pref.color_active_control_element
                             color_path = addon_pref.color_active_path
@@ -914,7 +937,7 @@ class MESH_OT_select_path(Operator):
                                 shader_path.uniform_float("ColorPath", color_path)
                                 shader_path.uniform_sampler("OriginalViewDepthMap", original_view_depth_map)
                                 shader_path.uniform_float(
-                                    "viewportMetrics", self.gpu_draw_framework.viewport_metrics)
+                                    "viewportMetrics", cls.gpu_draw_framework.viewport_metrics)
                                 batch.draw(shader_path)
 
                         shader_ce.bind()
@@ -925,8 +948,8 @@ class MESH_OT_select_path(Operator):
                             shader_ce.uniform_float("ColorActiveControlElement", color_active_ce)
                             shader_ce.uniform_int("ActiveControlElementIndex", (active_ce_index,))
                             shader_ce.uniform_sampler("OriginalViewDepthMap", original_view_depth_map)
-                            shader_ce.uniform_float("viewportMetrics", self.gpu_draw_framework.viewport_metrics)
-                            if self.prior_ts_msm[1]:
+                            shader_ce.uniform_float("viewportMetrics", cls.gpu_draw_framework.viewport_metrics)
+                            if cls.prior_ts_msm[1]:
                                 shader_ce.uniform_float("DiskRadius", (addon_pref.point_size + 6))
 
                             path.batch_control_elements.draw(shader_ce)
@@ -936,23 +959,25 @@ class MESH_OT_select_path(Operator):
                                   elem: Union[None, BMVert, BMFace],
                                   ob: Object,
                                   interact_event: InteractEvent) -> None:
+        cls = self.__class__
+
         props = context.window_manager.select_path
 
         if elem and interact_event is InteractEvent.ADD_CP:
-            if not self.path_arr:
+            if not cls.path_arr:
                 return self._interact_control_element(context, elem, ob, InteractEvent.ADD_NEW_PATH)
 
             new_elem_index = None
 
-            elem_index = self.active_path.is_in_control_elements(elem)
+            elem_index = cls.active_path.is_in_control_elements(elem)
             if elem_index is None:
-                new_elem_index = len(self.active_path.control_elements)
+                new_elem_index = len(cls.active_path.control_elements)
 
-                fill_index = self.active_path.is_in_fill_elements(elem)
+                fill_index = cls.active_path.is_in_fill_elements(elem)
                 if fill_index is None:
                     is_found_in_other_path = False
-                    for path in self.path_arr:
-                        if path == self.active_path:
+                    for path in cls.path_arr:
+                        if path == cls.active_path:
                             continue
                         other_elem_index = path.is_in_control_elements(elem)
                         if other_elem_index is None:
@@ -963,129 +988,129 @@ class MESH_OT_select_path(Operator):
                             is_found_in_other_path = True
 
                         if is_found_in_other_path:
-                            self.active_path = path
-                            self._just_closed_path = False
+                            cls.set_active_path(path)
+                            cls._just_closed_path = False
                             self._interact_control_element(context, elem, ob, InteractEvent.ADD_CP)
                             return
                 else:
                     new_elem_index = fill_index + 1
-                    self._just_closed_path = False
+                    cls._just_closed_path = False
 
-            elif len(self.active_path.control_elements) == 1:
-                batch, self.active_index = self._gpu_gen_batch_control_elements(True, self.active_path)
-                self.active_path.batch_control_elements = batch
+            elif len(cls.active_path.control_elements) == 1:
+                batch, cls.active_index = cls._gpu_gen_batch_control_elements(True, cls.active_path)
+                cls.active_path.batch_control_elements = batch
 
             if elem_index is not None:
-                self.drag_elem_indices = [path.is_in_control_elements(elem) for path in self.path_arr]
-                self._just_closed_path = False
-            self._drag_elem = elem
+                cls.drag_elem_indices = [path.is_in_control_elements(elem) for path in cls.path_arr]
+                cls._just_closed_path = False
+            cls._drag_elem = elem
 
-            if self._just_closed_path:
+            if cls._just_closed_path:
                 return self._interact_control_element(context, elem, ob, InteractEvent.ADD_NEW_PATH)
 
             if new_elem_index is not None:
-                linked_island_index = self._get_linked_island_index(context, elem)
-                if self.active_path.island_index != linked_island_index:
+                linked_island_index = cls._get_linked_island_index(context, elem)
+                if cls.active_path.island_index != linked_island_index:
                     return self._interact_control_element(context, elem, ob, InteractEvent.ADD_NEW_PATH)
 
-                self.active_path.insert_control_element(new_elem_index, elem)
-                self._update_fills_by_element_index(context, self.active_path, new_elem_index)
+                cls.active_path.insert_control_element(new_elem_index, elem)
+                cls._update_fills_by_element_index(context, cls.active_path, new_elem_index)
 
-                batch, self.active_index = self._gpu_gen_batch_control_elements(True, self.active_path)
-                self.active_path.batch_control_elements = batch
+                batch, cls.active_index = cls._gpu_gen_batch_control_elements(True, cls.active_path)
+                cls.active_path.batch_control_elements = batch
 
-                self.drag_elem_indices = [path.is_in_control_elements(elem) for path in self.path_arr]
+                cls.drag_elem_indices = [path.is_in_control_elements(elem) for path in cls.path_arr]
 
         elif elem and interact_event is InteractEvent.ADD_NEW_PATH:
-            linked_island_index = self._get_linked_island_index(context, elem)
+            linked_island_index = cls._get_linked_island_index(context, elem)
             new_path = Path(elem, linked_island_index, ob)
 
             if props.use_topology_distance:
                 new_path.flag |= PathFlag.TOPOLOGY
 
-            self.path_arr.append(new_path)
-            self.active_path = new_path
-            self._just_closed_path = False
+            cls.path_arr.append(new_path)
+            cls.set_active_path(new_path)
+            cls._just_closed_path = False
             self._interact_control_element(context, elem, ob, InteractEvent.ADD_CP)
             self.report(type={'INFO'}, message="Created new path")
             return
 
         elif elem and interact_event is InteractEvent.REMOVE_CP:
-            self._just_closed_path = False
+            cls._just_closed_path = False
 
-            elem_index = self.active_path.is_in_control_elements(elem)
+            elem_index = cls.active_path.is_in_control_elements(elem)
             if elem_index is None:
-                for path in self.path_arr:
+                for path in cls.path_arr:
                     other_elem_index = path.is_in_control_elements(elem)
                     if other_elem_index is not None:
-                        self.active_path = path
+                        cls.set_active_path(path)
                         self._interact_control_element(context, elem, ob, InteractEvent.REMOVE_CP)
                         return
             else:
-                self.active_path.pop_control_element(elem_index)
+                cls.active_path.pop_control_element(elem_index)
 
-                if not len(self.active_path.control_elements):
-                    self.path_arr.remove(self.active_path)
-                    if len(self.path_arr):
-                        self.active_path = self.path_arr[-1]
+                if not len(cls.active_path.control_elements):
+                    cls.path_arr.remove(cls.active_path)
+                    if len(cls.path_arr):
+                        cls.set_active_path(cls.path_arr[-1])
                 else:
-                    self._update_fills_by_element_index(context, self.active_path, elem_index)
-                    batch, self.active_index = self._gpu_gen_batch_control_elements(True, self.active_path)
-                    self.active_path.batch_control_elements = batch
+                    cls._update_fills_by_element_index(context, cls.active_path, elem_index)
+                    batch, cls.active_index = cls._gpu_gen_batch_control_elements(True, cls.active_path)
+                    cls.active_path.batch_control_elements = batch
 
         elif elem and interact_event is InteractEvent.DRAG_CP:
-            if (not self._drag_elem) or (len(self.drag_elem_indices) != len(self.path_arr)):
+            if (not cls._drag_elem) or (len(cls.drag_elem_indices) != len(cls.path_arr)):
                 return
-            self._just_closed_path = False
+            cls._just_closed_path = False
 
-            linked_island_index = self._get_linked_island_index(context, elem)
-            if self.active_path.island_index == linked_island_index:
-                self._drag_elem = elem
+            linked_island_index = cls._get_linked_island_index(context, elem)
+            if cls.active_path.island_index == linked_island_index:
+                cls._drag_elem = elem
 
-                for i, path in enumerate(self.path_arr):
-                    j = self.drag_elem_indices[i]
+                for i, path in enumerate(cls.path_arr):
+                    j = cls.drag_elem_indices[i]
                     if j is not None:
                         path.control_elements[j] = elem
 
-                        self._update_fills_by_element_index(context, path, j)
-                        path.batch_control_elements, self.active_index = self._gpu_gen_batch_control_elements(
-                            path == self.active_path,
+                        cls._update_fills_by_element_index(context, path, j)
+                        path.batch_control_elements, cls.active_index = cls._gpu_gen_batch_control_elements(
+                            path == cls.active_path,
                             path
                         )
 
         elif interact_event is InteractEvent.CHANGE_DIRECTION:
-            self.active_path.reverse()
-            batch, self.active_index = self._gpu_gen_batch_control_elements(True, self.active_path)
-            self.active_path.batch_control_elements = batch
-            self._just_closed_path = False
+            cls.active_path.reverse()
+            batch, cls.active_index = cls._gpu_gen_batch_control_elements(True, cls.active_path)
+            cls.active_path.batch_control_elements = batch
+            cls._just_closed_path = False
 
         elif interact_event is InteractEvent.CLOSE_PATH:
-            self.active_path.flag ^= PathFlag.CLOSED
+            cls.active_path.flag ^= PathFlag.CLOSED
 
-            if self.active_path.flag & PathFlag.CLOSED:
-                self._update_fills_by_element_index(context, self.active_path, 0)
-                if len(self.active_path.control_elements) > 2:
-                    self._just_closed_path = True
+            if cls.active_path.flag & PathFlag.CLOSED:
+                cls._update_fills_by_element_index(context, cls.active_path, 0)
+                if len(cls.active_path.control_elements) > 2:
+                    cls._just_closed_path = True
             else:
-                self.active_path.fill_elements[-1] = []
-                self.active_path.batch_seq_fills[-1] = None
-                self._just_closed_path = False
+                cls.active_path.fill_elements[-1] = []
+                cls.active_path.batch_seq_fills[-1] = None
+                cls._just_closed_path = False
                 self._join_adjacent_to_active_path()
 
         elif interact_event is InteractEvent.TOPOLOGY_DISTANCE:
-            self.active_path.flag ^= PathFlag.TOPOLOGY
-            for j in range(0, len(self.active_path.control_elements), 2):
-                self._update_fills_by_element_index(context, self.active_path, j)
+            cls.active_path.flag ^= PathFlag.TOPOLOGY
+            for j in range(0, len(cls.active_path.control_elements), 2):
+                cls._update_fills_by_element_index(context, cls.active_path, j)
 
         elif interact_event is InteractEvent.RELEASE_PATH:
-            self.drag_elem_indices = []
-            self._drag_elem = None
+            cls.drag_elem_indices = []
+            cls._drag_elem = None
 
-            for path in self.path_arr:
+            for path in cls.path_arr:
                 self._remove_path_doubles(context, path)
             self._join_adjacent_to_active_path()
 
-            self._register_undo_step()
+            cls._register_undo_step()
 
     def draw(self, context: Context) -> None:
         layout = self.layout
@@ -1094,7 +1119,32 @@ class MESH_OT_select_path(Operator):
         props.ui_draw_func(layout)
 
     def invoke(self, context: bpy.types.Context, event):
+        cls = self.__class__
         wm = context.window_manager
+
+        if not cls.instances:
+
+            cls.instances.append(self)
+
+            for window in wm.windows:
+                window: Window
+
+                if window != context.window:
+                    for area in window.screen.areas:
+                        area: Area
+
+                        if area.type == 'VIEW_3D':
+                            for region in area.regions:
+                                region: Region
+
+                                if region.type == 'WINDOW':
+                                    with context.temp_override(window=window, area=area, region=region):
+                                        bpy.ops.mesh.select_path('INVOKE_DEFAULT')
+        else:
+            cls.instances.append(self)
+            wm.modal_handler_add(self)
+            return {'RUNNING_MODAL'}
+
         props = wm.select_path
         ts = context.scene.tool_settings
         num_undo_steps = context.preferences.edit.undo_steps
@@ -1108,26 +1158,26 @@ class MESH_OT_select_path(Operator):
         kmi = km_path_tool.keymap_items[0]
 
         # Select and context pie menu mouse buttons.
-        self.select_mb = kmi.type
-        self.pie_mb = 'LEFTMOUSE'
-        if self.select_mb == 'LEFTMOUSE':
-            self.pie_mb = 'RIGHTMOUSE'
+        cls.select_mb = kmi.type
+        cls.pie_mb = 'LEFTMOUSE'
+        if cls.select_mb == 'LEFTMOUSE':
+            cls.pie_mb = 'RIGHTMOUSE'
 
         # Modal keymap.
-        self.modal_events = dict()
+        cls.modal_events = dict()
         for kmi in kc.keymaps["Standard Modal Map"].keymap_items:
-            ev = self._pack_event(kmi)
-            self.modal_events[(ev[0], ev[1], False, False, False)] = kmi.propvalue
+            ev = cls._pack_event(kmi)
+            cls.modal_events[(ev[0], ev[1], False, False, False)] = kmi.propvalue
 
         # Operator's undo/redo keymap.
-        self.undo_redo_events = dict()
+        cls.undo_redo_events = dict()
         km_screen = kc.keymaps['Screen']
 
         kmi = km_screen.keymap_items.find_from_operator(idname='ed.undo')
-        self.undo_redo_events[self._pack_event(kmi)] = 'UNDO'
+        cls.undo_redo_events[cls._pack_event(kmi)] = 'UNDO'
 
         kmi = km_screen.keymap_items.find_from_operator(idname='ed.redo')
-        self.undo_redo_events[self._pack_event(kmi)] = 'REDO'
+        cls.undo_redo_events[cls._pack_event(kmi)] = 'REDO'
 
         # Navigation events which would be passed through operator's modal cycle.
         nav_events = []
@@ -1152,82 +1202,82 @@ class MESH_OT_select_path(Operator):
                 "view3d.view_center_pick",
                 "view3d.view_selected",
             ):
-                ev = list(self._pack_event(kmi))
+                ev = list(cls._pack_event(kmi))
                 if ev[0] == 'WHEELINMOUSE':
                     ev[0] = 'WHEELUPMOUSE'
                 elif ev[0] == 'WHEELOUTMOUSE':
                     ev[0] = 'WHEELDOWNMOUSE'
                 nav_events.append(tuple(ev))
-        self.nav_events = tuple(nav_events)
+        cls.nav_events = tuple(nav_events)
 
-        self.is_mouse_pressed = False
+        cls.is_mouse_pressed = False
 
         # ____________________________________________________________________ #
         # Initialize variables.
 
-        self.path_arr = list()
-        self.mesh_islands = list()
-        self.drag_elem_indices = list()
+        cls.path_arr = list()
+        cls.mesh_islands = list()
+        cls.drag_elem_indices = list()
 
-        self._active_path_index = 0
-        self._drag_elem = None
-        self._just_closed_path = False
+        cls._active_path_index = 0
+        cls._drag_elem = None
+        cls._just_closed_path = False
 
-        self.gpu_handles = list()
+        cls.gpu_handles = list()
 
-        self.undo_history = collections.deque(maxlen=num_undo_steps)
-        self.redo_history = collections.deque(maxlen=num_undo_steps)
+        cls.undo_history = collections.deque(maxlen=num_undo_steps)
+        cls.redo_history = collections.deque(maxlen=num_undo_steps)
 
-        self.exec_select_arr = dict()
-        self.exec_markup_arr = dict()
-        self.exec_active_arr = dict()
+        cls.exec_select_arr = dict()
+        cls.exec_markup_arr = dict()
+        cls.exec_active_arr = dict()
         # ____________________________________________________________________ #
         # Meshes context setup.
         # Evaluate meshes:
 
-        self.initial_ts_msm = tuple(ts.mesh_select_mode)
-        self.initial_mesh_elements = "edges"
-        if self.initial_ts_msm[2]:
-            self.initial_mesh_elements = "faces"
+        cls.initial_ts_msm = tuple(ts.mesh_select_mode)
+        cls.initial_mesh_elements = "edges"
+        if cls.initial_ts_msm[2]:
+            cls.initial_mesh_elements = "faces"
 
-        self.prior_ts_msm = (False, True, False)
-        self.prior_mesh_elements = "edges"
-        self.select_ts_msm = (True, False, False)
-        self.select_mesh_elements = "verts"
-        if self.initial_ts_msm[2]:
-            self.prior_ts_msm = (False, False, True)
-            self.prior_mesh_elements = "faces"
-            self.select_ts_msm = (False, False, True)
-            self.select_mesh_elements = "faces"
+        cls.prior_ts_msm = (False, True, False)
+        cls.prior_mesh_elements = "edges"
+        cls.select_ts_msm = (True, False, False)
+        cls.select_mesh_elements = "verts"
+        if cls.initial_ts_msm[2]:
+            cls.prior_ts_msm = (False, False, True)
+            cls.prior_mesh_elements = "faces"
+            cls.select_ts_msm = (False, False, True)
+            cls.select_mesh_elements = "faces"
 
-        self._eval_meshes(context)
-        self.initial_select = self._get_selected_elements(self.initial_mesh_elements)
+        cls._eval_meshes(context)
+        cls.initial_select = cls._get_selected_elements(cls.initial_mesh_elements)
 
         # Tweak operator settings in case if all mesh elements are already selected
         num_elements_total = 0
-        if self.prior_mesh_elements == "edges":
-            for _, bm in self.bm_arr:
+        if cls.prior_mesh_elements == "edges":
+            for _, bm in cls.bm_arr:
                 num_elements_total += len(bm.edges)
-        elif self.prior_mesh_elements == "faces":
-            for _, bm in self.bm_arr:
+        elif cls.prior_mesh_elements == "faces":
+            for _, bm in cls.bm_arr:
                 num_elements_total += len(bm.faces)
 
-        if num_elements_total == len(self.initial_select) and props.mark_select == 'EXTEND':
+        if num_elements_total == len(cls.initial_select) and props.mark_select == 'EXTEND':
             props.mark_select = 'NONE'
 
         # Prevent first click empty space
-        elem, _ = self._get_element_by_mouse(context, event)
+        elem, _ = cls._get_element_by_mouse(context, event)
         if not elem:
             self.cancel(context)
             return {'CANCELLED'}
 
-        STATUSBAR_HT_header.prepend(self._ui_draw_statusbar)
+        STATUSBAR_HT_header.prepend(cls._ui_draw_statusbar)
 
-        self.gpu_handles = [
-            SpaceView3D.draw_handler_add(self._gpu_draw_callback, (context,), 'WINDOW', 'POST_VIEW'),
+        cls.gpu_handles = [
+            SpaceView3D.draw_handler_add(self._gpu_draw_callback, tuple(), 'WINDOW', 'POST_VIEW'),
         ]
 
-        self.gpu_draw_framework = bhqab.gpu_extras.GPUDrawFramework(
+        cls.gpu_draw_framework = bhqab.gpu_extras.GPUDrawFramework(
             num_offscreens=1,
             smaa_preset=addon_pref.smaa_preset,
             fxaa_preset=addon_pref.fxaa_preset,
@@ -1240,18 +1290,30 @@ class MESH_OT_select_path(Operator):
         return {'RUNNING_MODAL'}
 
     def cancel(self, context: Context):
-        ts = context.tool_settings
-        ts.mesh_select_mode = self.initial_ts_msm
-        self._set_selection_state(self.initial_select, True)
-        self._update_meshes()
-        self._gpu_remove_handles()
-        STATUSBAR_HT_header.remove(self._ui_draw_statusbar)
+        cls = self.__class__
+
+        if self in cls.instances:
+            cls.instances.remove(self)
+
+        if not cls.instances:
+            ts = context.tool_settings
+            ts.mesh_select_mode = cls.initial_ts_msm
+            cls._set_selection_state(cls.initial_select, True)
+            cls._update_meshes()
+            cls._gpu_remove_handles()
+            STATUSBAR_HT_header.remove(cls._ui_draw_statusbar)
 
     def modal(self, context: Context, event: Event):
+        cls = self.__class__
+
+        if cls.instances and cls.instances[0] != self:
+            
+            return cls.instances[0].modal(context, event)
+
         addon_pref = context.preferences.addons[addon_pkg].preferences
-        ev = self._pack_event(event)
-        modal_action = self.modal_events.get(ev, None)
-        undo_redo_action = self.undo_redo_events.get(ev, None)
+        ev = cls._pack_event(event)
+        modal_action = cls.modal_events.get(ev, None)
+        undo_redo_action = cls.undo_redo_events.get(ev, None)
         interact_event = None
 
         if (
@@ -1269,15 +1331,15 @@ class MESH_OT_select_path(Operator):
         ):
             self.context_action = set()
 
-            self._eval_final_element_indices_arrays()
-            self._gpu_remove_handles()
-            STATUSBAR_HT_header.remove(self._ui_draw_statusbar)
-            return self.execute(context)
+            cls._eval_final_element_indices_arrays()
+            cls._gpu_remove_handles()
+            STATUSBAR_HT_header.remove(cls._ui_draw_statusbar)
+            return cls.execute(context)
 
-        elif self._get_interactive_ui_under_mouse(context, event) is None:
+        elif cls._get_interactive_ui_under_mouse(context, event) is None:
             return {'RUNNING_MODAL'}
 
-        elif ev in self.nav_events:
+        elif ev in cls.nav_events:
             return {'PASS_THROUGH'}
 
         elif (
@@ -1309,78 +1371,79 @@ class MESH_OT_select_path(Operator):
             self.context_action = set()
             self._redo(context)
 
-        elif ev == (self.pie_mb, 'PRESS', False, False, False):
-            self.is_mouse_pressed = False
+        elif ev == (cls.pie_mb, 'PRESS', False, False, False):
+            cls.is_mouse_pressed = False
             context.window_manager.popup_menu_pie(
                 event=event,
-                draw_func=self._ui_draw_popup_menu_pie,
+                draw_func=cls._ui_draw_popup_menu_pie,
                 title="Path Tool",
                 icon='NONE',
             )
             return {'RUNNING_MODAL'}
 
-        elif ev == (self.select_mb, 'PRESS', False, False, False):
-            self.is_mouse_pressed = True
+        elif ev == (cls.select_mb, 'PRESS', False, False, False):
+            cls.is_mouse_pressed = True
             interact_event = InteractEvent.ADD_CP
 
-        elif ev == (self.select_mb, 'PRESS', False, False, True):
-            self.is_mouse_pressed = True
+        elif ev == (cls.select_mb, 'PRESS', False, False, True):
+            cls.is_mouse_pressed = True
             interact_event = InteractEvent.ADD_NEW_PATH
 
-        elif ev == (self.select_mb, 'PRESS', False, True, False):
-            self.is_mouse_pressed = False
+        elif ev == (cls.select_mb, 'PRESS', False, True, False):
+            cls.is_mouse_pressed = False
             interact_event = InteractEvent.REMOVE_CP
 
-        elif ev in ((self.select_mb, 'RELEASE', False, False, False),
-                    (self.select_mb, 'RELEASE', False, True, False),
-                    (self.select_mb, 'RELEASE', False, False, True),
+        elif ev in ((cls.select_mb, 'RELEASE', False, False, False),
+                    (cls.select_mb, 'RELEASE', False, True, False),
+                    (cls.select_mb, 'RELEASE', False, False, True),
                     ):
-            self.is_mouse_pressed = False
+            cls.is_mouse_pressed = False
             interact_event = InteractEvent.RELEASE_PATH
 
-        elif self.is_mouse_pressed and ev[0] == 'MOUSEMOVE':
+        elif cls.is_mouse_pressed and ev[0] == 'MOUSEMOVE':
             interact_event = InteractEvent.DRAG_CP
 
         if interact_event is not None:
-            elem, ob = self._get_element_by_mouse(context, event)
+            elem, ob = cls._get_element_by_mouse(context, event)
             self._interact_control_element(context, elem, ob, interact_event)
 
-            self._set_selection_state(self.initial_select, True)
-            # self._update_meshes()
+            cls._set_selection_state(cls.initial_select, True)
+            # cls._update_meshes()
 
-        if not len(self.path_arr):
+        if not len(cls.path_arr):
             self.cancel(context)
             return {'CANCELLED'}
 
-        self.gpu_draw_framework.smaa_preset = addon_pref.smaa_preset
-        self.gpu_draw_framework.fxaa_preset = addon_pref.fxaa_preset
-        self.gpu_draw_framework.fxaa_value = addon_pref.fxaa_value
-        self.gpu_draw_framework.res_mult = addon_pref.res_mult
+        cls.gpu_draw_framework.smaa_preset = addon_pref.smaa_preset
+        cls.gpu_draw_framework.fxaa_preset = addon_pref.fxaa_preset
+        cls.gpu_draw_framework.fxaa_value = addon_pref.fxaa_value
+        cls.gpu_draw_framework.res_mult = addon_pref.res_mult
 
         return {'RUNNING_MODAL'}
 
-    def _eval_final_element_indices_arrays(self) -> None:
-        for ob, _bm in self.bm_arr:
-            self.exec_select_arr[ob] = list()
-            self.exec_markup_arr[ob] = list()
+    @classmethod
+    def _eval_final_element_indices_arrays(cls) -> None:
+        for ob, _bm in cls.bm_arr:
+            cls.exec_select_arr[ob] = list()
+            cls.exec_markup_arr[ob] = list()
 
             _exec_select_arr: list[list[int, set[int]]] = list()
 
-            for path in self.path_arr:
+            for path in cls.path_arr:
                 _indices_select: set[int] = set()
                 _indices_markup: set[int] = set()
 
                 if path.ob == ob:
                     fills = path.fill_elements
-                    if self.prior_ts_msm[2]:
+                    if cls.prior_ts_msm[2]:
                         fills += [path.control_elements, ]
 
                     for fill in fills:
                         _indices_select |= set((_.index for _ in fill))
 
-                        if self.prior_ts_msm[1]:
+                        if cls.prior_ts_msm[1]:
                             _indices_markup = _indices_select
-                        elif self.prior_ts_msm[2]:
+                        elif cls.prior_ts_msm[2]:
                             for face in fill:
                                 face: BMFace
 
@@ -1390,7 +1453,7 @@ class MESH_OT_select_path(Operator):
                     active_index = path.control_elements[-1].index
                     # For edges selection mode, would be determined edge which exists in last fill from active control
                     # element of the path.
-                    if self.prior_ts_msm[1]:
+                    if cls.prior_ts_msm[1]:
                         fill = path.fill_elements[-2]
                         for edge in path.control_elements[-1].link_edges:
                             if edge in fill:
@@ -1409,22 +1472,22 @@ class MESH_OT_select_path(Operator):
                         _exec_select_arr.append([active_index, _indices_select])
 
             for active_index, _indices_select in _exec_select_arr:
-                self.exec_select_arr[ob].append(tuple(_indices_select) + (active_index,))
+                cls.exec_select_arr[ob].append(tuple(_indices_select) + (active_index,))
             # _exec_select_arr: list[set[int]] = list()
 
-            # for path in self.path_arr:
+            # for path in cls.path_arr:
             #     indices_select: set[int] = set()
             #     indices_markup: set[int] = set()
 
             #     if path.ob == ob:
             #         fills = path.fill_elements
-            #         if self.prior_ts_msm[2]:
+            #         if cls.prior_ts_msm[2]:
             #             fills += [path.control_elements, ]
 
             #         for fill in fills:
             #             indices_select |= set((_.index for _ in fill))
 
-            #             if self.prior_ts_msm[2]:
+            #             if cls.prior_ts_msm[2]:
             #                 for face in fill:
             #                     indices_markup |= set(_.index for _ in face.edges)
 
@@ -1439,11 +1502,11 @@ class MESH_OT_select_path(Operator):
             #         if not is_intersecting:
             #             _exec_select_arr.append(indices_select)
 
-            #             if self.prior_ts_msm[1]:
+            #             if cls.prior_ts_msm[1]:
             #                 indices_markup = indices_select
 
             #             active_index = path.control_elements[-1].index
-            #             if self.prior_ts_msm[1]:
+            #             if cls.prior_ts_msm[1]:
             #                 fill = path.fill_elements[-2]
             #                 for edge in path.control_elements[-1].link_edges:
             #                     if edge in fill:
@@ -1451,29 +1514,31 @@ class MESH_OT_select_path(Operator):
 
             #             indices_select.remove(active_index)
 
-            #             self.exec_select_arr[ob].append(tuple(indices_select) + (active_index,))
-            #             self.exec_markup_arr[ob].append(tuple(indices_markup))
+            #             cls.exec_select_arr[ob].append(tuple(indices_select) + (active_index,))
+            #             cls.exec_markup_arr[ob].append(tuple(indices_markup))
 
-        self._update_meshes()
+        cls._update_meshes()
 
     def execute(self, context: Context):
+        cls = self.__class__
+
         ts = context.tool_settings
         props = context.window_manager.select_path
 
-        ts.mesh_select_mode = self.prior_ts_msm
-        self._eval_meshes(context)
-        self.initial_select = self._get_selected_elements(self.prior_mesh_elements)
+        ts.mesh_select_mode = cls.prior_ts_msm
+        cls._eval_meshes(context)
+        cls.initial_select = cls._get_selected_elements(cls.prior_mesh_elements)
 
-        for ob, bm in self.bm_arr:
-            elem_seq = getattr(bm, self.prior_mesh_elements)
+        for ob, bm in cls.bm_arr:
+            elem_seq = getattr(bm, cls.prior_mesh_elements)
 
-            if ob in self.exec_select_arr:
+            if ob in cls.exec_select_arr:
                 select_indices: tuple[int] = tuple()
                 # markup_indices: tuple[int] = tuple()
 
-                for i in range(len(self.exec_select_arr[ob])):
-                    index_select_seq = self.exec_select_arr[ob][i]
-                    # index_markup_seq = self.exec_markup_arr[ob][i]
+                for i in range(len(cls.exec_select_arr[ob])):
+                    index_select_seq = cls.exec_select_arr[ob][i]
+                    # index_markup_seq = cls.exec_markup_arr[ob][i]
                     if (props.skip
                         and (props.mark_select != 'NONE'
                              or props.mark_seam != 'NONE'
@@ -1491,14 +1556,14 @@ class MESH_OT_select_path(Operator):
                         bpy.ops.mesh.select_nth('EXEC_DEFAULT', skip=props.skip, nth=props.nth, offset=props.offset)
 
                         select_indices += tuple(
-                            (_.index for _ in self._get_selected_elements(self.prior_mesh_elements))
+                            (_.index for _ in cls._get_selected_elements(cls.prior_mesh_elements))
                         )
 
                     else:
                         select_indices += index_select_seq
         #                 #markup_indices += index_markup_seq
-        # #             # if ob in self.exec_active_arr:
-        # #             #     active_elem = elem_seq[self.exec_active_arr[ob]]
+        # #             # if ob in cls.exec_active_arr:
+        # #             #     active_elem = elem_seq[cls.exec_active_arr[ob]]
         # #             #     bm.select_history.clear()
         # #             #     active_elem.select_set(True)
         # #             #     bm.select_history.add(active_elem)
@@ -1506,21 +1571,21 @@ class MESH_OT_select_path(Operator):
         # #             bpy.ops.mesh.select_nth('EXEC_DEFAULT', skip=props.skip, nth=props.nth, offset=props.offset)
 
         # #             index_select_seq = tuple(
-        # #                 (n.index for n in self._get_selected_elements(self.prior_mesh_elements))
+        # #                 (n.index for n in cls._get_selected_elements(cls.prior_mesh_elements))
         # #             )
         # #             index_markup_seq = index_select_seq
-        # #             if self.prior_ts_msm[2]:
+        # #             if cls.prior_ts_msm[2]:
         # #                 index_markup_seq = tuple(
-        # #                     (n.index for n in self._get_selected_elements("edges"))
+        # #                     (n.index for n in cls._get_selected_elements("edges"))
         # #                 )
 
         # #             bpy.ops.mesh.select_all(action='DESELECT')
-        # #             self._set_selection_state(self.initial_select, True)
+        # #             cls._set_selection_state(cls.initial_select, True)
 
-        # #             self._update_meshes()
+        # #             cls._update_meshes()
 
             bpy.ops.mesh.select_all(action='DESELECT')
-            self._set_selection_state(self.initial_select, True)
+            cls._set_selection_state(cls.initial_select, True)
 
             if props.mark_select == 'EXTEND':
                 for i in select_indices:
@@ -1538,7 +1603,7 @@ class MESH_OT_select_path(Operator):
             if active_elem.select:
                 bm.select_history.add(active_elem)
 
-        # if ob in self.exec_markup_arr:
+        # if ob in cls.exec_markup_arr:
         #     elem_seq = bm.edges
         #     if props.mark_seam != 'NONE':
         #         if props.mark_seam == 'MARK':
@@ -1562,7 +1627,7 @@ class MESH_OT_select_path(Operator):
         #             for i in markup_indices:
         #                 elem_seq[i].smooth = not elem_seq[i].smooth
 
-        # self._update_meshes()
+        # cls._update_meshes()
         return {'FINISHED'}
 
 
@@ -1571,8 +1636,8 @@ class MESH_PT_select_path_context(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'WINDOW'
 
-    def draw(self, context: Context) -> None:
-        layout = self.layout
+    def draw(cls, context: Context) -> None:
+        layout = cls.layout
         layout.use_property_split = True
         props = context.window_manager.select_path
         props.ui_draw_func_runtime(layout)
