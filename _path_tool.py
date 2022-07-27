@@ -1,3 +1,15 @@
+##
+# Path Tool Addon code notes.
+#
+# Below is the operator code and everything it uses to work.
+#
+# - The operator uses a class as a store for properties, this makes it possible to operate the operator without binding
+# to the program window in which it was launched (as it was in previous versions). Here the algorithm is quite
+# simple - the first launched instance of the operator in any of the windows will launch it in all open windows, but
+# they will use the modal method of the first in the list of launched operators.
+#
+#
+
 from __future__ import annotations
 from typing import (
     Literal,
