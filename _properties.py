@@ -105,6 +105,10 @@ class WindowManagerProperties(PropertyGroup):
         layout.prop(self, "offset")
 
     def ui_draw_func_runtime(self, layout: UILayout) -> None:
+        row = layout.row(align=True)
+        row.label(text="Tool Settings")
+
+        row.operator("preferences.addon_show", icon='TOOL_SETTINGS', emboss=False).module = addon_pkg
         self.ui_draw_func(layout)
         layout.prop(self, "use_topology_distance")
 
