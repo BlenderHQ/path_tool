@@ -342,6 +342,120 @@ class Path:
         return r_pairs
 
 
+# NOTE: Keep items display names length for visual symmetry.
+# UI layout of pie-menu is next:
+# -------------------------------------------
+# |                 Apply                   |
+# |        Undo                Redo         |
+# | Direction         O          Close Path |
+# |    Topology                Options      |
+# |                 Cancel                  |
+# -------------------------------------------
+_context_action_items = (
+    # West
+    (
+        InteractEvent.CHANGE_DIRECTION.name,
+        "Direction",
+        ("Change the direction of the active path.\n"
+         "The active element of the path will be the final element "
+         "from the opposite end of the path, from it will be formed a section to the next control element that "
+         "you create."),
+        'NONE',  # 'CON_CHILDOF',
+        InteractEvent.CHANGE_DIRECTION.value,
+    ),
+    # *** East ***
+    (
+        InteractEvent.CLOSE_PATH.name,
+        "Close Path",
+        "Connect between the beginning and end of the active path",
+        'NONE',  # 'MESH_CIRCLE',
+        InteractEvent.CLOSE_PATH.value,
+    ),
+    # *** South ***
+    (
+        InteractEvent.CANCEL.name,
+        "Cancel",
+        "Cancel editing pathes",
+        'EVENT_ESC',
+        InteractEvent.CANCEL.value,
+    ),
+    # *** North ***
+    (
+        InteractEvent.APPLY_PATHES.name,
+        "Apply",  # 5 chars
+        "Apply the created mesh paths according to the selected options",
+        'EVENT_RETURN',
+        InteractEvent.APPLY_PATHES.value,
+    ),
+    # *** North-East ***
+    (
+        InteractEvent.UNDO.name,
+        "Undo",
+        "Take a step back",
+        'LOOP_BACK',
+        InteractEvent.UNDO.value,
+    ),
+    # *** North-West ***
+    (
+        InteractEvent.REDO.name,
+        "Redo",
+        "Redo previous undo",
+        'LOOP_FORWARDS',
+        InteractEvent.REDO.value,
+    ),
+    # *** South-West ***
+    (
+        InteractEvent.TOPOLOGY_DISTANCE.name,
+        "Topology",
+        ("Algorithm for calculating the path: simple or using a mesh topology"
+         "(Find the minimum number of steps, ignoring spatial distance)"),
+        'NONE',  # 'DRIVER_DISTANCE',
+        InteractEvent.TOPOLOGY_DISTANCE.value,
+    ),
+    # *** South-East *** - reserved for "Options" panel (MESH_PT_select_path_context)
+)
+
+
+class MESH_PT_select_path_context(bpy.types.Panel):
+    bl_label = "Options"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'WINDOW'
+
+    def draw(cls, context: Context) -> None:
+        layout = cls.layout
+        layout.use_property_split = True
+        props = context.window_manager.select_path
+        props.ui_draw_func_runtime(layout)
+
+
+def __validate_context_action_items_display_symmetry_concept(bias: int = 1):
+    W, E, S, N, NE, NW, SW = (_[1] for _ in _context_action_items)
+    SE = MESH_PT_select_path_context.bl_label
+
+    len_cmp_order = {
+        "West <> East (important!)": (W, E),
+        "North <> South (important!)": (N, S),
+        "North-East <> South-East": (NE, SE),
+        "North-West <> South-West": (NW, SW),
+        "North-West <> North-East (important!)": (NW, NE),
+        "South-West <> South-East (important!)": (SW, SE),
+    }
+
+    for desc, pair in len_cmp_order.items():
+        l, r = pair
+
+        if abs(len(l) - len(r)) > bias:
+            print(f"'_context_action_items' may look asymmetrical in direction: {desc}\n"
+                  f"\t\"{l}\" {len(l)} characters\n"
+                  f"\t\"{r}\" {len(r)} characters\n")
+
+
+# NOTE: Uncomment next line to validate context action label symmetry:
+# __validate_context_action_items_display_symmetry_concept(bias=1)
+
+del __validate_context_action_items_display_symmetry_concept
+
+
 class MESH_OT_select_path(Operator):
     bl_idname = "mesh.select_path"
     bl_label = "Select Path"
@@ -349,105 +463,10 @@ class MESH_OT_select_path(Operator):
 
     instances: list[MESH_OT_select_path] = list()
 
-    # __slots__ = (
-    #     "select_mb",
-    #     "pie_mb",
-    #     "modal_events",
-    #     "undo_redo_events",
-    #     "nav_events",
-    #     "is_mouse_pressed",
-    #     "is_navigation_active",
-
-    #     "initial_ts_msm",
-    #     "initial_mesh_elements",
-    #     "prior_ts_msm",
-    #     "prior_mesh_elements",
-    #     "select_ts_msm",
-    #     "select_mesh_elements",
-    #     "initial_select",
-
-    #     "bm_arr",
-    #     "path_seq",
-    #     "mesh_islands",
-    #     "drag_elem_indices",
-
-    #     "_active_path_index",
-    #     "_drag_elem",
-    #     "_just_closed_path",
-
-    #     "undo_history",
-    #     "redo_history",
-
-    #     "exec_select_arr",
-    #     "exec_markup_arr",
-    # )
+    __slots__ = ()
 
     context_action: EnumProperty(
-        # NOTE: Keep items display names length for visual symmetry.
-        # UI layout of pie-menu is next:
-        # |----------------------------------------
-        # |                 Apply
-        # |        Undo                Redo
-        # | Direction                    Close Path
-        # |    Topology                Options
-        # |                 Cancel
-        # |----------------------------------------
-        # "Options" is `bl_label` of `MESH_PT_select_path_context`.
-        items=(
-            (
-                InteractEvent.CHANGE_DIRECTION.name,
-                "Direction",  # 16 chars
-                ("Change the direction of the active path.\n"
-                 "The active element of the path will be the final element "
-                 "from the opposite end of the path, from it will be formed a section to the next control element that "
-                 "you create."),
-                'NONE',  # 'CON_CHILDOF',
-                InteractEvent.CHANGE_DIRECTION.value,
-            ),
-            (
-                InteractEvent.CLOSE_PATH.name,
-                "Close Path",  # 10 chars
-                "Connect between the beginning and end of the active path",
-                'NONE',  # 'MESH_CIRCLE',
-                InteractEvent.CLOSE_PATH.value,
-            ),
-            (
-                InteractEvent.CANCEL.name,
-                "Cancel",  # 6 chars
-                "Cancel editing pathes",
-                'EVENT_ESC',
-                InteractEvent.CANCEL.value,
-            ),
-            (
-                InteractEvent.APPLY_PATHES.name,
-                "Apply",  # 5 chars
-                "Apply the created mesh paths according to the selected options",
-                'EVENT_RETURN',
-                InteractEvent.APPLY_PATHES.value,
-            ),
-            (
-                InteractEvent.UNDO.name,
-                "Undo",  # 4 chars
-                "Take a step back",
-                'LOOP_BACK',
-                InteractEvent.UNDO.value,
-            ),
-            (
-                InteractEvent.REDO.name,
-                "Redo",  # 4 chars
-                "Redo previous undo",
-                'LOOP_FORWARDS',
-                InteractEvent.REDO.value,
-            ),
-            (
-                InteractEvent.TOPOLOGY_DISTANCE.name,
-                "Topology",  # 8 chars
-                ("Algorithm for calculating the path: simple or using a mesh topology"
-                 "(Find the minimum number of steps, ignoring spatial distance)"),
-                'NONE',  # 'DRIVER_DISTANCE',
-                InteractEvent.TOPOLOGY_DISTANCE.value,
-            ),
-        ),
+        items=_context_action_items,
         default=set(),
         options={'ENUM_FLAG', 'HIDDEN', 'SKIP_SAVE'},
     )
@@ -1636,15 +1655,3 @@ class MESH_OT_select_path(Operator):
 
         # cls._update_meshes()
         return {'FINISHED'}
-
-
-class MESH_PT_select_path_context(bpy.types.Panel):
-    bl_label = "Options"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'WINDOW'
-
-    def draw(cls, context: Context) -> None:
-        layout = cls.layout
-        layout.use_property_split = True
-        props = context.window_manager.select_path
-        props.ui_draw_func_runtime(layout)
