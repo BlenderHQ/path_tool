@@ -11,9 +11,7 @@
 #
 
 from __future__ import annotations
-from typing import (
-    Literal,
-)
+from typing import Literal
 import collections
 from enum import auto, IntFlag
 
@@ -34,9 +32,7 @@ from bpy.types import (
     UIPieMenu,
     Window,
 )
-from bpy.props import (
-    EnumProperty,
-)
+from bpy.props import EnumProperty
 
 import bmesh
 from bmesh.types import (
@@ -49,7 +45,7 @@ import gpu
 from gpu.types import GPUBatch
 from gpu_extras.batch import batch_for_shader
 
-from . import bhqab
+from .lib import bhqab
 from . import __package__ as addon_pkg
 
 HARDCODED_APPLY_KMI = ('SPACE', 'PRESS', False, False, False)
@@ -131,8 +127,8 @@ class Path:
         (fba_0)    (fba_0)    (fba_0)    (fba_0)    (fba_close)
 
     Note:
-        If elem parameter passed at instance initialization,
-        will be added placeholders to fill_elements and batch_seq_fills.
+        If elem parameter passed at instance initialization, will be added placeholders to `fill_elements` and
+        `batch_seq_fills`.
     """
 
     __slots__ = (

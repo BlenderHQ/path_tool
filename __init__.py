@@ -45,14 +45,13 @@ from bpy.types import (
 )
 from bpy.props import (
     EnumProperty,
-    FloatProperty,
     FloatVectorProperty,
     IntProperty,
     PointerProperty,
     BoolProperty,
 )
 
-from . import bhqab
+from .lib import bhqab
 from . import _path_tool
 from . import _properties
 
@@ -227,7 +226,7 @@ class PathToolMesh(WorkSpaceTool):
     bl_context_mode = 'EDIT_MESH'
     bl_options = {}
     bl_description = "Select items using editable pathes"
-    bl_icon = os.path.join(os.path.dirname(__file__), "icons", "ops.mesh.path_tool")
+    bl_icon = os.path.join(os.path.dirname(__file__), "data", "ops.mesh.path_tool")
     bl_keymap = ((_path_tool.MESH_OT_select_path.bl_idname, dict(type='LEFTMOUSE', value='PRESS',), None),)
 
     @staticmethod
@@ -255,8 +254,7 @@ def register():
     _cls_register()
     WindowManager.select_path = PointerProperty(type=_properties.WindowManagerProperties)
     bpy.utils.register_tool(PathToolMesh, after={"builtin.select_lasso"}, separator=False, group=False)
-    bhqab.gpu_extras.shader.generate_shaders(os.path.join(os.path.dirname(__file__), "shaders"))
-    # bhqab.gpu_extras.GPUDrawFramework.initialize()
+    bhqab.gpu_extras.shader.generate_shaders(os.path.join(os.path.dirname(__file__), "data", "shaders"))
 
 
 def unregister():
