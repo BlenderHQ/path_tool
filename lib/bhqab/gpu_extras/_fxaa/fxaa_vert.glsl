@@ -1,4 +1,4 @@
-precision highp float;
+// precision highp float;
 
 in vec2 pos;
 in vec2 texCoord;

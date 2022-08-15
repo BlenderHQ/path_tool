@@ -1,5 +1,3 @@
-precision highp float;
-
 uniform sampler2D image;
 uniform vec4 viewportMetrics;
 

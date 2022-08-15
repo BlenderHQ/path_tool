@@ -11,6 +11,8 @@
 #
 
 from __future__ import annotations
+
+import os
 from typing import Literal
 import collections
 from enum import auto, IntFlag
@@ -46,6 +48,7 @@ from gpu.types import GPUBatch
 from gpu_extras.batch import batch_for_shader
 
 from .lib import bhqab
+
 from . import __package__ as addon_pkg
 
 HARDCODED_APPLY_KMI = ('SPACE', 'PRESS', False, False, False)
@@ -530,7 +533,8 @@ class MESH_OT_select_path(Operator):
     _drag_elem: None | BMVert | BMFace
     _just_closed_path: bool
 
-    gpu_draw_framework: bhqab.gpu_extras.GPUDrawFramework
+    gpu_shaders: dict[str, gpu.types.GPUShader]
+    gpu_draw_framework: bhqab.gpu_extras.DrawFramework
     gpu_handles: list
 
     undo_history: collections.deque[tuple[int, tuple[Path]]]
@@ -734,14 +738,14 @@ class MESH_OT_select_path(Operator):
 
             batch = None
             if cls.prior_ts_msm[1]:  # Edge mesh select mode
-                shader = bhqab.gpu_extras.shader.path_edge
+                shader = cls.gpu_shaders["path_edge"]
                 coord = []
                 for edge in fill_seq:
                     coord.extend([vert.co for vert in edge.verts])
                 batch = batch_for_shader(shader, 'LINES', dict(Coord=coord))
 
             elif cls.prior_ts_msm[2]:  # Faces mesh select mode
-                shader = bhqab.gpu_extras.shader.path_face
+                shader = cls.gpu_shaders["path_face"]
                 batch, _ = cls._gpu_gen_batch_faces_seq(fill_seq, False, shader)
 
             path.batch_seq_fills[fill_index] = batch
@@ -866,9 +870,9 @@ class MESH_OT_select_path(Operator):
 
     @classmethod
     def _gpu_gen_batch_control_elements(cls, is_active, path):
-        shader = bhqab.gpu_extras.shader.cp_vert
+        shader = cls.gpu_shaders["cp_vert"]
         if cls.prior_ts_msm[2]:
-            shader = bhqab.gpu_extras.shader.cp_face
+            shader = cls.gpu_shaders["cp_face"]
 
         r_batch = None
         r_active_elem_start_index = 0
@@ -892,23 +896,21 @@ class MESH_OT_select_path(Operator):
             SpaceView3D.draw_handler_remove(handle, 'WINDOW')
         cls.gpu_handles.clear()
 
-    @staticmethod
-    def _gpu_draw_callback() -> None:
-        cls = MESH_OT_select_path
-
+    @classmethod
+    def _gpu_draw_callback(cls: MESH_OT_select_path) -> None:
         addon_pref = bpy.context.preferences.addons[addon_pkg].preferences
 
         draw_list: list[Path] = [_ for _ in cls.path_arr if _ != cls.active_path]
         draw_list.append(cls.active_path)
 
         # if cls.prior_ts_msm[1]:
-        shader_ce = bhqab.gpu_extras.shader.cp_vert
+        shader_ce = cls.gpu_shaders["cp_vert"]
         if cls.prior_ts_msm[2]:
-            shader_ce = bhqab.gpu_extras.shader.cp_face
+            shader_ce = cls.gpu_shaders["cp_face"]
 
-        shader_path = bhqab.gpu_extras.shader.path_edge
+        shader_path = cls.gpu_shaders["path_edge"]
         if cls.prior_ts_msm[2]:
-            shader_path = bhqab.gpu_extras.shader.path_face
+            shader_path = cls.gpu_shaders["path_face"]
 
         view_resolution = gpu.state.viewport_get()[2:]
 
@@ -924,7 +926,7 @@ class MESH_OT_select_path(Operator):
                 view_resolution = gpu.state.viewport_get()[2:]
 
                 with gpu.matrix.push_pop():
-                    gpu.state.line_width_set(addon_pref.line_width * cls.gpu_draw_framework.res_mult)
+                    gpu.state.line_width_set(addon_pref.line_width)
                     gpu.state.blend_set('ALPHA_PREMULT')
                     gpu.state.face_culling_set('NONE')
 
@@ -951,8 +953,7 @@ class MESH_OT_select_path(Operator):
                                 shader_path.uniform_float("ModelMatrix", path.ob.matrix_world)
                                 shader_path.uniform_float("ColorPath", color_path)
                                 shader_path.uniform_sampler("OriginalViewDepthMap", original_view_depth_map)
-                                shader_path.uniform_float(
-                                    "viewportMetrics", cls.gpu_draw_framework.viewport_metrics)
+                                shader_path.uniform_float("viewportMetrics", cls.gpu_draw_framework.viewport_metrics)
                                 batch.draw(shader_path)
 
                         shader_ce.bind()
@@ -1292,13 +1293,10 @@ class MESH_OT_select_path(Operator):
             SpaceView3D.draw_handler_add(self._gpu_draw_callback, tuple(), 'WINDOW', 'POST_VIEW'),
         ]
 
-        cls.gpu_draw_framework = bhqab.gpu_extras.GPUDrawFramework(
-            num_offscreens=1,
-            smaa_preset=addon_pref.smaa_preset,
-            fxaa_preset=addon_pref.fxaa_preset,
-            fxaa_value=addon_pref.fxaa_value,
-            res_mult=addon_pref.res_mult,
+        cls.gpu_shaders = bhqab.gpu_extras.eval_shaders_dict(
+            dir_path=os.path.join(os.path.dirname(__file__), "data", "shaders")
         )
+        cls.gpu_draw_framework = bhqab.gpu_extras.DrawFramework()
 
         wm.modal_handler_add(self)
         self.modal(context, event)
@@ -1436,218 +1434,91 @@ class MESH_OT_select_path(Operator):
             cls._cancel_all_instances(context)
             return {'CANCELLED'}
 
-        cls.gpu_draw_framework.smaa_preset = addon_pref.smaa_preset
-        cls.gpu_draw_framework.fxaa_preset = addon_pref.fxaa_preset
-        cls.gpu_draw_framework.fxaa_value = addon_pref.fxaa_value
-        cls.gpu_draw_framework.res_mult = addon_pref.res_mult
+        cls.gpu_draw_framework.aa = addon_pref.aa_method
+        if addon_pref.aa_method == 'FXAA':
+            cls.gpu_draw_framework.aa.preset = addon_pref.fxaa_preset
+            cls.gpu_draw_framework.aa.value = addon_pref.fxaa_value
+        elif addon_pref.aa_method == 'SMAA':
+            cls.gpu_draw_framework.aa.preset = addon_pref.smaa_preset
 
         return {'RUNNING_MODAL'}
 
     @classmethod
     def _eval_final_element_indices_arrays(cls) -> None:
-        for ob, _bm in cls.bm_arr:
-            cls.exec_select_arr[ob] = list()
-            cls.exec_markup_arr[ob] = list()
+        cls.exec_select_arr = dict()
+        cls.exec_markup_arr = dict()
 
-            _exec_select_arr: list[list[int, set[int]]] = list()
+        for ob, _bm in cls.bm_arr:
+            index_select_seq = []
+            index_markup_seq = []
 
             for path in cls.path_arr:
-                _indices_select: set[int] = set()
-                _indices_markup: set[int] = set()
-
                 if path.ob == ob:
-                    fills = path.fill_elements
-                    if cls.prior_ts_msm[2]:
-                        fills += [path.control_elements, ]
-
-                    for fill in fills:
-                        _indices_select |= set((_.index for _ in fill))
-
-                        if cls.prior_ts_msm[1]:
-                            _indices_markup = _indices_select
-                        elif cls.prior_ts_msm[2]:
-                            for face in fill:
-                                face: BMFace
-
-                                _indices_markup |= set((_.index for _ in face.edges))
-
-                    # Determine path's active element
-                    active_index = path.control_elements[-1].index
-                    # For edges selection mode, would be determined edge which exists in last fill from active control
-                    # element of the path.
-                    if cls.prior_ts_msm[1]:
-                        fill = path.fill_elements[-2]
-                        for edge in path.control_elements[-1].link_edges:
-                            if edge in fill:
-                                active_index = edge.index
-
-                    # Check intersections with other paths which was evaluated previously
-                    if _exec_select_arr:
-                        other_select_arr_i = 0
-                        while other_select_arr_i < len(_exec_select_arr):
-                            if _indices_select & _exec_select_arr[other_select_arr_i][1]:
-                                _exec_select_arr[other_select_arr_i][1] |= _indices_select
-                                other_select_arr_i = len(_exec_select_arr)  # break
-                            else:
-                                other_select_arr_i += 1
-                    else:
-                        _exec_select_arr.append([active_index, _indices_select])
-
-            for active_index, _indices_select in _exec_select_arr:
-                cls.exec_select_arr[ob].append(tuple(_indices_select) + (active_index,))
-            # _exec_select_arr: list[set[int]] = list()
-
-            # for path in cls.path_arr:
-            #     indices_select: set[int] = set()
-            #     indices_markup: set[int] = set()
-
-            #     if path.ob == ob:
-            #         fills = path.fill_elements
-            #         if cls.prior_ts_msm[2]:
-            #             fills += [path.control_elements, ]
-
-            #         for fill in fills:
-            #             indices_select |= set((_.index for _ in fill))
-
-            #             if cls.prior_ts_msm[2]:
-            #                 for face in fill:
-            #                     indices_markup |= set(_.index for _ in face.edges)
-
-            #         is_intersecting = False
-
-            #         for i, indices in enumerate(_exec_select_arr):
-            #             if indices_select & indices:
-            #                 _exec_select_arr[i] |= indices_select
-            #                 is_intersecting = True
-            #                 break
-
-            #         if not is_intersecting:
-            #             _exec_select_arr.append(indices_select)
-
-            #             if cls.prior_ts_msm[1]:
-            #                 indices_markup = indices_select
-
-            #             active_index = path.control_elements[-1].index
-            #             if cls.prior_ts_msm[1]:
-            #                 fill = path.fill_elements[-2]
-            #                 for edge in path.control_elements[-1].link_edges:
-            #                     if edge in fill:
-            #                         active_index = edge.index
-
-            #             indices_select.remove(active_index)
-
-            #             cls.exec_select_arr[ob].append(tuple(indices_select) + (active_index,))
-            #             cls.exec_markup_arr[ob].append(tuple(indices_markup))
+                    for fill_seq in path.fill_elements:
+                        index_select_seq.extend([_.index for _ in fill_seq])
+                    if cls.prior_ts_msm[1]:  # Edges
+                        index_markup_seq = index_select_seq
+                    if cls.prior_ts_msm[2]:  # Faces
+                        # For face selection mode control elements are required too
+                        index_select_seq.extend([face.index for face in path.control_elements])
+                        tmp = path.fill_elements
+                        tmp.append(path.control_elements)
+                        for fill_seq in tmp:
+                            for face in fill_seq:
+                                index_markup_seq.extend([e.index for e in face.edges])
+                # Remove duplicates
+                cls.exec_select_arr[ob] = list(dict.fromkeys(index_select_seq))
+                cls.exec_markup_arr[ob] = list(dict.fromkeys(index_markup_seq))
 
         cls._update_meshes()
 
     def execute(self, context: Context):
         cls = self.__class__
-
         ts = context.tool_settings
         props = context.window_manager.select_path
-
         ts.mesh_select_mode = cls.prior_ts_msm
         cls._eval_meshes(context)
         cls.initial_select = cls._get_selected_elements(cls.prior_mesh_elements)
 
         for ob, bm in cls.bm_arr:
-            elem_seq = getattr(bm, cls.prior_mesh_elements)
+            if props.mark_select != 'NONE':
+                index_select_seq = cls.exec_select_arr[ob]
+                elem_seq = bm.edges
+                if cls.prior_ts_msm[2]:
+                    elem_seq = bm.faces
+                if props.mark_select == 'EXTEND':
+                    for i in index_select_seq:
+                        elem_seq[i].select_set(True)
+                elif props.mark_select == 'SUBTRACT':
+                    for i in index_select_seq:
+                        elem_seq[i].select_set(False)
+                elif props.mark_select == 'INVERT':
+                    for i in index_select_seq:
+                        elem_seq[i].select_set(not elem_seq[i].select)
 
-            if ob in cls.exec_select_arr:
-                select_indices: tuple[int] = tuple()
-                # markup_indices: tuple[int] = tuple()
+            index_markup_seq = cls.exec_markup_arr[ob]
+            elem_seq = bm.edges
+            if props.mark_seam != 'NONE':
+                if props.mark_seam == 'MARK':
+                    for i in index_markup_seq:
+                        elem_seq[i].seam = True
+                elif props.mark_seam == 'CLEAR':
+                    for i in index_markup_seq:
+                        elem_seq[i].seam = False
+                elif props.mark_seam == 'TOGGLE':
+                    for i in index_markup_seq:
+                        elem_seq[i].seam = not elem_seq[i].seam
 
-                for i in range(len(cls.exec_select_arr[ob])):
-                    index_select_seq = cls.exec_select_arr[ob][i]
-                    # index_markup_seq = cls.exec_markup_arr[ob][i]
-                    if (props.skip
-                        and (props.mark_select != 'NONE'
-                             or props.mark_seam != 'NONE'
-                             or props.mark_sharp != 'NONE')):
+            if props.mark_sharp != 'NONE':
+                if props.mark_sharp == 'MARK':
+                    for i in index_markup_seq:
+                        elem_seq[i].smooth = False
+                elif props.mark_sharp == 'CLEAR':
+                    for i in index_markup_seq:
+                        elem_seq[i].smooth = True
+                elif props.mark_sharp == 'TOGGLE':
+                    for i in index_markup_seq:
+                        elem_seq[i].smooth = not elem_seq[i].smooth
 
-                        bpy.ops.mesh.select_all(action='DESELECT')
-
-                        bm.select_history.clear()
-                        for i in index_select_seq:
-                            elem_seq[i].select_set(True)
-
-                        active_elem = elem_seq[index_select_seq[-1]]
-                        bm.select_history.add(active_elem)
-
-                        bpy.ops.mesh.select_nth('EXEC_DEFAULT', skip=props.skip, nth=props.nth, offset=props.offset)
-
-                        select_indices += tuple(
-                            (_.index for _ in cls._get_selected_elements(cls.prior_mesh_elements))
-                        )
-
-                    else:
-                        select_indices += index_select_seq
-        #                 #markup_indices += index_markup_seq
-        # #             # if ob in cls.exec_active_arr:
-        # #             #     active_elem = elem_seq[cls.exec_active_arr[ob]]
-        # #             #     bm.select_history.clear()
-        # #             #     active_elem.select_set(True)
-        # #             #     bm.select_history.add(active_elem)
-        # #             #     bm.select_flush(True)
-        # #             bpy.ops.mesh.select_nth('EXEC_DEFAULT', skip=props.skip, nth=props.nth, offset=props.offset)
-
-        # #             index_select_seq = tuple(
-        # #                 (n.index for n in cls._get_selected_elements(cls.prior_mesh_elements))
-        # #             )
-        # #             index_markup_seq = index_select_seq
-        # #             if cls.prior_ts_msm[2]:
-        # #                 index_markup_seq = tuple(
-        # #                     (n.index for n in cls._get_selected_elements("edges"))
-        # #                 )
-
-        # #             bpy.ops.mesh.select_all(action='DESELECT')
-        # #             cls._set_selection_state(cls.initial_select, True)
-
-        # #             cls._update_meshes()
-
-            bpy.ops.mesh.select_all(action='DESELECT')
-            cls._set_selection_state(cls.initial_select, True)
-
-            if props.mark_select == 'EXTEND':
-                for i in select_indices:
-                    elem_seq[i].select_set(True)
-            elif props.mark_select == 'SUBTRACT':
-                for i in select_indices:
-                    elem_seq[i].select_set(False)
-            elif props.mark_select == 'INVERT':
-                for i in select_indices:
-                    elem_seq[i].select_set(not elem_seq[i].select)
-
-            # Set active element
-            bm.select_history.clear()
-            active_elem = elem_seq[index_select_seq[-1]]
-            if active_elem.select:
-                bm.select_history.add(active_elem)
-
-        # if ob in cls.exec_markup_arr:
-        #     elem_seq = bm.edges
-        #     if props.mark_seam != 'NONE':
-        #         if props.mark_seam == 'MARK':
-        #             for i in markup_indices:
-        #                 elem_seq[i].seam = True
-        #         elif props.mark_seam == 'CLEAR':
-        #             for i in markup_indices:
-        #                 elem_seq[i].seam = False
-        #         elif props.mark_seam == 'TOGGLE':
-        #             for i in markup_indices:
-        #                 elem_seq[i].seam = not elem_seq[i].seam
-
-        #     if props.mark_sharp != 'NONE':
-        #         if props.mark_sharp == 'MARK':
-        #             for i in markup_indices:
-        #                 elem_seq[i].smooth = False
-        #         elif props.mark_sharp == 'CLEAR':
-        #             for i in markup_indices:
-        #                 elem_seq[i].smooth = True
-        #         elif props.mark_sharp == 'TOGGLE':
-        #             for i in markup_indices:
-        #                 elem_seq[i].smooth = not elem_seq[i].smooth
-
-        # cls._update_meshes()
+        self._update_meshes()
         return {'FINISHED'}

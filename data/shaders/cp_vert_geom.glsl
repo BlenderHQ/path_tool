@@ -9,7 +9,7 @@ uniform int ActiveControlElementIndex;
 uniform float DiskRadius;
 
 out flat int IsActive;
-out vec4 FragCoord;
+out vec2 v_coord;
 
 /* Disk R=1 triangle strip */
 const vec2 _DiskR1Coord[] = vec2[](
@@ -32,13 +32,13 @@ const vec2 _DiskR1Coord[] = vec2[](
 void main()
 {
     vec4 _Center = vec4(gl_in[0].gl_Position.xyz / gl_in[0].gl_Position.w, 1.0f);
+
+    v_coord = (2.0 * (gl_in[0].gl_Position.xy / gl_in[0].gl_Position.w * viewportMetrics.xy) - 1.0);
     
     IsActive = (gl_PrimitiveIDIn < ActiveControlElementIndex) ? 0 : 1;
     
-    const float _ViewAspect = viewportMetrics.z / viewportMetrics.w;
-    
     for (int i = 0; i < 12; ++i) {
-        gl_Position = _Center + vec4(_DiskR1Coord[i].xy * vec2(1.0f, _ViewAspect) * (DiskRadius * 1e-3), 0.0f, 0.0f);
+        gl_Position = _Center + vec4(_DiskR1Coord[i].xy * viewportMetrics.xy * DiskRadius, 0.0f, 0.0f);
         EmitVertex();
     }
 

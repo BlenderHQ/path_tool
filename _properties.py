@@ -100,9 +100,11 @@ class WindowManagerProperties(PropertyGroup):
         layout.row().prop(self, "mark_select", text="Select", icon_only=True, expand=True)
         layout.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
         layout.row().prop(self, "mark_sharp", text="Sharp", icon_only=True, expand=True)
-        layout.prop(self, "skip")
-        layout.prop(self, "nth")
-        layout.prop(self, "offset")
+
+        # TODO: Add native operator stepping options.
+        #layout.prop(self, "skip")
+        #layout.prop(self, "nth")
+        #layout.prop(self, "offset")
 
     def ui_draw_func_runtime(self, layout: UILayout) -> None:
         row = layout.row(align=True)

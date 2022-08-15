@@ -176,10 +176,10 @@ class Preferences(AddonPreferences):
         description="Show standard presets in the preset menu",
     )
 
-    smaa_preset: bhqab.gpu_extras.GPUDrawFramework.prop_smaa_preset_enum
-    fxaa_preset: bhqab.gpu_extras.GPUDrawFramework.prop_fxaa_preset_enum
-    fxaa_value: bhqab.gpu_extras.GPUDrawFramework.prop_fxaa_value
-    res_mult: bhqab.gpu_extras.GPUDrawFramework.prop_res_mult
+    aa_method: bhqab.gpu_extras.DrawFramework.prop_aa_method
+    fxaa_preset: bhqab.gpu_extras.FXAA.prop_preset
+    fxaa_value: bhqab.gpu_extras.FXAA.prop_value
+    smaa_preset: bhqab.gpu_extras.SMAA.prop_preset
 
     def draw(self, context: Context) -> None:
         layout: UILayout = self.layout
@@ -206,14 +206,19 @@ class Preferences(AddonPreferences):
             col.prop(self, "point_size")
             col.prop(self, "line_width")
             col.separator()
-            col.prop(self, "fxaa_preset")
-            scol = col.column(align=True)
-            scol.enabled = (self.fxaa_preset not in {'NONE', 'ULTRA'})
-            scol.prop(self, "fxaa_value")
-            col.separator()
-            col.prop(self, "smaa_preset")
-            col.separator()
-            col.prop(self, "res_mult")
+
+            row = col.row(align=True)
+            row.prop(self, "aa_method", expand=True)
+
+            if self.aa_method == 'FXAA':
+                col.prop(self, "fxaa_preset")
+                scol = col.column(align=True)
+                scol.enabled = (self.fxaa_preset not in {'NONE', 'ULTRA'})
+                scol.prop(self, "fxaa_value")
+            elif self.aa_method == 'SMAA':
+                col.prop(self, "smaa_preset")
+            else:
+                col.label(text="Unknown Anti-Aliasing Method.")
 
         elif self.tab == 'KEYMAP':
             bhqab.utils_ui.template_tool_keymap(context, layout, "3D View Tool: Edit Mesh, Select Path")
@@ -254,7 +259,6 @@ def register():
     _cls_register()
     WindowManager.select_path = PointerProperty(type=_properties.WindowManagerProperties)
     bpy.utils.register_tool(PathToolMesh, after={"builtin.select_lasso"}, separator=False, group=False)
-    bhqab.gpu_extras.shader.generate_shaders(os.path.join(os.path.dirname(__file__), "data", "shaders"))
 
 
 def unregister():
