@@ -35,3 +35,11 @@ When you click on the next mesh element, a new control element will be added and
 Work with several Path's is also supported. To create a new Path, you can use the shortcut displayed in the status bar. When you do this, a new control element independent of the first Path will be created and the work will continue in the already familiar way.
 
 There are also some interesting points - different Paths can interact. If the control at the beginning or end of one Path is moved to the beginning or end of another Path, these Paths will merge into one. If the control is not finite then the paths will not be merged. Instead, all the control elements of all the paths that are on the same element of the mesh, in the same place, can be moved together, they seem to stick together
+
+# Release Log
+
+## Version 3.2
+
+* Added support for work in all viewports as well as in all open Blender windows - now there is no binding to a specific viewport in the specific window in which the work was started.
+
+* Added support for anti-aliasing SSAA, FXAA, SMAA, with configurable options. They are performed sequentially - that is, you can enable only some of these methods for finer tuning on your hardware.

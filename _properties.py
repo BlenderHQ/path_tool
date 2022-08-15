@@ -15,6 +15,8 @@ from bpy.props import (
 )
 from bl_operators.presets import AddPresetBase
 
+from . import __package__ as addon_pkg
+
 
 class WindowManagerProperties(PropertyGroup):
     mark_select: EnumProperty(
@@ -98,11 +100,17 @@ class WindowManagerProperties(PropertyGroup):
         layout.row().prop(self, "mark_select", text="Select", icon_only=True, expand=True)
         layout.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
         layout.row().prop(self, "mark_sharp", text="Sharp", icon_only=True, expand=True)
-        layout.prop(self, "skip")
-        layout.prop(self, "nth")
-        layout.prop(self, "offset")
+
+        # TODO: Add native operator stepping options.
+        #layout.prop(self, "skip")
+        #layout.prop(self, "nth")
+        #layout.prop(self, "offset")
 
     def ui_draw_func_runtime(self, layout: UILayout) -> None:
+        row = layout.row(align=True)
+        row.label(text="Tool Settings")
+
+        row.operator("preferences.addon_show", icon='TOOL_SETTINGS', emboss=False).module = addon_pkg
         self.ui_draw_func(layout)
         layout.prop(self, "use_topology_distance")
 
@@ -159,13 +167,16 @@ class MESH_MT_select_path_presets(Menu):
     preset_operator = "script.execute_preset"
 
     def draw(self, context):
+        addon_pref = context.preferences.addons[addon_pkg].preferences
         layout = self.layout
         layout.operator(WM_OT_select_path_presets.bl_idname, text="Restore Operator Defaults").preset = 'DEFAULTS'
         layout.separator()
         Menu.draw_preset(self, context)
-        layout.separator()
-        layout.operator(WM_OT_select_path_presets.bl_idname, text="Topology UV").preset = 'TOPOLOGY_UV'
-        layout.operator(WM_OT_select_path_presets.bl_idname, text="Topology Sharp").preset = 'TOPOLOGY_SHARP'
+
+        if addon_pref.default_presets:
+            layout.separator()
+            layout.operator(WM_OT_select_path_presets.bl_idname, text="Topology UV").preset = 'TOPOLOGY_UV'
+            layout.operator(WM_OT_select_path_presets.bl_idname, text="Topology Sharp").preset = 'TOPOLOGY_SHARP'
 
 
 class MESH_OT_select_path_preset_add(AddPresetBase, Operator):

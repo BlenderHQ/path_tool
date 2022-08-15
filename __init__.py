@@ -17,8 +17,8 @@
 bl_info = {
     "name": "Path Tool",
     "author": "Vlad Kuzmin (ssh4), Ivan Perevala (ivpe)",
-    "version": (3, 0, 0),
-    "blender": (3, 1, 0),
+    "version": (3, 2, 0),
+    "blender": (3, 2, 0),
     "location": "Toolbar",
     "description": "Tool for selecting and marking up mesh object elements",
     "category": "Mesh",
@@ -48,9 +48,10 @@ from bpy.props import (
     FloatVectorProperty,
     IntProperty,
     PointerProperty,
+    BoolProperty,
 )
 
-from . import bhqab
+from .lib import bhqab
 from . import _path_tool
 from . import _properties
 
@@ -61,7 +62,6 @@ class Preferences(AddonPreferences):
     __slots__ = (
         "tab",
         "color_control_element",
-        "color_active_path_control_element",
         "color_active_control_element",
         "color_path",
         "color_active_path",
@@ -81,22 +81,13 @@ class Preferences(AddonPreferences):
     )
 
     color_control_element: FloatVectorProperty(
-        default=(0.622574, 0.685957, 0.666101),
+        default=(0.8, 0.8, 0.8),
         subtype='COLOR',
         size=3,
         min=0.0,
         max=1.0,
+        options={'HIDDEN', 'SKIP_SAVE'},
         name="Control Element",
-        description="Control element color",
-    )
-
-    color_active_path_control_element: FloatVectorProperty(
-        default=(0.969922, 0.969922, 0.969922),
-        subtype='COLOR',
-        size=3,
-        min=0.0,
-        max=1.0,
-        name="Active Path Control Element",
         description="Control element color",
     )
 
@@ -106,57 +97,62 @@ class Preferences(AddonPreferences):
         size=3,
         min=0.0,
         max=1.0,
+        options={'HIDDEN', 'SKIP_SAVE'},
         name="Active Control Element",
-        description="Control element color",
+        description="Color of active control element",
     )
 
     color_path: FloatVectorProperty(
-        default=(0.0, 0.7, 1.0),
+        default=(0.593397, 0.708376, 0.634955),
         subtype='COLOR',
         size=3,
         min=0.0,
         max=1.0,
+        options={'HIDDEN', 'SKIP_SAVE'},
         name="Path",
-        description="Path color",
+        description="Regular path color",
     )
 
     color_path_topology: FloatVectorProperty(
-        default=(0.0, 0.9, 0.5),
+        default=(1.0, 0.952328, 0.652213),
         subtype='COLOR',
         size=3,
         min=0.0,
         max=1.0,
+        options={'HIDDEN', 'SKIP_SAVE'},
         name="Topology Path",
-        description="Color of path",
+        description="Color of paths which uses topology calculation method",
     )
 
     color_active_path: FloatVectorProperty(
-        default=(1.0, 0.1, 0.1),
+        default=(0.304987, 0.708376, 0.450786),
         subtype='COLOR',
         size=3,
         min=0.0,
         max=1.0,
+        options={'HIDDEN', 'SKIP_SAVE'},
         name="Active Path",
-        description="Path color",
+        description="Active path color",
     )
 
     color_active_path_topology: FloatVectorProperty(
-        default=(1.0, 0.8, 0.1),
+        default=(1.0, 0.883791, 0.152213),
         subtype='COLOR',
         size=3,
         min=0.0,
         max=1.0,
+        options={'HIDDEN', 'SKIP_SAVE'},
         name="Active Topology Path",
-        description="Path color",
+        description="Color of active path which uses topology calculation method",
     )
 
     point_size: IntProperty(
-        default=4,
-        min=1,
-        max=9,
-        soft_min=3,
-        soft_max=6,
-        subtype='PIXEL',
+        default=3,
+        min=0,
+        max=50,
+        soft_max=20,
+        subtype='FACTOR',
+        options={'HIDDEN', 'SKIP_SAVE'},
         name="Vertex Size",
         description="",
     )
@@ -168,9 +164,22 @@ class Preferences(AddonPreferences):
         soft_min=3,
         soft_max=6,
         subtype='PIXEL',
+        options={'HIDDEN', 'SKIP_SAVE'},
         name="Edge Width",
         description="",
     )
+
+    default_presets: BoolProperty(
+        default=True,
+        options={'HIDDEN', 'SKIP_SAVE'},
+        name="Default Presets",
+        description="Show standard presets in the preset menu",
+    )
+
+    aa_method: bhqab.gpu_extras.DrawFramework.prop_aa_method
+    fxaa_preset: bhqab.gpu_extras.FXAA.prop_preset
+    fxaa_value: bhqab.gpu_extras.FXAA.prop_value
+    smaa_preset: bhqab.gpu_extras.SMAA.prop_preset
 
     def draw(self, context: Context) -> None:
         layout: UILayout = self.layout
@@ -183,16 +192,33 @@ class Preferences(AddonPreferences):
         if self.tab == 'APPEARANCE':
             col = layout.column(align=True)
 
+            col.prop(self, "default_presets")
+            col.separator()
             col.prop(self, "color_control_element")
-            col.prop(self, "color_active_path_control_element")
             col.prop(self, "color_active_control_element")
+            col.separator()
             col.prop(self, "color_path")
             col.prop(self, "color_active_path")
+            col.separator()
             col.prop(self, "color_path_topology")
             col.prop(self, "color_active_path_topology")
             col.separator()
             col.prop(self, "point_size")
             col.prop(self, "line_width")
+            col.separator()
+
+            row = col.row(align=True)
+            row.prop(self, "aa_method", expand=True)
+
+            if self.aa_method == 'FXAA':
+                col.prop(self, "fxaa_preset")
+                scol = col.column(align=True)
+                scol.enabled = (self.fxaa_preset not in {'NONE', 'ULTRA'})
+                scol.prop(self, "fxaa_value")
+            elif self.aa_method == 'SMAA':
+                col.prop(self, "smaa_preset")
+            else:
+                col.label(text="Unknown Anti-Aliasing Method.")
 
         elif self.tab == 'KEYMAP':
             bhqab.utils_ui.template_tool_keymap(context, layout, "3D View Tool: Edit Mesh, Select Path")
@@ -205,7 +231,7 @@ class PathToolMesh(WorkSpaceTool):
     bl_context_mode = 'EDIT_MESH'
     bl_options = {}
     bl_description = "Select items using editable pathes"
-    bl_icon = os.path.join(os.path.dirname(__file__), "icons", "ops.mesh.path_tool")
+    bl_icon = os.path.join(os.path.dirname(__file__), "data", "ops.mesh.path_tool")
     bl_keymap = ((_path_tool.MESH_OT_select_path.bl_idname, dict(type='LEFTMOUSE', value='PRESS',), None),)
 
     @staticmethod
@@ -233,7 +259,6 @@ def register():
     _cls_register()
     WindowManager.select_path = PointerProperty(type=_properties.WindowManagerProperties)
     bpy.utils.register_tool(PathToolMesh, after={"builtin.select_lasso"}, separator=False, group=False)
-    bhqab.gpu_extras.shader.generate_shaders(os.path.join(os.path.dirname(__file__), "shaders"))
 
 
 def unregister():
