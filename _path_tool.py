@@ -1,15 +1,3 @@
-##
-# Path Tool Addon code notes.
-#
-# Below is the operator code and everything it uses to work.
-#
-# - The operator uses a class as a store for properties, this makes it possible to operate the operator without binding
-# to the program window in which it was launched (as it was in previous versions). Here the algorithm is quite
-# simple - the first launched instance of the operator in any of the windows will launch it in all open windows, but
-# they will use the modal method of the first in the list of launched operators.
-#
-#
-
 from __future__ import annotations
 
 import os
@@ -34,7 +22,6 @@ from bpy.types import (
     UIPieMenu,
     Window,
 )
-from bpy.props import EnumProperty
 
 import bmesh
 from bmesh.types import (
@@ -172,6 +159,23 @@ class Path:
 
         self.flag = PathFlag(0)
 
+    def __repr__(self):
+        # NOTE: For dev purposes only
+        batch_seq_fills_formatted = []
+        for i, batch in enumerate(self.batch_seq_fills):
+            if batch:
+                batch_seq_fills_formatted.append("fb_%d" % i)
+                continue
+            batch_seq_fills_formatted.append(batch)
+
+        ["fb_%d" % i for i in range(len(self.batch_seq_fills))]
+        return "\nPath [id:%d]:\n    ce: %s\n    fe: %s\n    fb: %s" % (
+            id(self),
+            str([n.index for n in self.control_elements]),
+            str([len(n) for n in self.fill_elements]),
+            str(batch_seq_fills_formatted)
+        )
+
     def copy(self) -> Path:
         new_path = Path()
         new_path.control_elements = self.control_elements.copy()
@@ -184,76 +188,6 @@ class Path:
         new_path.flag = self.flag
 
         return new_path
-
-    def __add__(self, other: Path) -> Path:
-        if self.island_index == other.island_index:
-            is_found_merged_elements = False
-            for i in (0, -1):
-                elem = self.control_elements[i]
-                for j in (0, -1):
-                    other_elem = other.control_elements[j]
-                    if elem == other_elem:
-                        is_found_merged_elements = True
-
-                        if i == -1 and j == 0:
-                            # End-First
-                            self.control_elements.pop(-1)
-                            self.fill_elements.pop(-1)
-                            self.batch_seq_fills.pop(-1)
-
-                            self.control_elements.extend(other.control_elements)
-                            self.fill_elements.extend(other.fill_elements)
-                            self.batch_seq_fills.extend(other.batch_seq_fills)
-
-                        elif i == 0 and j == -1:
-                            # First-End
-                            self.control_elements.pop(0)
-
-                            other.fill_elements.pop(-1)
-                            other.batch_seq_fills.pop(-1)
-
-                            other.control_elements.extend(self.control_elements)
-                            other.fill_elements.extend(self.fill_elements)
-                            other.batch_seq_fills.extend(self.batch_seq_fills)
-
-                            self.control_elements = other.control_elements
-                            self.fill_elements = other.fill_elements
-                            self.batch_seq_fills = other.batch_seq_fills
-
-                        elif i == 0 and j == 0:
-                            # First-First
-                            self.control_elements.pop(0)
-
-                            other.control_elements.reverse()
-                            other.fill_elements.reverse()
-                            other.batch_seq_fills.reverse()
-
-                            other.fill_elements.pop(0)
-                            other.batch_seq_fills.pop(0)
-
-                            other.control_elements.extend(self.control_elements)
-                            other.fill_elements.extend(self.fill_elements)
-                            other.batch_seq_fills.extend(self.batch_seq_fills)
-
-                            self.control_elements = other.control_elements
-                            self.fill_elements = other.fill_elements
-                            self.batch_seq_fills = other.batch_seq_fills
-
-                        elif i == -1 and j == -1:
-                            # End-End
-                            other.reverse()
-                            self.control_elements.pop(-1)
-                            self.fill_elements.pop(-1)
-                            self.batch_seq_fills.pop(-1)
-
-                            self.control_elements.extend(other.control_elements)
-                            self.fill_elements.extend(other.fill_elements)
-                            self.batch_seq_fills.extend(other.batch_seq_fills)
-
-                if is_found_merged_elements:
-                    break
-
-        return self
 
     def reverse(self) -> Path:
         self.control_elements.reverse()
@@ -268,27 +202,27 @@ class Path:
 
         return self
 
-    def is_in_control_elements(self, elem):
+    def is_in_control_elements(self, elem: BMVert | BMFace) -> None | int:
         if elem in self.control_elements:
             return self.control_elements.index(elem)
 
-    def is_in_fill_elements(self, elem):
-        if isinstance(elem, bmesh.types.BMVert):
+    def is_in_fill_elements(self, elem: BMVert | BMFace) -> None | int:
+        if isinstance(elem, BMVert):
             for i, arr in enumerate(self.fill_elements):
-                arr: list[bmesh.types.BMEdge]
+                arr: list[BMEdge]
 
                 for edge in arr:
-                    edge: bmesh.types.BMEdge
+                    edge: BMEdge
 
                     for vert in edge.verts:
-                        vert: bmesh.types.BMVert
+                        vert: BMVert
                         if elem == vert:
                             return i
                 del arr
 
-        # elif isinstance(elem, bmesh.types.BMFace):
+        # elif isinstance(elem, BMFace):
         for i, arr in enumerate(self.fill_elements):
-            arr: list[bmesh.types.BMFace]
+            arr: list[BMFace]
 
             if elem in arr:
                 return i
@@ -302,7 +236,7 @@ class Path:
         elem_index = self.control_elements.index(elem)
         self.pop_control_element(elem_index)
 
-    def pop_control_element(self, elem_index):
+    def pop_control_element(self, elem_index: int) -> BMVert | BMFace:
         elem = self.control_elements.pop(elem_index)
         pop_index = elem_index - 1
         if elem_index == 0:
@@ -449,7 +383,8 @@ def __validate_context_action_items_display_symmetry_concept(bias: int = 1):
                   f"\t\"{r}\" {len(r)} characters\n")
 
 
-# NOTE: Uncomment next line to validate context action label symmetry:
+# TODO: (dev only) Uncomment next line to validate context action label symmetry if you change something in the context
+# menu:
 # __validate_context_action_items_display_symmetry_concept(bias=1)
 
 del __validate_context_action_items_display_symmetry_concept
@@ -460,11 +395,11 @@ class MESH_OT_select_path(Operator):
     bl_label = "Select Path"
     bl_options = {'REGISTER', 'UNDO', 'INTERNAL'}
 
-    instances: list[MESH_OT_select_path] = list()
+    windows: set[Window] = set()
 
     __slots__ = ()
 
-    context_action: EnumProperty(
+    context_action: bpy.props.EnumProperty(
         items=_context_action_items,
         default=set(),
         options={'ENUM_FLAG', 'HIDDEN', 'SKIP_SAVE'},
@@ -485,39 +420,31 @@ class MESH_OT_select_path(Operator):
 
     # Tool settings mesh select modes and mesh elements
     initial_ts_msm: tuple[int | bool, int | bool, int | bool]
-    """Initial tool settings mesh select mode with which operator was
-    initialized"""
+    """Initial tool settings mesh select mode with which operator was initialized"""
     initial_mesh_elements: Literal['edges', 'faces']
-    """Mesh elements attribute with which operator retrieves initially selected
-    mesh elements. If operator would run in faces mode, it would be ``"faces"``,
-    and ``"edges"`` otherwise"""
+    """Mesh elements attribute with which operator retrieves initially selected mesh elements. If operator would run in
+    faces mode, it would be ``"faces"``, and ``"edges"`` otherwise"""
 
     prior_ts_msm: tuple[int | bool, int | bool, int | bool]
-    """If operator was initialized with verts or edges tool settings mesh
-    selection mode flag enabled and faces flag disabled this attribute would be
-    set to ``(False, True, False)`` (edges selection only). If faces flag was
-    enabled (in any set of flags), it would be ``(False, False, True)``
-    (faces only)
+    """If operator was initialized with verts or edges tool settings mesh selection mode flag enabled and faces flag
+    disabled this attribute would be set to ``(False, True, False)`` (edges selection only). If faces flag was enabled
+    (in any set of flags), it would be ``(False, False, True)`` (faces only)
     """
     prior_mesh_elements: Literal['edges', 'faces']
-    """If operator was initialized with verts or edges tool settings mesh
-    selection mode flag enabled and faces flag disabled this attribute would be
-    set to ``"edges"`` (edge selection only). If faces flag was
-    enabled (in any set of flags), it would be ``"faces"`` (faces only)
+    """If operator was initialized with verts or edges tool settings mesh selection mode flag enabled and faces flag
+    disabled this attribute would be set to ``"edges"`` (edge selection only). If faces flag was enabled (in any set of
+    flags), it would be ``"faces"`` (faces only)
     """
 
     select_ts_msm: tuple[int | bool, int | bool, int | bool]
-    """If operator was initialized with verts or edges tool settings mesh
-    selection mode flag enabled and faces flag disabled this attribute would be
-    set to ``(True, False, False)`` (vertices selection only). If faces flag was
-    enabled (in any set of flags), it would be ``(False, False, True)``
-    (faces only)
+    """If operator was initialized with verts or edges tool settings mesh selection mode flag enabled and faces flag
+    disabled this attribute would be set to ``(True, False, False)`` (vertices selection only). If faces flag was
+    enabled (in any set of flags), it would be ``(False, False, True)`` (faces only)
     """
     select_mesh_elements: Literal['verts', 'faces']
-    """If operator was initialized with verts or edges tool settings mesh
-    selection mode flag enabled and faces flag disabled this attribute would be
-    set to ``"verts"`` (verts selection only). If faces flag was
-    enabled (in any set of flags), it would be ``"faces"`` (faces only)
+    """If operator was initialized with verts or edges tool settings mesh selection mode flag enabled and faces flag
+    disabled this attribute would be set to ``"verts"`` (verts selection only). If faces flag was enabled (in any set of
+    flags), it would be ``"faces"`` (faces only)
     """
 
     # Initial selected mesh elements
@@ -526,22 +453,21 @@ class MESH_OT_select_path(Operator):
     # BMesh elements caches
     bm_arr: tuple[tuple[Object, BMesh]]
 
-    path_arr: list[Path]
+    path_arr: list[Path] = list()
     mesh_islands: list[tuple[BMVert | BMEdge | BMFace]]
     drag_elem_indices: list[None | int]
-    _active_path_index: int
-    _drag_elem: None | BMVert | BMFace
-    _just_closed_path: bool
+    _active_path_index: int = 0
+    _drag_elem: None | BMVert | BMFace = None
+    _just_closed_path: bool = False
 
-    gpu_shaders: dict[str, gpu.types.GPUShader]
-    gpu_draw_framework: bhqab.gpu_extras.DrawFramework
-    gpu_handles: list
+    gpu_shaders: dict[str, gpu.types.GPUShader] = dict()
+    gpu_draw_framework: None | bhqab.gpu_extras.DrawFramework = None
+    gpu_handles: list = list()
 
     undo_history: collections.deque[tuple[int, tuple[Path]]]
     redo_history: collections.deque[tuple[int, tuple[Path]]]
 
     exec_select_arr: dict[Object, list[tuple[int]]]
-    exec_active_arr: dict[Object, list[tuple[int]]]
     exec_markup_arr: dict[Object, list[tuple[int]]]
 
     @staticmethod
@@ -570,7 +496,7 @@ class MESH_OT_select_path(Operator):
     @classmethod
     @property
     def active_path(cls) -> Path:
-        if cls._active_path_index <= len(cls.path_arr) - 1:
+        if len(cls.path_arr) - 1 > cls._active_path_index:
             return cls.path_arr[cls._active_path_index]
         return cls.path_arr[-1]
 
@@ -584,9 +510,7 @@ class MESH_OT_select_path(Operator):
             elem.select = state
 
     @staticmethod
-    def _get_interactive_ui_under_mouse(
-            context: Context,
-            event: Event) -> None | tuple[Area, Region, RegionView3D]:
+    def _get_interactive_ui_under_mouse(context: Context, event: Event) -> None | tuple[Area, Region, RegionView3D]:
         mx, my = event.mouse_x, event.mouse_y
 
         for area in bpy.context.window.screen.areas:
@@ -608,9 +532,9 @@ class MESH_OT_select_path(Operator):
                             return area, region, region_data
 
     @classmethod
-    def _get_element_by_mouse(cls, context: Context, event: Event) -> tuple[
-            None | BMVert | BMEdge | BMFace,
-            None | Object]:
+    def _get_element_by_mouse(cls, context: Context, event: Event) \
+            -> tuple[None | BMVert | BMEdge | BMFace, None | Object]:
+
         ts = context.tool_settings
         ts.mesh_select_mode = cls.select_ts_msm
 
@@ -622,10 +546,7 @@ class MESH_OT_select_path(Operator):
             area, region, region_data = ui
 
             with context.temp_override(window=bpy.context.window, area=area, region=region, region_data=region_data):
-                bpy.ops.view3d.select(
-                    'EXEC_DEFAULT',
-                    location=(event.mouse_x - region.x, event.mouse_y - region.y)
-                )
+                bpy.ops.view3d.select('EXEC_DEFAULT', location=(event.mouse_x - region.x, event.mouse_y - region.y))
 
         elem = None
         ob = None
@@ -781,22 +702,84 @@ class MESH_OT_select_path(Operator):
 
     def _join_adjacent_to_active_path(self) -> None:
         cls = self.__class__
-        for i, path in enumerate(cls.path_arr):
-            if (((i != cls._active_path_index)  # Skip active path itself
-                # Closed pathes can not be merged
-                 and (cls.active_path.flag ^ PathFlag.CLOSED and path.flag ^ PathFlag.CLOSED))
-                and (
-                    (cls.active_path.control_elements[0] == path.control_elements[0])  # Start to start
-                    or (cls.active_path.control_elements[-1] == path.control_elements[-1])  # End to end
-                    or (cls.active_path.control_elements[-1] == path.control_elements[0])  # End to start
-                    or (cls.active_path.control_elements[0] == path.control_elements[-1])  # Start to end
-            )):
-                cls.active_path += cls.path_arr.pop(i)
 
-                batch, _ = cls._gpu_gen_batch_control_elements(True, cls.active_path)
-                cls.active_path.batch_control_elements = batch
-                self.report(type={'INFO'}, message="Joined two paths")
-                break
+        if cls.active_path.flag ^ PathFlag.CLOSED:
+            l_path = cls.active_path
+
+            for i, r_path in enumerate(cls.path_arr):
+                if (
+                    i != cls._active_path_index
+                    and l_path.island_index == r_path.island_index
+                    and r_path.flag ^ PathFlag.CLOSED
+                ):
+
+                    is_joined = True
+
+                    # End-First
+                    if l_path.control_elements[-1] == r_path.control_elements[0]:
+                        l_path.control_elements.pop(-1)
+                        l_path.fill_elements.pop(-1)
+                        l_path.batch_seq_fills.pop(-1)
+
+                        l_path.control_elements.extend(r_path.control_elements)
+                        l_path.fill_elements.extend(r_path.fill_elements)
+                        l_path.batch_seq_fills.extend(r_path.batch_seq_fills)
+
+                    # First-End
+                    elif l_path.control_elements[0] == r_path.control_elements[-1]:
+                        l_path.control_elements.pop(0)
+
+                        r_path.fill_elements.pop(-1)
+                        r_path.batch_seq_fills.pop(-1)
+
+                        r_path.control_elements.extend(l_path.control_elements)
+                        r_path.fill_elements.extend(l_path.fill_elements)
+                        r_path.batch_seq_fills.extend(l_path.batch_seq_fills)
+
+                        l_path.control_elements = r_path.control_elements
+                        l_path.fill_elements = r_path.fill_elements
+                        l_path.batch_seq_fills = r_path.batch_seq_fills
+
+                    # First-First
+                    elif l_path.control_elements[-1] == r_path.control_elements[0]:
+                        l_path.control_elements.pop(0)
+
+                        r_path.control_elements.reverse()
+                        r_path.fill_elements.reverse()
+                        r_path.batch_seq_fills.reverse()
+
+                        r_path.fill_elements.pop(0)
+                        r_path.batch_seq_fills.pop(0)
+
+                        r_path.control_elements.extend(l_path.control_elements)
+                        r_path.fill_elements.extend(l_path.fill_elements)
+                        r_path.batch_seq_fills.extend(l_path.batch_seq_fills)
+
+                        l_path.control_elements = r_path.control_elements
+                        l_path.fill_elements = r_path.fill_elements
+                        l_path.batch_seq_fills = r_path.batch_seq_fills
+
+                    # End-End
+                    elif l_path.control_elements[-1] == r_path.control_elements[-1]:
+                        r_path.reverse()
+                        l_path.control_elements.pop(-1)
+                        l_path.fill_elements.pop(-1)
+                        l_path.batch_seq_fills.pop(-1)
+
+                        l_path.control_elements.extend(r_path.control_elements)
+                        l_path.fill_elements.extend(r_path.fill_elements)
+                        l_path.batch_seq_fills.extend(r_path.batch_seq_fills)
+                    else:
+                        is_joined = False
+
+                    if is_joined:
+                        cls.path_arr.remove(r_path)
+                        cls._active_path_index = cls.path_arr.index(cls.active_path)
+
+                        batch, cls.active_index = cls._gpu_gen_batch_control_elements(True, cls.active_path)
+                        cls.active_path.batch_control_elements = batch
+                        self.report(type={'INFO'}, message="Joined two paths")
+                        return
 
     @classmethod
     def _get_selected_elements(cls, mesh_elements: str) -> tuple[BMVert | BMEdge | BMFace]:
@@ -975,6 +958,7 @@ class MESH_OT_select_path(Operator):
                                   elem: None | BMVert | BMFace,
                                   ob: Object,
                                   interact_event: InteractEvent) -> None:
+
         cls = self.__class__
 
         props = context.window_manager.select_path
@@ -1049,7 +1033,7 @@ class MESH_OT_select_path(Operator):
             cls._just_closed_path = False
             self._interact_control_element(context, elem, ob, InteractEvent.ADD_CP)
             self.report(type={'INFO'}, message="Created new path")
-            return
+            # return
 
         elif elem and interact_event is InteractEvent.REMOVE_CP:
             cls._just_closed_path = False
@@ -1119,7 +1103,7 @@ class MESH_OT_select_path(Operator):
                 cls._update_fills_by_element_index(context, cls.active_path, j)
 
         elif interact_event is InteractEvent.RELEASE_PATH:
-            cls.drag_elem_indices = []
+            cls.drag_elem_indices.clear()
             cls._drag_elem = None
 
             for path in cls.path_arr:
@@ -1138,14 +1122,13 @@ class MESH_OT_select_path(Operator):
         cls = self.__class__
         wm = context.window_manager
 
-        if not cls.instances:
-
-            cls.instances.append(self)
+        if not cls.windows:
+            cls.windows.add(context.window)
 
             for window in wm.windows:
                 window: Window
 
-                if window != context.window:
+                if context.window != window:
                     for area in window.screen.areas:
                         area: Area
 
@@ -1154,10 +1137,16 @@ class MESH_OT_select_path(Operator):
                                 region: Region
 
                                 if region.type == 'WINDOW':
-                                    with context.temp_override(window=window, area=area, region=region):
-                                        bpy.ops.mesh.select_path('INVOKE_DEFAULT')
+                                    break
+                            else:
+                                continue
+                            break
+                    else:
+                        continue
+                    with context.temp_override(window=window, area=area, region=region):
+                        bpy.ops.mesh.select_path('INVOKE_DEFAULT')
+                        cls.windows.add(window)
         else:
-            cls.instances.append(self)
             wm.modal_handler_add(self)
             return {'RUNNING_MODAL'}
 
@@ -1231,7 +1220,7 @@ class MESH_OT_select_path(Operator):
         # ____________________________________________________________________ #
         # Initialize variables.
 
-        cls.path_arr = list()
+        cls.path_arr.clear()
         cls.mesh_islands = list()
         cls.drag_elem_indices = list()
 
@@ -1246,7 +1235,6 @@ class MESH_OT_select_path(Operator):
 
         cls.exec_select_arr = dict()
         cls.exec_markup_arr = dict()
-        cls.exec_active_arr = dict()
         # ____________________________________________________________________ #
         # Meshes context setup.
         # Evaluate meshes:
@@ -1281,8 +1269,7 @@ class MESH_OT_select_path(Operator):
         if num_elements_total == len(cls.initial_select) and props.mark_select == 'EXTEND':
             props.mark_select = 'NONE'
 
-        # Prevent first click empty space
-        elem, _ = cls._get_element_by_mouse(context, event)
+        elem, ob = cls._get_element_by_mouse(context, event)
         if not elem:
             cls._cancel_all_instances(context)
             return {'CANCELLED'}
@@ -1298,13 +1285,13 @@ class MESH_OT_select_path(Operator):
         )
         cls.gpu_draw_framework = bhqab.gpu_extras.DrawFramework()
 
+        self._interact_control_element(context, elem, ob, InteractEvent.ADD_NEW_PATH)
         wm.modal_handler_add(self)
-        self.modal(context, event)
         return {'RUNNING_MODAL'}
 
     @classmethod
     def _cancel_all_instances(cls, context: Context) -> None:
-        cls.instances.clear()
+        cls.windows.clear()
         ts = context.tool_settings
 
         ts.mesh_select_mode = cls.initial_ts_msm
@@ -1316,18 +1303,18 @@ class MESH_OT_select_path(Operator):
     def cancel(self, context: Context):
         cls = self.__class__
 
-        if self in cls.instances:
-            cls.instances.remove(self)
+        if context.window in cls.windows:
+            cls.windows.remove(context.window)
 
-        if not cls.instances:
+        if not cls.windows:
             cls._cancel_all_instances(context)
 
     def modal(self, context: Context, event: Event):
         cls = self.__class__
 
-        if cls.instances and cls.instances[0] != self:
-
-            return cls.instances[0].modal(context, event)
+        # Cancel execution of other instances if operator was cancelled
+        if not cls.windows:
+            return {'CANCELLED'}
 
         addon_pref = context.preferences.addons[addon_pkg].preferences
         ev = cls._pack_event(event)
@@ -1350,7 +1337,7 @@ class MESH_OT_select_path(Operator):
         ):
             self.context_action = set()
 
-            cls.instances.clear()
+            cls.windows.clear()
             cls._eval_final_element_indices_arrays()
             cls._gpu_remove_handles()
             STATUSBAR_HT_header.remove(cls._ui_draw_statusbar)
@@ -1420,7 +1407,7 @@ class MESH_OT_select_path(Operator):
             cls.is_mouse_pressed = False
             interact_event = InteractEvent.RELEASE_PATH
 
-        elif cls.is_mouse_pressed and ev[0] == 'MOUSEMOVE':
+        elif cls.is_mouse_pressed and ev[0] in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'}:
             interact_event = InteractEvent.DRAG_CP
 
         if interact_event is not None:
@@ -1440,6 +1427,9 @@ class MESH_OT_select_path(Operator):
             cls.gpu_draw_framework.aa.value = addon_pref.fxaa_value
         elif addon_pref.aa_method == 'SMAA':
             cls.gpu_draw_framework.aa.preset = addon_pref.smaa_preset
+
+        # NOTE: Use this print statement for debugging purposes.
+        # print(self.path_arr)
 
         return {'RUNNING_MODAL'}
 
