@@ -197,15 +197,11 @@ def template_tool_keymap(context: Context, layout: UILayout, km_name: str):
     :param km_name: Tool keymap name. For example, "3D View Tool: Edit Mesh, Path Tool"
     :type km_name: str
     """
-    is_any_drawn = False
     kc = context.window_manager.keyconfigs.user
     km = kc.keymaps.get(km_name)
     if km:
-        for kmi in km.keymap_items:
-            rna_keymap_ui.draw_kmi([], kc, km, kmi, layout, 0)
-            is_any_drawn = True
-
-    if not is_any_drawn:
+        rna_keymap_ui.draw_km([], kc, km, None, layout, 0)
+    else:
         layout.label(text=f"Not found keymap: \"{km_name}\"", icon='ERROR')
 
 

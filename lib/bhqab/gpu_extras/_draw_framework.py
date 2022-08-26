@@ -327,7 +327,7 @@ class DrawFramework:
 
             ibo = GPUIndexBuf(type='TRIS', seq=((0, 1, 2), (0, 2, 3)))
 
-            cls._batch = gpu.types.GPUBatch(type='TRIS', buf=vbo, elem=ibo)
+            cls._batch = GPUBatch(type='TRIS', buf=vbo, elem=ibo)
 
     def _eval_update(self):
         self._eval_offscreens()

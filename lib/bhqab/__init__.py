@@ -37,12 +37,5 @@ if "bpy" in locals():
 
 import bpy
 
-#try:
 from . import gpu_extras
-# except ImportError:
-#     pass
-
-try:
-    from . import utils_ui
-except ImportError:
-    pass
+from . import utils_ui
