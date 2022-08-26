@@ -6,6 +6,22 @@ The standard operator works great, but in terms of user experience, it could be 
 
 This addon is designed taking into account many points concerning the actual use of it in work tasks. The initial idea is quite simple - the operation of selecting the shortest path should be similar to working with the "Knife" tool.
 
+# Version 3.2.0
+
+* Added support for work in all view-ports as well as in all open Blender windows - now there is no binding to a specific viewport in the specific window in which the work was started.
+
+* Added support for anti-aliasing SSAA, FXAA, SMAA, with configurable options. They are performed sequentially - that is, you can enable only some of these methods for finer tuning on your hardware.
+
+* Changes to the operation logic of operator properties:
+    
+    * Added operator presets.
+
+    * The option to apply options to tool properties has been removed - now the tool properties and the properties of the current operator session are combined.
+
+    * Options in the pie menu reflect actions for the current path of the operator - it can be reversed, closed, etc. but operator options and access to addon preferences are in a separate submenu. An important change is that now it will not disappear after each tweak of the options.
+
+* Added option from standard operator "Topology distance". It can be enabled for each individual path and enabled by default for all new ones in the operator / tool options.
+
 # How To Use the Addon
 
 After installing the addon, next to the standard tools for selecting mesh elements ("Tweak", "Select Box", ...) will appear "Select Path" tool.
@@ -35,11 +51,3 @@ When you click on the next mesh element, a new control element will be added and
 Work with several Path's is also supported. To create a new Path, you can use the shortcut displayed in the status bar. When you do this, a new control element independent of the first Path will be created and the work will continue in the already familiar way.
 
 There are also some interesting points - different Paths can interact. If the control at the beginning or end of one Path is moved to the beginning or end of another Path, these Paths will merge into one. If the control is not finite then the paths will not be merged. Instead, all the control elements of all the paths that are on the same element of the mesh, in the same place, can be moved together, they seem to stick together
-
-# Release Log
-
-## Version 3.2
-
-* Added support for work in all viewports as well as in all open Blender windows - now there is no binding to a specific viewport in the specific window in which the work was started.
-
-* Added support for anti-aliasing SSAA, FXAA, SMAA, with configurable options. They are performed sequentially - that is, you can enable only some of these methods for finer tuning on your hardware.
