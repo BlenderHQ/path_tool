@@ -464,8 +464,6 @@ class SMAA(AABase):
                     ) for i in range(3))
         else:
             self._shaders = None
-            if SMAA.do_reset_on_none_preset:
-                self._cached_shader_code = None
 
     def _eval_update(self) -> None:
         self._eval_framework()
@@ -644,8 +642,6 @@ class FXAA(AABase):
                 )
         else:
             self._shader = None
-            if FXAA.do_reset_on_none_preset:
-                FXAA._cached_shader_code = None
 
     def draw(self, texture: GPUTexture) -> None | GPUTexture:
         self._eval_update()
