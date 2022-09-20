@@ -1,11 +1,23 @@
 from __future__ import annotations
-from typing import Iterable
+from enum import (
+    auto,
+    Enum,
+)
+from types import FunctionType
+from typing import (
+    Iterable,
+    Literal,
+)
 import random
 import string
+import importlib
+import atexit
 
 import bpy
 from bpy.types import (
     Context,
+    Event,
+    Operator,
     PropertyGroup,
     STATUSBAR_HT_header,
     UILayout,
@@ -14,6 +26,7 @@ from bpy.types import (
 from bpy.props import (
     BoolProperty,
     CollectionProperty,
+    EnumProperty,
     FloatProperty,
     IntProperty,
     StringProperty,
@@ -21,7 +34,6 @@ from bpy.props import (
 import blf
 import rna_keymap_ui
 from bl_ui import space_statusbar
-
 
 _IMAGE_EXTENSIONS = {
     ".bmp",
@@ -71,7 +83,9 @@ def eval_unique_name(arr: Iterable, prefix: str = "", suffix: str = "") -> str:
 
     :param arr: An array of objects for which a unique new name must be generated
     :type arr: Iterable
-    :param prefix: Name prefix, defaults to ""
+    :param prefix: Name prefix, defaults to "". If the 'bpy.ops' module acts as an array, then the prefix acts as a
+        'bpy.ops.[prefix]' (and the result will be the 'id_name' of the new operator in the format
+        [prefix].[random_unique_part][suffix])
     :type prefix: str, optional
     :param suffix: Name suffix, defaults to ""
     :type suffix: str, optional
@@ -79,11 +93,16 @@ def eval_unique_name(arr: Iterable, prefix: str = "", suffix: str = "") -> str:
     :rtype: str
     """
 
-    ret = prefix + str().join(random.sample(string.ascii_letters, k=5)) + suffix
-
-    if hasattr(arr, ret) or (isinstance(arr, Iterable) and ret in arr):
-        return eval_unique_name(arr, prefix, suffix)
-    return ret
+    if arr is bpy.ops:
+        ret = prefix + '.' + str().join(random.sample(string.ascii_lowercase, k=10)) + suffix
+        if isinstance(getattr(getattr(arr, ret, None), "bl_idname", None), str):
+            return eval_unique_name(arr, prefix, suffix)
+        return ret
+    else:
+        ret = prefix + str().join(random.sample(string.ascii_letters, k=5)) + suffix
+        if hasattr(arr, ret) or (isinstance(arr, Iterable) and ret in arr):
+            return eval_unique_name(arr, prefix, suffix)
+        return ret
 
 
 def _string_width(string: str) -> float:
@@ -274,7 +293,7 @@ def template_input_info_kmi_from_type(layout: UILayout, label: str, event_types:
 
 
 def _update_statusbar():
-    bpy.context.workspace.status_text_set(None)
+    bpy.context.workspace.status_text_set(text=None)
 
 
 class _progress_meta(type):
@@ -337,6 +356,7 @@ class progress(metaclass=_progress_meta):
 
         step: IntProperty(
             min=0,
+            default=0,
             subtype='UNSIGNED',
             options={'HIDDEN'},
             update=_common_value_update,
@@ -441,7 +461,6 @@ class progress(metaclass=_progress_meta):
                 cls._attrname,
                 CollectionProperty(type=progress.ProgressPropertyItem)
             )
-
             STATUSBAR_HT_header.draw = cls._func_draw_progress
             _update_statusbar()
 
@@ -457,7 +476,7 @@ class progress(metaclass=_progress_meta):
         :param item: Progress item to be removed
         :type item: ProgressPropertyItem
         """
-        assert(isinstance(item, progress.ProgressPropertyItem))
+        assert (isinstance(item, progress.ProgressPropertyItem))
 
         item.valid = False
 
@@ -471,16 +490,257 @@ class progress(metaclass=_progress_meta):
         if not cls._is_drawn:
             return
 
-        from importlib import reload
-
-        assert(cls._attrname)
+        assert (cls._attrname)
         delattr(WindowManager, cls._attrname)
         bpy.utils.unregister_class(progress.ProgressPropertyItem)
 
-        reload(space_statusbar)
+        importlib.reload(space_statusbar)
         STATUSBAR_HT_header.draw = space_statusbar.STATUSBAR_HT_header.draw
         _update_statusbar()
 
-        del reload
-
         cls._is_drawn = False
+
+# =======
+
+
+# TODO: Keep up-to-date with `BKE_previewimg_id_get_p`
+class _PrvID(Enum):
+    OB = auto()
+    MA = auto()
+    TE = auto()
+    WO = auto()
+    LA = auto()
+    IM = auto()
+    BR = auto()
+    GR = auto()
+    SCE = auto()
+    SCR = auto()
+    AC = auto()
+    NT = auto()
+
+
+_enum_prop_prv_id_items = tuple(((_, "", "") for _ in _PrvID.__members__))
+
+
+def _eval_coll_from_type(type: _PrvID) -> None | bpy.types.bpy_prop_collection:
+    if _PrvID.OB == type:
+        return bpy.data.objects
+    elif _PrvID.MA == type:
+        return bpy.data.materials
+    elif _PrvID.TE == type:
+        return bpy.data.textures
+    elif _PrvID.WO == type:
+        return bpy.data.worlds
+    elif _PrvID.LA == type:
+        return bpy.data.lights
+    elif _PrvID.IM == type:
+        return bpy.data.images
+    elif _PrvID.BR == type:
+        return bpy.data.brushes
+    elif _PrvID.GR == type:
+        return bpy.data.grease_pencils
+    elif _PrvID.SCE == type:
+        return bpy.data.scenes
+    elif _PrvID.SCR == type:
+        return bpy.data.screens
+    elif _PrvID.AC == type:
+        return bpy.data.actions
+    elif _PrvID.NT == type:
+        return bpy.data.node_groups
+    else:
+        return None
+
+
+def _eval_name_from_type(type: _PrvID) -> str:
+
+    match type:
+        case _PrvID.OB:
+            return "Object"
+        case _PrvID.MA:
+            return "Material"
+        case _PrvID.TE:
+            return "Texture"
+        case _PrvID.WO:
+            return "World"
+        case _PrvID.LA:
+            return "Light"
+        case _PrvID.IM:
+            return "Image"
+        case _PrvID.BR:
+            return "Brush"
+        case _PrvID.GR:
+            return "Grease pencil"
+        case _PrvID.SCE:
+            return "Scene"
+        case _PrvID.SCR:
+            return "Screen"
+        case _PrvID.AC:
+            return "Action"
+        case _PrvID.NT:
+            return "Node group"
+
+    return ""
+
+
+class BHQAB_OT_update_previews_internal(Operator):
+    # NOTE: `bl_idname` would be evaluated just before registration
+    bl_label = "BHQAB Update Previews (Internal)"
+    bl_options = {'INTERNAL'}
+
+    type: EnumProperty(
+        items=_enum_prop_prv_id_items,
+        default=_enum_prop_prv_id_items[0][0],
+    )
+
+    __instances__: set = set()
+    __timer__: None | bpy.types.Timer = None
+
+    @classmethod
+    def _validate_cls_instances(cls) -> None:
+        invalid = set()
+        for inst in cls.__instances__:
+            try:
+                getattr(inst, "bl_idname")
+            except ReferenceError:
+                invalid.add(inst)
+        if invalid:
+            cls.__instances__.difference_update(invalid)
+
+    __slots__ = (
+        "_progress",
+        "_coll",
+        "_draw_func",
+    )
+    _initial_show_statusbar: bool = True
+    _progress: progress.ProgressPropertyItem
+    _coll: bpy.types.bpy_prop_collection
+    _draw_func: FunctionType
+
+    def get_draw_func(self):
+        def draw_func(item, _context: Context):
+            layout: UILayout = item.layout
+            row = layout.row(align=True)
+            for i in range(self._progress.step, min(self._progress.step + 1, self._progress.num_steps)):
+                icon_value = self._coll[i].preview_ensure().icon_id
+                row.template_icon(icon_value=icon_value)  # Large preview
+                # NOTE: Sometimes for some reason Blender do not render smaller preview
+                row.label(icon_value=icon_value)
+            # NOTE: There's a trick here: we add progress only when the icon is already shown, not the normal way, in
+            # the modal part
+            self._progress.step += 1
+        return draw_func
+
+    def invoke(self, context: Context, _event):
+        cls = self.__class__
+
+        # Check that no instance is running with the same data type
+        cls._validate_cls_instances()
+        for inst in cls.__instances__:
+            if inst.type == self.type:
+                return {'CANCELLED'}
+        cls.__instances__.add(self)
+
+        # Evaluate which blend data we would process
+        prv_id = _PrvID[self.type]
+        self._coll = _eval_coll_from_type(prv_id)
+
+        # Immediately terminate if there is no data to process
+        if not self._coll:
+            return {'CANCELLED'}
+
+        # Statusbar must be shown at least while we shoving previews, otherwise preview generation would not be called
+        # Also, create a restore point, if statusbar was hidden initially
+        screen = context.window.screen
+        cls._initial_show_statusbar = screen.show_statusbar
+        screen.show_statusbar = True
+
+        # Create UI progressbar
+        self._progress = progress.invoke()
+        self._progress.label = f"{_eval_name_from_type(prv_id)} previews"
+        self._progress.num_steps = len(self._coll)
+        self._progress.step = 0
+        self._progress.cancellable = True
+
+        # Add draw function to statusbar
+        self._draw_func = self.get_draw_func()
+
+        importlib.reload(space_statusbar)
+        STATUSBAR_HT_header.append(self._draw_func)
+
+        # Add modal handler and event timer
+        wm = context.window_manager
+        if cls.__timer__ is None:
+            cls.__timer__ = wm.event_timer_add(1 / 60, window=context.window)
+        wm.modal_handler_add(self)
+
+        return {'RUNNING_MODAL'}
+
+    def cancel(self, context: Context):
+        cls = self.__class__
+        # Clear draw function callback
+        importlib.reload(space_statusbar)
+        STATUSBAR_HT_header.remove(self._draw_func)
+        del self._draw_func
+
+        # Restore screen's statusbar visibility after execution
+        screen = context.window.screen
+        screen.show_statusbar = cls._initial_show_statusbar
+
+        # Clear progress
+        progress.complete(item=self._progress)
+
+        cls._validate_cls_instances()
+        # Remove self from class instances
+        cls.__instances__.remove(self)
+
+        # Remove class event timer if no instances left
+        if cls.__timer__ is not None and not cls.__instances__:
+            context.window_manager.event_timer_remove(cls.__timer__)
+            cls.__timer__ = None
+
+    def modal(self, context: Context, event: Event):
+        if (self._progress.step >= self._progress.num_steps) or (not self._progress.valid):
+            self.cancel(context)
+            return {'FINISHED'}
+        return {'PASS_THROUGH'}
+
+
+def _reg_ot_update_previews_internal():
+    if not hasattr(BHQAB_OT_update_previews_internal, "bl_idname"):
+        BHQAB_OT_update_previews_internal.bl_idname = eval_unique_name(
+            arr=bpy.ops,
+            prefix="bhqab",
+            suffix="_update_previews_internal"
+        )
+
+    try:
+        bpy.utils.register_class(BHQAB_OT_update_previews_internal)
+    except ValueError:
+        pass
+
+
+def _unreg_ot_update_previews_internal():
+    try:
+        bpy.utils.unregister_class(BHQAB_OT_update_previews_internal)
+    except ValueError:
+        pass
+
+
+if 0:
+    atexit.register(_unreg_ot_update_previews_internal)
+
+
+def launch_progress_update_id_previews(
+    type: Literal['OB', 'MA', 'TE', 'WO', 'LA', 'IM', 'BR', 'GR', 'SCE', 'SCR', 'AC', 'NT']
+):
+    """Starts showing a preview of the selected type in the status bar. This is more of a gimmicky way, but it allows
+    you to trigger a generation preview in the same way that Blender does it by itself, without blocking the main thread
+    of the application. It is obvious that this method is not ideal from a user interface point of view, but currently
+    Blender has no other way to trigger preview generation via API calls.
+
+    Args:
+        type (Literal['OB', 'MA', 'TE', 'WO', 'LA', 'IM', 'BR', 'GR', 'SCE', 'SCR', 'AC', 'NT']): ID name prefix
+    """
+    _reg_ot_update_previews_internal()
+    func = eval(f"bpy.ops.{BHQAB_OT_update_previews_internal.bl_idname}")
+    func('INVOKE_DEFAULT', type=type)
