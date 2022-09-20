@@ -1287,7 +1287,7 @@ class MESH_OT_select_path(Operator):
 
         self._interact_control_element(context, elem, ob, InteractEvent.ADD_NEW_PATH)
         wm.modal_handler_add(self)
-        return {'RUNNING_MODAL'}
+        return self.modal(context, event)
 
     @classmethod
     def _cancel_all_instances(cls, context: Context) -> None:
@@ -1415,7 +1415,7 @@ class MESH_OT_select_path(Operator):
             self._interact_control_element(context, elem, ob, interact_event)
 
             cls._set_selection_state(cls.initial_select, True)
-            # cls._update_meshes()
+            cls._update_meshes()
 
         if not len(cls.path_arr):
             cls._cancel_all_instances(context)
