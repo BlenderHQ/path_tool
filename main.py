@@ -1267,6 +1267,8 @@ class MESH_OT_select_path(Operator):
 
         if num_elements_total == len(cls.initial_select) and props.mark_select == 'EXTEND':
             props.mark_select = 'NONE'
+        elif num_elements_total > len(cls.initial_select) and props.mark_select == 'NONE':
+            props.mark_select = 'EXTEND'
 
         elem, ob = cls._get_element_by_mouse(context, event)
         if not elem:

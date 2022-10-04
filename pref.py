@@ -131,13 +131,6 @@ class Preferences(AddonPreferences):
         description="",
     )
 
-    default_presets: BoolProperty(
-        default=True,
-        options={'HIDDEN', 'SKIP_SAVE'},
-        name="Default Presets",
-        description="Show standard presets in the preset menu",
-    )
-
     aa_method: bhqab.utils_gpu.draw_framework.DrawFramework.prop_aa_method
     fxaa_preset: bhqab.utils_gpu.draw_framework.FXAA.prop_preset
     fxaa_value: bhqab.utils_gpu.draw_framework.FXAA.prop_value
@@ -160,7 +153,6 @@ class Preferences(AddonPreferences):
                 operator=PREFERENCES_OT_path_tool_add_appearance.bl_idname
             )
 
-            col.prop(self, "default_presets")
             col.separator()
             col.prop(self, "color_control_element")
             col.prop(self, "color_active_control_element")
