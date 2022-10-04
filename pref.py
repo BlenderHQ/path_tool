@@ -149,7 +149,7 @@ class Preferences(AddonPreferences):
             bhqab.utils_ui.template_preset(
                 col,
                 menu=PREFERENCES_MT_path_tool_appearance_preset,
-                operator=PREFERENCES_OT_path_tool_add_appearance.bl_idname
+                operator=PREFERENCES_OT_path_tool_appearance_preset.bl_idname
             )
 
             col.separator()
@@ -180,6 +180,12 @@ class Preferences(AddonPreferences):
                 col.label(text="Unknown Anti-Aliasing Method.")
 
         elif self.tab == 'KEYMAP':
+            bhqab.utils_ui.template_preset(
+                col,
+                menu=PREFERENCES_MT_path_tool_keymap_preset,
+                operator=PREFERENCES_OT_path_tool_keymap_preset.bl_idname
+            )
+
             bhqab.utils_ui.template_tool_keymap(context, layout, km_name="3D View Tool: Edit Mesh, Select Path")
 
 
@@ -190,8 +196,8 @@ class PREFERENCES_MT_path_tool_appearance_preset(Menu):
     draw = Menu.draw_preset
 
 
-class PREFERENCES_OT_path_tool_add_appearance(AddPresetBase, Operator):
-    bl_idname = "preferences.path_tool_preferences_add_appearance"
+class PREFERENCES_OT_path_tool_appearance_preset(AddPresetBase, Operator):
+    bl_idname = "preferences.path_tool_appearance_preset"
     bl_label = "Add Preset"
     preset_menu = PREFERENCES_MT_path_tool_appearance_preset.__name__
     preset_defines = [
@@ -208,3 +214,22 @@ class PREFERENCES_OT_path_tool_add_appearance(AddPresetBase, Operator):
         "addon_pref.line_width",
     ]
     preset_subdir = os.path.join("path_tool", "preferences", "appearance")
+
+
+class PREFERENCES_MT_path_tool_keymap_preset(Menu):
+    bl_label = "Keymap Preset"
+    preset_subdir = os.path.join("path_tool", "preferences", "keymap")
+    preset_operator = "script.execute_preset"
+    draw = Menu.draw_preset
+
+
+class PREFERENCES_OT_path_tool_keymap_preset(AddPresetBase, Operator):
+    bl_idname = "preferences.path_tool_keymap_preset"
+    bl_label = "Add Preset"
+    preset_menu = PREFERENCES_MT_path_tool_keymap_preset.__name__
+    preset_defines = [
+        f"addon_pref = bpy.context.preferences.addons[\"{addon_pkg}\"].preferences"
+    ]
+    preset_values = [
+    ]
+    preset_subdir = os.path.join("path_tool", "preferences", "keymap")
