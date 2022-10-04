@@ -16,6 +16,7 @@ import bpy
 from bpy.types import (
     Context,
     Event,
+    ID,
     Menu,
     Operator,
     PropertyGroup,
@@ -159,6 +160,7 @@ def draw_wrapped_text(context: Context, layout: UILayout, *, text: str) -> None:
         num_characters = len(line)
 
         if not num_characters:
+            col.separator()
             continue
 
         line_words = list((_, _string_width(_)) for _ in line.split(' '))
@@ -736,3 +738,19 @@ def template_preset(layout: UILayout, *, menu: Menu, operator: str) -> None:
     row.menu(menu=menu.__name__, text=menu.bl_label)
     row.operator(operator=operator, text="", icon='ADD')
     row.operator(operator=operator, text="", icon='REMOVE').remove_active = True
+
+
+def template_disclosure_enum_flag(layout: UILayout, *, item: ID, prop_enum_flag: str, flag: str) -> bool:
+    row = layout.row()
+    row.use_property_split = False
+    row.emboss = 'NONE_OR_STATUS'
+    row.alignment = 'LEFT'
+    icon = 'DISCLOSURE_TRI_RIGHT'
+
+    ret = False
+    if flag in getattr(item, prop_enum_flag):
+        icon = 'DISCLOSURE_TRI_DOWN'
+        ret = True
+    row.prop_enum(item, prop_enum_flag, flag, icon=icon)
+
+    return ret

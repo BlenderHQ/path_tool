@@ -19,6 +19,7 @@ from . import __package__ as addon_pkg
 from .lib import bhqab
 
 TOOL_KM_NAME = "3D View Tool: Edit Mesh, Select Path"
+PREF_TEXTS = dict()
 
 
 class Preferences(AddonPreferences):
@@ -38,11 +39,22 @@ class Preferences(AddonPreferences):
         items=(
             ('APPEARANCE', "Appearance", "Appearance settings"),
             ('KEYMAP', "Keymap", "Keymap settings"),
+            ('INFO', "Info", "How to use the addon, relative links and licensing information"),
         ),
         default='APPEARANCE',
         options={'HIDDEN', 'SKIP_SAVE'},
         name="Tab",
         description="User preferences tab to be displayed",
+    )
+
+    info_tab: EnumProperty(
+        items=(
+            ('README', "How To Use the Addon", ""),
+            ('LICENSE', "License", ""),
+            ('LINKS', "Links", ""),
+        ),
+        default={'LINKS'},
+        options={'ENUM_FLAG', 'HIDDEN', 'SKIP_SAVE'},
     )
 
     color_control_element: FloatVectorProperty(
@@ -147,43 +159,69 @@ class Preferences(AddonPreferences):
         row = layout.row()
         row.prop_tabs_enum(self, "tab")
 
-        if self.tab == 'APPEARANCE':
-            bhqab.utils_ui.template_preset(
-                layout,
-                menu=PREFERENCES_MT_path_tool_appearance_preset,
-                operator=PREFERENCES_OT_path_tool_appearance_preset.bl_idname
-            )
+        match self.tab:
+            case 'APPEARANCE':
+                bhqab.utils_ui.template_preset(
+                    layout,
+                    menu=PREFERENCES_MT_path_tool_appearance_preset,
+                    operator=PREFERENCES_OT_path_tool_appearance_preset.bl_idname
+                )
 
-            col = layout.column(align=True)
+                col = layout.column(align=True)
 
-            col.prop(self, "color_control_element")
-            col.prop(self, "color_active_control_element")
-            col.separator()
-            col.prop(self, "color_path")
-            col.prop(self, "color_active_path")
-            col.separator()
-            col.prop(self, "color_path_topology")
-            col.prop(self, "color_active_path_topology")
-            col.separator()
-            col.prop(self, "point_size")
-            col.prop(self, "line_width")
-            col.separator()
+                col.prop(self, "color_control_element")
+                col.prop(self, "color_active_control_element")
+                col.separator()
+                col.prop(self, "color_path")
+                col.prop(self, "color_active_path")
+                col.separator()
+                col.prop(self, "color_path_topology")
+                col.prop(self, "color_active_path_topology")
+                col.separator()
+                col.prop(self, "point_size")
+                col.prop(self, "line_width")
+                col.separator()
 
-            row = col.row(align=True)
-            row.prop(self, "aa_method", expand=True)
+                row = col.row(align=True)
+                row.prop(self, "aa_method", expand=True)
 
-            if self.aa_method == 'FXAA':
-                col.prop(self, "fxaa_preset")
-                scol = col.column(align=True)
-                scol.enabled = (self.fxaa_preset not in {'NONE', 'ULTRA'})
-                scol.prop(self, "fxaa_value")
-            elif self.aa_method == 'SMAA':
-                col.prop(self, "smaa_preset")
-            else:
-                col.label(text="Unknown Anti-Aliasing Method.")
+                if self.aa_method == 'FXAA':
+                    col.prop(self, "fxaa_preset")
+                    scol = col.column(align=True)
+                    scol.enabled = (self.fxaa_preset not in {'NONE', 'ULTRA'})
+                    scol.prop(self, "fxaa_value")
+                elif self.aa_method == 'SMAA':
+                    col.prop(self, "smaa_preset")
+                else:
+                    col.label(text="Unknown Anti-Aliasing Method.")
 
-        elif self.tab == 'KEYMAP':
-            bhqab.utils_ui.template_tool_keymap(context, layout, km_name=TOOL_KM_NAME)
+            case 'KEYMAP':
+                bhqab.utils_ui.template_tool_keymap(context, layout, km_name=TOOL_KM_NAME)
+
+            case 'INFO':
+                base_dir = os.path.join(os.path.dirname(__file__), "data", "info")
+
+                for flag in ('README', 'LICENSE'):
+                    if bhqab.utils_ui.template_disclosure_enum_flag(
+                            layout, item=self, prop_enum_flag="info_tab", flag=flag):
+                        if flag not in PREF_TEXTS:
+                            with open(os.path.join(base_dir, f"{flag}.txt"), 'r') as file:
+                                PREF_TEXTS[flag] = file.read()
+                        if flag in PREF_TEXTS:
+                            text = PREF_TEXTS[flag]
+                        else:
+                            text = "Looks like your addon installation is corrupted."
+
+                        bhqab.utils_ui.draw_wrapped_text(context, layout, text=text)
+
+                if bhqab.utils_ui.template_disclosure_enum_flag(
+                        layout, item=self, prop_enum_flag="info_tab", flag='LINKS'):
+
+                    props = layout.operator("wm.url_open", text="Release Notes")
+                    props.url = "https://github.com/BlenderHQ/path_tool#release-notes"
+
+                    props = layout.operator("wm.url_open", text="BlenderHQ on GitHub")
+                    props.url = "https://github.com/BlenderHQ"
 
 
 class PREFERENCES_MT_path_tool_appearance_preset(Menu):

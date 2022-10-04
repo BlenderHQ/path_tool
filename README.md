@@ -6,7 +6,10 @@ The standard operator works great, but in terms of user experience, it could be 
 
 This addon is designed taking into account many points concerning the actual use of it in work tasks. The initial idea is quite simple - the operation of selecting the shortest path should be similar to working with the "Knife" tool.
 
-# Version 3.3.0
+---
+# Release Notes
+
+## Version 3.3.0
 * Fixed possible Blender crashes when changing the anti-aliasing method. The reason was how Blender calculates VAO.
 
 * Fixed incomplete selection of mesh elements when working with edges. The reason was the absence of one of the mesh update calls.
