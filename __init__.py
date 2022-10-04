@@ -75,8 +75,6 @@ _classes = (
     pref.Preferences,
     pref.PREFERENCES_MT_path_tool_appearance_preset,
     pref.PREFERENCES_OT_path_tool_appearance_preset,
-    pref.PREFERENCES_MT_path_tool_keymap_preset,
-    pref.PREFERENCES_MT_path_tool_keymap_preset,
 
     props.WindowManagerProperties,
     props.MESH_MT_select_path_presets,

@@ -11,7 +11,7 @@ This addon is designed taking into account many points concerning the actual use
 
 * Fixed incomplete selection of mesh elements when working with edges. The reason was the absence of one of the mesh update calls.
 
-* Removed the "Default presets" option from the preferences. Added a completely new system of preferences. The new system is more maintainable and native to Blender.
+* Removed the "Default presets" option from the preferences. Added a completely new system of presets. The new system is more maintainable and native to Blender. Appearance presets have also been added.
 
 
 ## Version 3.2.0
