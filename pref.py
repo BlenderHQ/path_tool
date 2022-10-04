@@ -7,7 +7,6 @@ from bpy.types import (
     UILayout,
 )
 from bpy.props import (
-    BoolProperty,
     EnumProperty,
     FloatVectorProperty,
     IntProperty,
