@@ -17,8 +17,8 @@
 bl_info = {
     "name": "Path Tool",
     "author": "Vlad Kuzmin (ssh4), Ivan Perevala (ivpe)",
-    "version": (3, 2, 0),
-    "blender": (3, 2, 0),
+    "version": (3, 3, 0),
+    "blender": (3, 3, 0),
     "location": "Toolbar",
     "description": "Tool for selecting and marking up mesh object elements",
     "category": "Mesh",
@@ -176,10 +176,10 @@ class Preferences(AddonPreferences):
         description="Show standard presets in the preset menu",
     )
 
-    aa_method: bhqab.gpu_extras.DrawFramework.prop_aa_method
-    fxaa_preset: bhqab.gpu_extras.FXAA.prop_preset
-    fxaa_value: bhqab.gpu_extras.FXAA.prop_value
-    smaa_preset: bhqab.gpu_extras.SMAA.prop_preset
+    aa_method: bhqab.utils_gpu.draw_framework.DrawFramework.prop_aa_method
+    fxaa_preset: bhqab.utils_gpu.draw_framework.FXAA.prop_preset
+    fxaa_value: bhqab.utils_gpu.draw_framework.FXAA.prop_value
+    smaa_preset: bhqab.utils_gpu.draw_framework.SMAA.prop_preset
 
     def draw(self, context: Context) -> None:
         layout: UILayout = self.layout
@@ -221,7 +221,7 @@ class Preferences(AddonPreferences):
                 col.label(text="Unknown Anti-Aliasing Method.")
 
         elif self.tab == 'KEYMAP':
-            bhqab.utils_ui.template_tool_keymap(context, layout, "3D View Tool: Edit Mesh, Select Path")
+            bhqab.utils_ui.template_tool_keymap(context, layout, km_name="3D View Tool: Edit Mesh, Select Path")
 
 
 class PathToolMesh(WorkSpaceTool):

@@ -1,10 +1,9 @@
 from __future__ import annotations
-from enum import (
-    auto,
-    Enum,
-)
+
+import os
 from types import FunctionType
 from typing import (
+    Generator,
     Iterable,
     Literal,
 )
@@ -15,8 +14,8 @@ import atexit
 
 import bpy
 from bpy.types import (
-    Context,
     Event,
+    Context,
     Operator,
     PropertyGroup,
     STATUSBAR_HT_header,
@@ -34,6 +33,21 @@ from bpy.props import (
 import blf
 import rna_keymap_ui
 from bl_ui import space_statusbar
+
+from . import utils_id
+
+__all__ = (
+    "supported_image_extensions",
+    "eval_unique_name",
+    "draw_wrapped_text",
+    "developer_extras_poll",
+    "template_developer_extras_warning",
+    "template_tool_keymap",
+    "template_input_info_kmi_from_type",
+    "progress",
+    "launch_progress_update_id_previews",
+    "copy_default_presets_from",
+)
 
 _IMAGE_EXTENSIONS = {
     ".bmp",
@@ -53,78 +67,81 @@ _IMAGE_EXTENSIONS = {
 def supported_image_extensions() -> set[str]:
     """
     Blender supported image extensions.
-    https://docs.blender.org/manual/en/latest/files/media/image_formats.html
 
     :return: Tuple of lowercase extensions:
 
-        ``.bmp``,
-        ``.sgi``, ``.rgb``, ``.bw``,
-        ``.png``,
-        ``.jpg``, ``.jpeg``,
-        ``.jp2``, ``.j2c``,
-        ``.tga``,
-        ``.cin``, ``.dpx``,
-        ``.exr``,
-        ``.hdr``,
-        ``.tif``, ``.tiff``,
-        ``.psd``
+        `.bmp`,
+        `.sgi`, `.rgb`, `.bw`,
+        `.png`,
+        `.jpg`, `.jpeg`,
+        `.jp2`, `.j2c`,
+        `.tga`,
+        `.cin`, `.dpx`,
+        `.exr`,
+        `.hdr`,
+        `.tif`, `.tiff`,
+        `.psd`
 
-    :return: _description_
     :rtype: set[str]
+
+    .. seealso::
+
+        The data provided by this function comes from:
+
+        `Supported Image Extensions`_
+
     """
     return _IMAGE_EXTENSIONS
 
 
-def eval_unique_name(arr: Iterable, prefix: str = "", suffix: str = "") -> str:
+def eval_unique_name(*, arr: Iterable, prefix: str = "", suffix: str = "") -> str:
     """
     Evaluates a random name that will be unique in this array. It can be used to create a random unique name with the
-    specified suffix and prefix for this array. It can be used with ``bpy.data.[...].new (name)`` or to register
+    specified ``suffix`` and ``prefix`` for this array. It can be used with ``bpy.data.[...].new (name)`` or to register
     temporary properties of data blocks, etc.
 
     :param arr: An array of objects for which a unique new name must be generated
     :type arr: Iterable
-    :param prefix: Name prefix, defaults to "". If the 'bpy.ops' module acts as an array, then the prefix acts as a
+    :param prefix: Name prefix, defaults to "". If the 'bpy.ops' module acts as an array, then the ``prefix`` acts as a
         'bpy.ops.[prefix]' (and the result will be the 'id_name' of the new operator in the format
-        [prefix].[random_unique_part][suffix])
+        [``prefix``].[random_unique_part][``suffix``])
     :type prefix: str, optional
     :param suffix: Name suffix, defaults to ""
     :type suffix: str, optional
     :return: Generated unique name
     :rtype: str
     """
-
     if arr is bpy.ops:
         ret = prefix + '.' + str().join(random.sample(string.ascii_lowercase, k=10)) + suffix
         if isinstance(getattr(getattr(arr, ret, None), "bl_idname", None), str):
-            return eval_unique_name(arr, prefix, suffix)
+            return eval_unique_name(arr=arr, prefix=prefix, suffix=suffix)
         return ret
     else:
         ret = prefix + str().join(random.sample(string.ascii_letters, k=5)) + suffix
         if hasattr(arr, ret) or (isinstance(arr, Iterable) and ret in arr):
-            return eval_unique_name(arr, prefix, suffix)
+            return eval_unique_name(arr=arr, prefix=prefix, suffix=suffix)
         return ret
 
 
-def _string_width(string: str) -> float:
+def _string_width(string):
     if len(string) == 1:
         num_single_ch_samples = 100
         return blf.dimensions(0, string * num_single_ch_samples)[0] / num_single_ch_samples
     return blf.dimensions(0, string)[0]
 
 
-def draw_wrapped_text(context: Context, layout: UILayout, text: str) -> None:
+def draw_wrapped_text(context: Context, layout: UILayout, *, text: str) -> None:
     """
-    Draws a block of text in the given layout, dividing it into lines according to the width of the current region of
+    Draws a block of ``text`` in the given layout, dividing it into lines according to the width of the current region of
     the interface.
 
     :param context: Current context
-    :type context: Context
+    :type context: `Context`_
     :param layout: Current layout
-    :type layout: UILayout
-    :param text: _description_
-    :type text: Text to be wrapped and drawn
+    :type layout: `UILayout`_
+    :param text: Text to be wrapped and drawn
+    :type text: str
     """
-
     col = layout.column(align=True)
 
     if context.region.type == 'WINDOW':
@@ -177,7 +194,7 @@ def developer_extras_poll(context: Context) -> bool:
     A method for determining whether a user interface intended for developers should be displayed.
 
     :param context: Current context
-    :type context: Context
+    :type context: `Context`_
     :return: A positive value means that it should
     :rtype: bool
     """
@@ -186,14 +203,13 @@ def developer_extras_poll(context: Context) -> bool:
 
 def template_developer_extras_warning(context: Context, layout: UILayout) -> None:
     """
-    Output message in the user interface that this section of the interface
-    is visible because the active options in the Blender settings. These
-    options are also displayed with the ability to disable them.
+    Output message in the user interface that this section of the interface is visible because the active options in the
+    Blender settings. These options are also displayed with the ability to disable them.
 
     :param context: Current context
-    :type context: Context
+    :type context: `Context`_
     :param layout: Current UI layout
-    :type layout: UILayout
+    :type layout: `UILayout`_
     """
     if developer_extras_poll(context):
         col = layout.column(align=True)
@@ -205,17 +221,18 @@ def template_developer_extras_warning(context: Context, layout: UILayout) -> Non
         col.prop(context.preferences.view, "show_developer_ui")
 
 
-def template_tool_keymap(context: Context, layout: UILayout, km_name: str):
+def template_tool_keymap(context: Context, layout: UILayout, *, km_name: str):
     """
     Template for tool keymap items.
 
     :param context: Current context
-    :type context: Context
+    :type context: `Context`_
     :param layout: Current UI layout
-    :type layout: UILayout
+    :type layout: `UILayout`_
     :param km_name: Tool keymap name. For example, "3D View Tool: Edit Mesh, Path Tool"
     :type km_name: str
     """
+
     kc = context.window_manager.keyconfigs.user
     km = kc.keymaps.get(km_name)
     if km:
@@ -227,9 +244,9 @@ def template_tool_keymap(context: Context, layout: UILayout, km_name: str):
 _KMI_ICONS: dict[str, str] = dict()
 
 
-def _eval_kmi_icons() -> None:
-    kmi_identifiers = [_.identifier for _ in bpy.types.Event.bl_rna.properties["type"].enum_items]
-    icons = bpy.types.UILayout.bl_rna.functions["prop"].parameters["icon"].enum_items.keys()
+def _eval_kmi_icons():
+    kmi_identifiers = [_.identifier for _ in Event.bl_rna.properties["type"].enum_items]
+    icons = UILayout.bl_rna.functions["prop"].parameters["icon"].enum_items.keys()
 
     for kmi_type in kmi_identifiers:
         if f'EVENT_{kmi_type}' in icons:
@@ -262,15 +279,15 @@ def _eval_kmi_icons() -> None:
     )
 
 
-def template_input_info_kmi_from_type(layout: UILayout, label: str, event_types: set[str] = set()) -> None:
+def template_input_info_kmi_from_type(layout: UILayout, *, label: str, event_types: set[str] = set()) -> None:
     """
     Method for displaying icons of possible keys.
 
     :param layout: Current UI layout
-    :type layout: UILayout
+    :type layout: `UILayout`_
     :param label: Label to be displayed with possible keys icons
     :type label: str
-    :param event_types: Set of event types (see `bpy.types.Event.type`_), defaults to set()
+    :param event_types: Set of event types (see `Event.type`_), defaults to set()
     :type event_types: set[str], optional
     """
     if not _KMI_ICONS:
@@ -307,15 +324,13 @@ class _progress_meta(type):
 
 
 class progress(metaclass=_progress_meta):
-    """A class that implements the initialization and completion of progressbars.
-    The module provides the ability to display the progressbar (and even several
-    progressbars) in the status bar of the Blender. This technique can be used
-    mainly with modal operators that run for a relatively long time and require
-    the output of the progress of their work.
+    """A class that implements the initialization and completion of progressbars. The module provides the ability to
+    display the progressbar (and even several progressbars) in the status bar of the Blender. This technique can be used
+    mainly with modal operators that run for a relatively long time and require the output of the progress of their
+    work.
 
-    Attributes:
-        PROGRESS_BAR_UI_UNITS (int): Number of UI units in range [4...12] used
-            for progressbar without text label and icon.
+    :cvar int PROGRESS_BAR_UI_UNITS: Number of UI units in range [4...12] used for progressbar without text label
+        and icon. Default to 6 (readonly)
     """
 
     _PROGRESS_BAR_UI_UNITS = 6
@@ -328,20 +343,19 @@ class progress(metaclass=_progress_meta):
     class ProgressPropertyItem(PropertyGroup):
         """Progress bar item that allows you to dynamically change some display parameters.
 
-        Attributes:
-            num_steps (int): Number of progress steps.
-            step (int): Current progress step.
-            value (float): Evaluated progress value (readonly).
-            icon (str): Blender icon to be displayed.
-            icon_value (int): Icon id to be displayed.
-            label (str): Progressbar text label.
-            cancellable (bool): Positive value means that progressbar should draw cancel button.
+        :ivar int num_steps: Number of progress steps.
+        :ivar int step: Current progress step.
+        :ivar float value: Evaluated progress value (readonly).
+        :ivar str icon: Blender icon to be displayed.
+        :ivar int icon_value: Icon id to be displayed.
+        :ivar str label: Progressbar text label.
+        :ivar bool cancellable: Positive value means that progressbar should draw cancel button.
         """
 
         def _common_value_update(self, _context):
             _update_statusbar()
 
-        valid: BoolProperty(
+        valid: BoolProperty(  # Internal valid markup, not for docs
             default=True,
             update=_common_value_update,
         )
@@ -405,8 +419,8 @@ class progress(metaclass=_progress_meta):
             update=_common_value_update,
         )
 
-    def _func_draw_progress(self, context):
-        layout = self.layout
+    def _func_draw_progress(self, context: Context):
+        layout: UILayout = self.layout
 
         layout.use_property_split = True
         layout.use_property_decorate = False
@@ -437,10 +451,20 @@ class progress(metaclass=_progress_meta):
 
     @classmethod
     def progress_items(cls):
+        """
+        :return: All progress property items
+        :rtype: Array of :class:`ProgressPropertyItem`
+        """
         return getattr(bpy.context.window_manager, cls._attrname)
 
     @classmethod
-    def valid_progress_items(cls):
+    def valid_progress_items(cls) -> Generator[ProgressPropertyItem]:
+        """
+        Iterate over valid progress property items
+
+        :yield: Valid item
+        :rtype: Generator[:class:`ProgressPropertyItem`]
+        """
         return (_ for _ in cls.progress_items() if _.valid)
 
     @classmethod
@@ -449,9 +473,8 @@ class progress(metaclass=_progress_meta):
         Invoke new progressbar for each call.
 
         :return: New initialized progress property item
-        :rtype: ProgressPropertyItem
+        :rtype: :class:`ProgressPropertyItem`
         """
-
         if not cls._is_drawn:
             bpy.utils.register_class(progress.ProgressPropertyItem)
             cls._attrname = eval_unique_name(arr=WindowManager, prefix="bhq_", suffix="_progress")
@@ -468,13 +491,13 @@ class progress(metaclass=_progress_meta):
         return cls.progress_items().add()
 
     @classmethod
-    def complete(cls, item: ProgressPropertyItem):
+    def complete(cls, *, item: ProgressPropertyItem):
         """
-        Removes progressbar from UI. If removed progressbar was the last one, would be called
-        :py:func:`progress.release_all` class method.
+        Removes progressbar from UI. If removed progressbar was the last one, would be called 
+        :func:`progress.release_all` class method.
 
         :param item: Progress item to be removed
-        :type item: ProgressPropertyItem
+        :type item: :class:`ProgressPropertyItem`
         """
         assert (isinstance(item, progress.ProgressPropertyItem))
 
@@ -500,87 +523,6 @@ class progress(metaclass=_progress_meta):
 
         cls._is_drawn = False
 
-# =======
-
-
-# TODO: Keep up-to-date with `BKE_previewimg_id_get_p`
-class _PrvID(Enum):
-    OB = auto()
-    MA = auto()
-    TE = auto()
-    WO = auto()
-    LA = auto()
-    IM = auto()
-    BR = auto()
-    GR = auto()
-    SCE = auto()
-    SCR = auto()
-    AC = auto()
-    NT = auto()
-
-
-_enum_prop_prv_id_items = tuple(((_, "", "") for _ in _PrvID.__members__))
-
-
-def _eval_coll_from_type(type: _PrvID) -> None | bpy.types.bpy_prop_collection:
-    if _PrvID.OB == type:
-        return bpy.data.objects
-    elif _PrvID.MA == type:
-        return bpy.data.materials
-    elif _PrvID.TE == type:
-        return bpy.data.textures
-    elif _PrvID.WO == type:
-        return bpy.data.worlds
-    elif _PrvID.LA == type:
-        return bpy.data.lights
-    elif _PrvID.IM == type:
-        return bpy.data.images
-    elif _PrvID.BR == type:
-        return bpy.data.brushes
-    elif _PrvID.GR == type:
-        return bpy.data.grease_pencils
-    elif _PrvID.SCE == type:
-        return bpy.data.scenes
-    elif _PrvID.SCR == type:
-        return bpy.data.screens
-    elif _PrvID.AC == type:
-        return bpy.data.actions
-    elif _PrvID.NT == type:
-        return bpy.data.node_groups
-    else:
-        return None
-
-
-def _eval_name_from_type(type: _PrvID) -> str:
-
-    match type:
-        case _PrvID.OB:
-            return "Object"
-        case _PrvID.MA:
-            return "Material"
-        case _PrvID.TE:
-            return "Texture"
-        case _PrvID.WO:
-            return "World"
-        case _PrvID.LA:
-            return "Light"
-        case _PrvID.IM:
-            return "Image"
-        case _PrvID.BR:
-            return "Brush"
-        case _PrvID.GR:
-            return "Grease pencil"
-        case _PrvID.SCE:
-            return "Scene"
-        case _PrvID.SCR:
-            return "Screen"
-        case _PrvID.AC:
-            return "Action"
-        case _PrvID.NT:
-            return "Node group"
-
-    return ""
-
 
 class BHQAB_OT_update_previews_internal(Operator):
     # NOTE: `bl_idname` would be evaluated just before registration
@@ -588,15 +530,15 @@ class BHQAB_OT_update_previews_internal(Operator):
     bl_options = {'INTERNAL'}
 
     type: EnumProperty(
-        items=_enum_prop_prv_id_items,
-        default=_enum_prop_prv_id_items[0][0],
+        items=utils_id.prop_prv_id_items(),
+        default=utils_id.prop_prv_id_items()[0][0],
     )
 
     __instances__: set = set()
     __timer__: None | bpy.types.Timer = None
 
     @classmethod
-    def _validate_cls_instances(cls) -> None:
+    def _validate_cls_instances(cls):
         invalid = set()
         for inst in cls.__instances__:
             try:
@@ -617,7 +559,7 @@ class BHQAB_OT_update_previews_internal(Operator):
     _draw_func: FunctionType
 
     def get_draw_func(self):
-        def draw_func(item, _context: Context):
+        def draw_func(item, _context):
             layout: UILayout = item.layout
             row = layout.row(align=True)
             for i in range(self._progress.step, min(self._progress.step + 1, self._progress.num_steps)):
@@ -630,7 +572,7 @@ class BHQAB_OT_update_previews_internal(Operator):
             self._progress.step += 1
         return draw_func
 
-    def invoke(self, context: Context, _event):
+    def invoke(self, context, _event):
         cls = self.__class__
 
         # Check that no instance is running with the same data type
@@ -641,8 +583,8 @@ class BHQAB_OT_update_previews_internal(Operator):
         cls.__instances__.add(self)
 
         # Evaluate which blend data we would process
-        prv_id = _PrvID[self.type]
-        self._coll = _eval_coll_from_type(prv_id)
+        prv_id = utils_id.PrvID[self.type]
+        self._coll = utils_id.eval_coll_from_type(prv_id)
 
         # Immediately terminate if there is no data to process
         if not self._coll:
@@ -656,7 +598,7 @@ class BHQAB_OT_update_previews_internal(Operator):
 
         # Create UI progressbar
         self._progress = progress.invoke()
-        self._progress.label = f"{_eval_name_from_type(prv_id)} previews"
+        self._progress.label = f"{utils_id.eval_name_from_type(prv_id)} previews"
         self._progress.num_steps = len(self._coll)
         self._progress.step = 0
         self._progress.cancellable = True
@@ -675,7 +617,7 @@ class BHQAB_OT_update_previews_internal(Operator):
 
         return {'RUNNING_MODAL'}
 
-    def cancel(self, context: Context):
+    def cancel(self, context):
         cls = self.__class__
         # Clear draw function callback
         importlib.reload(space_statusbar)
@@ -698,7 +640,7 @@ class BHQAB_OT_update_previews_internal(Operator):
             context.window_manager.event_timer_remove(cls.__timer__)
             cls.__timer__ = None
 
-    def modal(self, context: Context, event: Event):
+    def modal(self, context, event: Event):
         if (self._progress.step >= self._progress.num_steps) or (not self._progress.valid):
             self.cancel(context)
             return {'FINISHED'}
@@ -726,21 +668,51 @@ def _unreg_ot_update_previews_internal():
         pass
 
 
-if 0:
+if 0:  # NOTE: For some reasons Blender quits with error if this was called
     atexit.register(_unreg_ot_update_previews_internal)
 
 
 def launch_progress_update_id_previews(
-    type: Literal['OB', 'MA', 'TE', 'WO', 'LA', 'IM', 'BR', 'GR', 'SCE', 'SCR', 'AC', 'NT']
+    *,
+    id_type: Literal['OB', 'MA', 'TE', 'WO', 'LA',
+                     'IM', 'BR', 'GR', 'SCE', 'SCR', 'AC', 'NT']
 ):
-    """Starts showing a preview of the selected type in the status bar. This is more of a gimmicky way, but it allows
+    """
+    Starts showing a preview of the selected type in the status bar. This is more of a gimmicky way, but it allows
     you to trigger a generation preview in the same way that Blender does it by itself, without blocking the main thread
     of the application. It is obvious that this method is not ideal from a user interface point of view, but currently
     Blender has no other way to trigger preview generation via API calls.
 
-    Args:
-        type (Literal['OB', 'MA', 'TE', 'WO', 'LA', 'IM', 'BR', 'GR', 'SCE', 'SCR', 'AC', 'NT']): ID name prefix
+    :param id_type: ID name prefix
+    :type id_type: Literal['OB', 'MA', 'TE', 'WO', 'LA', 'IM', 'BR', 'GR', 'SCE', 'SCR', 'AC', 'NT']
+
+    .. seealso::
+
+        :class:`bhqab.utils_id.PrvID`
     """
     _reg_ot_update_previews_internal()
     func = eval(f"bpy.ops.{BHQAB_OT_update_previews_internal.bl_idname}")
-    func('INVOKE_DEFAULT', type=type)
+    func('INVOKE_DEFAULT', type=id_type)
+
+
+def copy_default_presets_from(*, src_root: str):
+    """Copying preset files from the ``src_root`` directory (by design, which is in the addon itself) to the directory
+    with Blender presets.
+
+    :param src_root: Source preset files root directory.
+    :type src_root: str
+    """
+    for root, _dir, files in os.walk(src_root):
+        for filename in files:
+            rel_dir = os.path.relpath(root, src_root)
+            src_fp = os.path.join(root, filename)
+
+            tar_dir = bpy.utils.user_resource('SCRIPTS', path=os.path.join("presets", rel_dir), create=True)
+            if not tar_dir:
+                print("Failed to create presets path")
+                return
+
+            tar_fp = os.path.join(tar_dir, filename)
+
+            with open(src_fp, 'r', encoding="utf-8") as src_file, open(tar_fp, 'w', encoding="utf-8") as tar_file:
+                tar_file.write(src_file.read())

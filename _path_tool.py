@@ -461,7 +461,7 @@ class MESH_OT_select_path(Operator):
     _just_closed_path: bool = False
 
     gpu_shaders: dict[str, gpu.types.GPUShader] = dict()
-    gpu_draw_framework: None | bhqab.gpu_extras.DrawFramework = None
+    gpu_draw_framework: None | bhqab.utils_gpu.draw_framework.DrawFramework = None
     gpu_handles: list = list()
 
     undo_history: collections.deque[tuple[int, tuple[Path]]]
@@ -813,14 +813,16 @@ class MESH_OT_select_path(Operator):
             elif kmi.propvalue == 'APPLY' and 'MOUSE' not in kmi.type:
                 apply_keys.add(kmi.type)
 
-        bhqab.utils_ui.template_input_info_kmi_from_type(layout, "Cancel", cancel_keys)
-        bhqab.utils_ui.template_input_info_kmi_from_type(layout, "Apply", apply_keys)
-        bhqab.utils_ui.template_input_info_kmi_from_type(layout, "Close Path", {HARDCODED_CLOSE_PATH_KMI[0]})
+        bhqab.utils_ui.template_input_info_kmi_from_type(layout, label="Cancel", event_types=cancel_keys)
+        bhqab.utils_ui.template_input_info_kmi_from_type(layout, label="Apply", event_types=apply_keys)
         bhqab.utils_ui.template_input_info_kmi_from_type(
-            layout, "Change Direction", {HARDCODED_CHANGE_DIRECTION_KMI[0]}
+            layout, label="Close Path", event_types={HARDCODED_CLOSE_PATH_KMI[0]}
         )
         bhqab.utils_ui.template_input_info_kmi_from_type(
-            layout, "Topology Distance", {HARDCODED_TOPOLOGY_DISTANCE_KMI[0]}
+            layout, label="Change Direction", event_types={HARDCODED_CHANGE_DIRECTION_KMI[0]}
+        )
+        bhqab.utils_ui.template_input_info_kmi_from_type(
+            layout, label="Topology Distance", event_types={HARDCODED_TOPOLOGY_DISTANCE_KMI[0]}
         )
 
     @staticmethod
@@ -895,63 +897,61 @@ class MESH_OT_select_path(Operator):
         if cls.prior_ts_msm[2]:
             shader_path = cls.gpu_shaders["path_face"]
 
-        view_resolution = gpu.state.viewport_get()[2:]
+        depth_map = bhqab.utils_gpu.draw_framework.get_depth_map()
+        viewport_metrics = bhqab.utils_gpu.draw_framework.get_viewport_metrics()
 
-        fb = gpu.state.active_framebuffer_get()
-        original_view_depth_map = gpu.types.GPUTexture(
-            view_resolution, data=fb.read_depth(*fb.viewport_get()), format='DEPTH_COMPONENT32F')
+        offscreen = cls.gpu_draw_framework.get(index=0)
 
-        with cls.gpu_draw_framework as offscreens:
-            with offscreens[0].bind():
-                fb = gpu.state.active_framebuffer_get()
-                fb.clear(color=(0.0, 0.0, 0.0, 0.0))
+        with offscreen.bind():
+            fb = gpu.state.active_framebuffer_get()
+            fb.clear(color=(0.0, 0.0, 0.0, 0.0))
 
-                view_resolution = gpu.state.viewport_get()[2:]
+            with gpu.matrix.push_pop():
+                gpu.state.line_width_set(addon_pref.line_width)
+                gpu.state.blend_set('ALPHA_PREMULT')
+                gpu.state.face_culling_set('NONE')
 
-                with gpu.matrix.push_pop():
-                    gpu.state.line_width_set(addon_pref.line_width)
-                    gpu.state.blend_set('ALPHA_PREMULT')
-                    gpu.state.face_culling_set('NONE')
+                for path in draw_list:
+                    active_ce_index = 0
+                    color_ce = addon_pref.color_control_element
+                    color_active_ce = color_ce
+                    color_path = addon_pref.color_path
+                    if path.flag & PathFlag.TOPOLOGY:
+                        color_path = addon_pref.color_path_topology
 
-                    for path in draw_list:
-                        active_ce_index = 0
-                        color_ce = addon_pref.color_control_element
-                        color_active_ce = color_ce
-                        color_path = addon_pref.color_path
+                    if path == cls.active_path:
+                        active_ce_index = cls.active_index
+
+                        color_active_ce = addon_pref.color_active_control_element
+                        color_path = addon_pref.color_active_path
+
                         if path.flag & PathFlag.TOPOLOGY:
-                            color_path = addon_pref.color_path_topology
+                            color_path = addon_pref.color_active_path_topology
 
-                        if path == cls.active_path:
-                            active_ce_index = cls.active_index
+                    shader_path.bind()
+                    for batch in path.batch_seq_fills:
+                        if batch:
+                            shader_path.uniform_float("ModelMatrix", path.ob.matrix_world)
+                            shader_path.uniform_float("ColorPath", color_path)
+                            shader_path.uniform_sampler("OriginalViewDepthMap", depth_map)
+                            shader_path.uniform_float("viewportMetrics", viewport_metrics)
+                            batch.draw(shader_path)
 
-                            color_active_ce = addon_pref.color_active_control_element
-                            color_path = addon_pref.color_active_path
+                    shader_ce.bind()
 
-                            if path.flag & PathFlag.TOPOLOGY:
-                                color_path = addon_pref.color_active_path_topology
+                    if path.batch_control_elements:
+                        shader_ce.uniform_float("ModelMatrix", path.ob.matrix_world)
+                        shader_ce.uniform_float("ColorControlElement", color_ce)
+                        shader_ce.uniform_float("ColorActiveControlElement", color_active_ce)
+                        shader_ce.uniform_int("ActiveControlElementIndex", (active_ce_index,))
+                        shader_ce.uniform_sampler("OriginalViewDepthMap", depth_map)
+                        shader_ce.uniform_float("viewportMetrics", viewport_metrics)
+                        if cls.prior_ts_msm[1]:
+                            shader_ce.uniform_float("DiskRadius", (addon_pref.point_size + 6))
 
-                        shader_path.bind()
-                        for batch in path.batch_seq_fills:
-                            if batch:
-                                shader_path.uniform_float("ModelMatrix", path.ob.matrix_world)
-                                shader_path.uniform_float("ColorPath", color_path)
-                                shader_path.uniform_sampler("OriginalViewDepthMap", original_view_depth_map)
-                                shader_path.uniform_float("viewportMetrics", cls.gpu_draw_framework.viewport_metrics)
-                                batch.draw(shader_path)
+                        path.batch_control_elements.draw(shader_ce)
 
-                        shader_ce.bind()
-
-                        if path.batch_control_elements:
-                            shader_ce.uniform_float("ModelMatrix", path.ob.matrix_world)
-                            shader_ce.uniform_float("ColorControlElement", color_ce)
-                            shader_ce.uniform_float("ColorActiveControlElement", color_active_ce)
-                            shader_ce.uniform_int("ActiveControlElementIndex", (active_ce_index,))
-                            shader_ce.uniform_sampler("OriginalViewDepthMap", original_view_depth_map)
-                            shader_ce.uniform_float("viewportMetrics", cls.gpu_draw_framework.viewport_metrics)
-                            if cls.prior_ts_msm[1]:
-                                shader_ce.uniform_float("DiskRadius", (addon_pref.point_size + 6))
-
-                            path.batch_control_elements.draw(shader_ce)
+        cls.gpu_draw_framework.draw(texture=offscreen.texture_color)
 
     def _interact_control_element(self,
                                   context: Context,
@@ -1280,10 +1280,10 @@ class MESH_OT_select_path(Operator):
             SpaceView3D.draw_handler_add(self._gpu_draw_callback, tuple(), 'WINDOW', 'POST_VIEW'),
         ]
 
-        cls.gpu_shaders = bhqab.gpu_extras.eval_shaders_dict(
+        cls.gpu_shaders = bhqab.utils_gpu.shader.eval_shaders_dict(
             dir_path=os.path.join(os.path.dirname(__file__), "data", "shaders")
         )
-        cls.gpu_draw_framework = bhqab.gpu_extras.DrawFramework()
+        cls.gpu_draw_framework = bhqab.utils_gpu.draw_framework.DrawFramework(num_offscreens=1)
 
         self._interact_control_element(context, elem, ob, InteractEvent.ADD_NEW_PATH)
         wm.modal_handler_add(self)
@@ -1421,13 +1421,13 @@ class MESH_OT_select_path(Operator):
             cls._cancel_all_instances(context)
             return {'CANCELLED'}
 
-        cls.gpu_draw_framework.aa = addon_pref.aa_method
+        cls.gpu_draw_framework.aa_method = addon_pref.aa_method
         if addon_pref.aa_method == 'FXAA':
             cls.gpu_draw_framework.aa.preset = addon_pref.fxaa_preset
             cls.gpu_draw_framework.aa.value = addon_pref.fxaa_value
         elif addon_pref.aa_method == 'SMAA':
             cls.gpu_draw_framework.aa.preset = addon_pref.smaa_preset
-
+        cls.gpu_draw_framework.modal_eval(format='RGBA8', percentage=100)
         # NOTE: Use this print statement for debugging purposes.
         # print(self.path_arr)
 

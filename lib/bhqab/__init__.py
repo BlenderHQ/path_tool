@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-__version__ = (3, 2)
+__version__ = (3, 3)
 
 __author__ = "Vlad Kuzmin (ssh4), Ivan Perevala (ivpe)"
 __copyright__ = "Copyright (C) 2022  Vlad Kuzmin (ssh4), Ivan Perevala (ivpe)"
@@ -24,18 +24,12 @@ __maintainer__ = "Ivan Perevala (ivpe)"
 __credits__ = ["Vlad Kuzmin (ssh4)", ]
 __license__ = "GPLv3"
 
-
-if "bpy" in locals():
-    from importlib import reload
-
-    if "gpu_extras" in locals():
-        reload(gpu_extras)
-    if "utils_ui" in locals():
-        reload(utils_ui)
-
-    del reload
-
-import bpy
-
-from . import gpu_extras
+from . import utils_gpu
 from . import utils_ui
+from . import utils_id
+
+__all__ = (
+    "utils_gpu",
+    "utils_id",
+    "utils_ui",
+)
