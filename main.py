@@ -12,8 +12,8 @@ from bpy.types import (
     Event,
     KeyMapItem,
     Object,
-    Object,
     Operator,
+    Panel,
     Region,
     RegionView3D,
     SpaceView3D,
@@ -349,7 +349,7 @@ _context_action_items = (
 )
 
 
-class MESH_PT_select_path_context(bpy.types.Panel):
+class MESH_PT_select_path_context(Panel):
     bl_label = "Options"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'WINDOW'
@@ -1118,7 +1118,7 @@ class MESH_OT_select_path(Operator):
         props = context.window_manager.select_path
         props.ui_draw_func(layout)
 
-    def invoke(self, context: bpy.types.Context, event):
+    def invoke(self, context: Context, event):
         cls = self.__class__
         wm = context.window_manager
 
@@ -1186,7 +1186,7 @@ class MESH_OT_select_path(Operator):
         # Navigation events which would be passed through operator's modal cycle.
         nav_events = []
         for kmi in kc.keymaps['3D View'].keymap_items:
-            kmi: bpy.types.KeyMapItem
+            kmi: KeyMapItem
 
             if kmi.idname in (
                 "view3d.rotate",
