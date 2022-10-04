@@ -1153,7 +1153,6 @@ class MESH_OT_select_path(Operator):
         props = wm.select_path
         ts = context.scene.tool_settings
         num_undo_steps = context.preferences.edit.undo_steps
-        addon_pref = context.preferences.addons[addon_pkg].preferences
 
         # ____________________________________________________________________ #
         # Input keymaps:

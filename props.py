@@ -1,7 +1,6 @@
-from typing import Union
+import os
 
 from bpy.types import (
-    Context,
     PropertyGroup,
     UILayout,
     Menu,
@@ -16,6 +15,7 @@ from bpy.props import (
 from bl_operators.presets import AddPresetBase
 
 from . import __package__ as addon_pkg
+from .lib import bhqab
 
 
 class WindowManagerProperties(PropertyGroup):
@@ -92,10 +92,11 @@ class WindowManagerProperties(PropertyGroup):
     )
 
     def ui_draw_func(self, layout: UILayout) -> None:
-        row = layout.row(align=True)
-        row.menu(MESH_MT_select_path_presets.__name__)
-        row.operator(operator=MESH_OT_select_path_preset_add.bl_idname, text="", icon='ADD')
-        row.operator(operator=MESH_OT_select_path_preset_add.bl_idname, text="", icon='REMOVE').remove_active = True
+        bhqab.utils_ui.template_preset(
+            layout,
+            menu=MESH_MT_select_path_presets,
+            operator=MESH_OT_select_path_preset_add.bl_idname
+        )
 
         layout.row().prop(self, "mark_select", text="Select", icon_only=True, expand=True)
         layout.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
@@ -115,68 +116,11 @@ class WindowManagerProperties(PropertyGroup):
         layout.prop(self, "use_topology_distance")
 
 
-class WM_OT_select_path_presets(Operator):
-    bl_label = "Set Preset"
-    bl_description = "Set operator properties to preset values"
-    bl_idname = "wm.select_path_defaults"
-    bl_options = {'INTERNAL'}
-
-    preset: EnumProperty(
-        items=(
-            ('DEFAULTS', "", ""),
-            ('TOPOLOGY_UV', "", ""),
-            ('TOPOLOGY_SHARP', "", ""),
-        ),
-        default='DEFAULTS',
-        options={'HIDDEN', 'SKIP_SAVE'},
-    )
-
-    def execute(self, context: Context):
-        props = context.window_manager.select_path
-
-        # if self.preset == 'DEFAULTS':
-        props.mark_select = 'EXTEND'
-        props.mark_seam = 'NONE'
-        props.mark_sharp = 'NONE'
-        props.use_topology_distance = False
-        props.skip = 0
-        props.nth = 0
-        props.offset = 0
-
-        if self.preset == 'TOPOLOGY_UV':
-            props.mark_select = 'NONE'
-            props.mark_seam = 'MARK'
-            props.mark_sharp = 'NONE'
-            props.use_topology_distance = True
-
-        elif self.preset == 'TOPOLOGY_SHARP':
-            props.mark_select = 'NONE'
-            props.mark_seam = 'NONE'
-            props.mark_sharp = 'MARK'
-            props.skip = 0
-            props.nth = 0
-            props.offset = 0
-            props.use_topology_distance = True
-
-        return {'FINISHED'}
-
-
 class MESH_MT_select_path_presets(Menu):
     bl_label = "Operator Presets"
-    preset_subdir = "select_path"
+    preset_subdir = os.path.join("path_tool", "wm")
     preset_operator = "script.execute_preset"
-
-    def draw(self, context):
-        addon_pref = context.preferences.addons[addon_pkg].preferences
-        layout = self.layout
-        layout.operator(WM_OT_select_path_presets.bl_idname, text="Restore Operator Defaults").preset = 'DEFAULTS'
-        layout.separator()
-        Menu.draw_preset(self, context)
-
-        if addon_pref.default_presets:
-            layout.separator()
-            layout.operator(WM_OT_select_path_presets.bl_idname, text="Topology UV").preset = 'TOPOLOGY_UV'
-            layout.operator(WM_OT_select_path_presets.bl_idname, text="Topology Sharp").preset = 'TOPOLOGY_SHARP'
+    draw = Menu.draw_preset
 
 
 class MESH_OT_select_path_preset_add(AddPresetBase, Operator):
@@ -194,4 +138,4 @@ class MESH_OT_select_path_preset_add(AddPresetBase, Operator):
         "props.mark_seam",
         "props.use_topology_distance",
     ]
-    preset_subdir = "select_path"
+    preset_subdir = os.path.join("path_tool", "wm")

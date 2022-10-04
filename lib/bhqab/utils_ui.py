@@ -14,8 +14,9 @@ import atexit
 
 import bpy
 from bpy.types import (
-    Event,
     Context,
+    Event,
+    Menu,
     Operator,
     PropertyGroup,
     STATUSBAR_HT_header,
@@ -716,3 +717,22 @@ def copy_default_presets_from(*, src_root: str):
 
             with open(src_fp, 'r', encoding="utf-8") as src_file, open(tar_fp, 'w', encoding="utf-8") as tar_file:
                 tar_file.write(src_file.read())
+
+
+def template_preset(layout: UILayout, *, menu: Menu, operator: str) -> None:
+    """
+    Template for drawing presets. Can be used to unify the appearance.
+
+    :param layout: Current layout
+    :type layout: `UILayout`_
+    :param menu: The menu class that will be used for selection
+    :type menu: 'Menu'_
+    :param operator: Operator ``bl_idname`` used to add and remove presets
+    :type operator: str
+    """
+    row = layout.row(align=True)
+    row.use_property_split = False
+
+    row.menu(menu=menu.__name__, text=menu.bl_label)
+    row.operator(operator=operator, text="", icon='ADD')
+    row.operator(operator=operator, text="", icon='REMOVE').remove_active = True
