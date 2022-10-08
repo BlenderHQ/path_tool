@@ -14,6 +14,8 @@ This addon is designed taking into account many points concerning the actual use
 
 * Fixed incomplete selection of mesh elements when working with edges. The reason was the absence of one of the mesh update calls.
 
+* Fixed the incorrect merging of paths in the case when they are connected to the first control element of the first path with the first control element of the second path. The reason was a typo in determining element indexes.
+
 * Removed the "Default presets" option from the preferences. Added a completely new system of presets. The new system is more maintainable and native to Blender. Appearance presets have also been added.
 
 

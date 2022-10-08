@@ -741,7 +741,7 @@ class MESH_OT_select_path(Operator):
                         l_path.batch_seq_fills = r_path.batch_seq_fills
 
                     # First-First
-                    elif l_path.control_elements[-1] == r_path.control_elements[0]:
+                    elif l_path.control_elements[0] == r_path.control_elements[0]:
                         l_path.control_elements.pop(0)
 
                         r_path.control_elements.reverse()

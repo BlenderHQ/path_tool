@@ -49,6 +49,8 @@ __all__ = (
     "progress",
     "launch_progress_update_id_previews",
     "copy_default_presets_from",
+    "template_preset",
+    "template_disclosure_enum_flag",
 )
 
 _IMAGE_EXTENSIONS = {
@@ -741,6 +743,22 @@ def template_preset(layout: UILayout, *, menu: Menu, operator: str) -> None:
 
 
 def template_disclosure_enum_flag(layout: UILayout, *, item: ID, prop_enum_flag: str, flag: str) -> bool:
+    """
+    A function for unifying the rendering and management of sections of the user interface without creating additional
+    panels.
+
+    :param layout: Current UI layout
+    :type layout: UILayout
+    :param item: The parent class that stores the ``prop_enum_flag`` property.
+    :type item: ID
+    :param prop_enum_flag: A property that stores the available sections. It is a class annotation and derives from
+        `EnumProperty`_ `(options={'ENUM_FLAG'})`
+    :type prop_enum_flag: str
+    :param flag: The flag to be checked.
+    :type flag: str
+    :return: A positive value means that you need to draw this section.
+    :rtype: bool
+    """
     row = layout.row()
     row.use_property_split = False
     row.emboss = 'NONE_OR_STATUS'

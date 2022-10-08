@@ -208,6 +208,11 @@ class OffscreenFramework:
     """
     A class to control the creation and destruction of offscreen buffers for each viewport.
     """
+
+    __slots__ = (
+        "_regions_offs",
+    )
+
     _regions_offs: dict[Region, GPUOffScreen]
 
     __used_gpu_memory__: int = 0
@@ -338,6 +343,11 @@ class DrawFramework:
     """
     A framework for operations with several offscreens in several viewports with anti-aliasing support
     """
+    __slots__ = (
+        "_aa_instance",
+        "_off_frameworks",
+    )
+
     __aa_methods_registry__: set[AABase] = set()
 
     _aa_instance: SMAA
@@ -434,6 +444,10 @@ class AABase(object):
     """
     Base class for anti-aliasing methods
     """
+    __slots__ = (
+        "_preset",
+        "_preset_0",
+    )
     _preset: AAPreset
     _preset_0: AAPreset
 
@@ -485,15 +499,22 @@ class AABase(object):
 class SMAA(AABase):
     """Sub-pixel morphological anti-aliasing"""
 
+    __slots__ = (
+        "_off_framework_stage_0",
+        "_off_framework_stage_1",
+        "_shaders",
+        "_batches",
+    )
+
     _off_framework_stage_0: OffscreenFramework
     _off_framework_stage_1: OffscreenFramework
+
+    _shaders: None | tuple[GPUShader]
+    _batches: None | tuple[GPUBatch]
 
     __shader_code__: None | tuple[str] = None
     __textures__: None | tuple[GPUTexture] = None
     """(searchTex, areaTex)"""
-
-    _shaders: None | tuple[GPUShader]
-    _batches: None | tuple[GPUBatch]
 
     @classmethod
     @property
@@ -666,6 +687,14 @@ DrawFramework.register_aa_method(SMAA)
 
 class FXAA(AABase):
     """Fast approximate anti-aliasing"""
+
+    __slots__ = (
+        "_value",
+        "_value_0",
+        "_off_framework",
+        "_shader",
+        "_batch",
+    )
 
     _value: float
     _value_0: float
