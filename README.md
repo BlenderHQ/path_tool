@@ -26,7 +26,7 @@ This addon is designed taking into account many points concerning the actual use
 
 * Added support for work in all view-ports as well as in all open Blender windows - now there is no binding to a specific viewport in the specific window in which the work was started.
 
-* Added support for anti-aliasing SSAA, FXAA, SMAA, with configurable options. They are performed sequentially - that is, you can enable only some of these methods for finer tuning on your hardware.
+* Added support for anti-aliasing FXAA, SMAA, with configurable options. They are performed sequentially - that is, you can enable only some of these methods for finer tuning on your hardware.
 
 * Changes to the operation logic of operator properties:
     
