@@ -11,6 +11,7 @@ This addon is designed taking into account many points concerning the actual use
 # Release Notes
 
 ## Version 3.3.0
+
 * Fixed possible Blender crashes when changing the anti-aliasing method. The reason was how Blender calculates VAO.
 
 * Fixed incomplete selection of mesh elements when working with edges. The reason was the absence of one of the mesh update calls.
