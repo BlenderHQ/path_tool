@@ -11,6 +11,7 @@ from bpy.types import (
     Context,
     Event,
     KeyMapItem,
+    Mesh,
     Object,
     Operator,
     Panel,
@@ -624,11 +625,15 @@ class MESH_OT_select_path(Operator):
         cls.mesh_islands.append(linked_island)
         return len(cls.mesh_islands) - 1
 
+    @staticmethod
+    def _update_mesh(*, bm: BMesh, mesh: Mesh) -> None:
+        bm.select_flush_mode()
+        bmesh.update_edit_mesh(mesh=mesh, loop_triangles=False, destructive=False)
+
     @classmethod
     def _update_meshes(cls) -> None:
         for ob, bm in cls.bm_arr:
-            bm.select_flush_mode()
-            bmesh.update_edit_mesh(mesh=ob.data, loop_triangles=True, destructive=False)
+            cls._update_mesh(bm=bm, mesh=ob.data)
 
     @classmethod
     def _update_fills_by_element_index(cls, context: Context, path: Path, elem_index: int) -> None:
@@ -1408,7 +1413,8 @@ class MESH_OT_select_path(Operator):
             cls.is_mouse_pressed = False
             interact_event = InteractEvent.RELEASE_PATH
 
-        elif cls.is_mouse_pressed and ev[0] in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'}:
+        # NOTE: Strange spam of 'INBETWEEN_MOUSEMOVE' events on Linux
+        elif cls.is_mouse_pressed and ev[0] in {'MOUSEMOVE', }:
             interact_event = InteractEvent.DRAG_CP
 
         if interact_event is not None:

@@ -2,11 +2,12 @@
 
 An add-on for Blender that complements the standard shortcut operator with new features.
 
-The standard operator works great, but in terms of user experience, it could be better. Of course, most Blender operators work on the principle of "here and now", but for real work tasks this operator is used, including for marking UV seams, highlighting faces for sharp shading, highlighting a line along the mesh object to divide it into parts , etc. The bottom line is that in terms of user experience, we first select some mesh elements, then perform some operation with them.
+The standard operator works great, but in terms of user experience, it could be better. Of course, most Blender operators work on the principle of "here and now", but for real work tasks this operator is used, including for marking UV seams, highlighting faces for sharp shading, highlighting a line along the mesh object to divide it into parts, etc. The bottom line is that in terms of user experience, we first select some mesh elements, then perform some operation with them.
 
 This addon is designed taking into account many points concerning the actual use of it in work tasks. The initial idea is quite simple - the operation of selecting the shortest path should be similar to working with the "Knife" tool.
 
 ---
+
 # Release Notes
 
 ## Version 3.3.0
@@ -15,6 +16,8 @@ This addon is designed taking into account many points concerning the actual use
 * Fixed incomplete selection of mesh elements when working with edges. The reason was the absence of one of the mesh update calls.
 
 * Fixed the incorrect merging of paths in the case when they are connected to the first control element of the first path with the first control element of the second path. The reason was a typo in determining element indexes.
+
+* Fixed lags when dragging control elements on Linux (tested on Ubuntu). The problem was in the spam of `INBETWEEN_MOUSEMOVE` events by Blender.
 
 * Removed the "Default presets" option from the preferences. Added a completely new system of presets. The new system is more maintainable and native to Blender. Appearance presets have also been added.
 
