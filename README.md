@@ -1,5 +1,7 @@
 # Path Tool
 
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+
 An add-on for Blender that complements the standard shortcut operator with new features.
 
 The standard operator works great, but in terms of user experience, it could be better. Of course, most Blender operators work on the principle of "here and now", but for real work tasks this operator is used, including for marking UV seams, highlighting faces for sharp shading, highlighting a line along the mesh object to divide it into parts, etc. The bottom line is that in terms of user experience, we first select some mesh elements, then perform some operation with them.
@@ -7,6 +9,9 @@ The standard operator works great, but in terms of user experience, it could be 
 This addon is designed taking into account many points concerning the actual use of it in work tasks. The initial idea is quite simple - the operation of selecting the shortest path should be similar to working with the "Knife" tool.
 
 ---
+
+# Upcoming:
+ * Fixed selection for meshes with glued geometry. The problem was how the standard `bpy.ops.mesh.select_linked` operator works, which selects part of the mesh according to normals. The simplest example to reproduce is two pyramids glued together with their upper faces cut off.
 
 # Release Notes
 
