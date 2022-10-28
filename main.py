@@ -615,7 +615,17 @@ class MESH_OT_select_path(Operator):
 
         bpy.ops.mesh.select_all(action='DESELECT')
         elem.select_set(True)
-        bpy.ops.mesh.select_linked(delimit={'NORMAL'})
+
+        # A simple call to bpy.ops.mesh.select_linked is not enough, in some cases incomplete selection of the mesh
+        # takes place. For example, if part of the mesh has the shape of an hourglass with a closed neck, then it
+        # is simple the call will not allocate the second part of it.
+        num_initial_selected, num_selected = 0, 1
+        while num_initial_selected != num_selected:
+            bpy.ops.mesh.select_linked(delimit={'NORMAL'})
+            num_initial_selected = sum((ob.data.total_vert_sel for ob, _ in cls.bm_arr))
+
+            bpy.ops.mesh.select_more(use_face_step=True)
+            num_selected = sum((ob.data.total_vert_sel for ob, _ in cls.bm_arr))
 
         linked_island = cls._get_selected_elements(cls.select_mesh_elements)
 
