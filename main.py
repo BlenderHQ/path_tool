@@ -923,7 +923,7 @@ class MESH_OT_select_path(Operator):
 
             with gpu.matrix.push_pop():
                 gpu.state.line_width_set(addon_pref.line_width)
-                gpu.state.blend_set('ALPHA_PREMULT')
+                gpu.state.blend_set('ALPHA')
                 gpu.state.face_culling_set('NONE')
 
                 for path in draw_list:

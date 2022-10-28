@@ -1,7 +1,7 @@
 uniform sampler2D OriginalViewDepthMap;
 uniform vec4 viewportMetrics;
-uniform vec3 ColorControlElement;
-uniform vec3 ColorActiveControlElement;
+uniform vec4 ColorControlElement;
+uniform vec4 ColorActiveControlElement;
 uniform flat int ActiveControlElementIndex;
 
 out vec4 FragColor;
@@ -12,11 +12,6 @@ void main()
 		discard;
 	}
 	
-	FragColor = vec4(
-		(gl_PrimitiveID < ActiveControlElementIndex)
-		?
-		ColorControlElement : ColorActiveControlElement,
-		1.0f
-	);
+	FragColor = ((gl_PrimitiveID < ActiveControlElementIndex) ? ColorControlElement : ColorActiveControlElement);
 	
 }

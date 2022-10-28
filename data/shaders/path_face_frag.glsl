@@ -2,7 +2,7 @@ precision highp float;
 
 uniform sampler2D OriginalViewDepthMap;
 uniform vec4 viewportMetrics;
-uniform vec3 ColorPath;
+uniform vec4 ColorPath;
 
 out vec4 FragColor;
 
@@ -12,5 +12,5 @@ void main()
 		discard;
 	}
 
-	FragColor = vec4(ColorPath, 1.0f);
+	FragColor = ColorPath;
 }

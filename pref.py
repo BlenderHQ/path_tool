@@ -58,9 +58,9 @@ class Preferences(AddonPreferences):
     )
 
     color_control_element: FloatVectorProperty(
-        default=(0.8, 0.8, 0.8),
+        default=(0.8, 0.8, 0.8, 0.8),
         subtype='COLOR',
-        size=3,
+        size=4,
         min=0.0,
         max=1.0,
         options={'HIDDEN', 'SKIP_SAVE'},
@@ -69,9 +69,9 @@ class Preferences(AddonPreferences):
     )
 
     color_active_control_element: FloatVectorProperty(
-        default=(0.039087, 0.331906, 0.940392),
+        default=(0.039087, 0.331906, 0.940392, 0.8),
         subtype='COLOR',
-        size=3,
+        size=4,
         min=0.0,
         max=1.0,
         options={'HIDDEN', 'SKIP_SAVE'},
@@ -80,9 +80,9 @@ class Preferences(AddonPreferences):
     )
 
     color_path: FloatVectorProperty(
-        default=(0.593397, 0.708376, 0.634955),
+        default=(0.593397, 0.708376, 0.634955, 0.8),
         subtype='COLOR',
-        size=3,
+        size=4,
         min=0.0,
         max=1.0,
         options={'HIDDEN', 'SKIP_SAVE'},
@@ -91,9 +91,9 @@ class Preferences(AddonPreferences):
     )
 
     color_path_topology: FloatVectorProperty(
-        default=(1.0, 0.952328, 0.652213),
+        default=(1.0, 0.952328, 0.652213, 0.8),
         subtype='COLOR',
-        size=3,
+        size=4,
         min=0.0,
         max=1.0,
         options={'HIDDEN', 'SKIP_SAVE'},
@@ -102,9 +102,9 @@ class Preferences(AddonPreferences):
     )
 
     color_active_path: FloatVectorProperty(
-        default=(0.304987, 0.708376, 0.450786),
+        default=(0.304987, 0.708376, 0.450786, 0.8),
         subtype='COLOR',
-        size=3,
+        size=4,
         min=0.0,
         max=1.0,
         options={'HIDDEN', 'SKIP_SAVE'},
@@ -113,9 +113,9 @@ class Preferences(AddonPreferences):
     )
 
     color_active_path_topology: FloatVectorProperty(
-        default=(1.0, 0.883791, 0.152213),
+        default=(1.0, 0.883791, 0.152213, 0.8),
         subtype='COLOR',
-        size=3,
+        size=4,
         min=0.0,
         max=1.0,
         options={'HIDDEN', 'SKIP_SAVE'},

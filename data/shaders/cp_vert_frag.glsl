@@ -1,7 +1,7 @@
 uniform sampler2D OriginalViewDepthMap;
 uniform vec4 viewportMetrics;
-uniform vec3 ColorControlElement;
-uniform vec3 ColorActiveControlElement;
+uniform vec4 ColorControlElement;
+uniform vec4 ColorActiveControlElement;
 
 in flat int IsActive;
 in vec2 v_coord;
@@ -13,6 +13,6 @@ void main()
 		discard;
 	}
 	
-	FragColor = vec4((IsActive == 0) ? ColorControlElement : ColorActiveControlElement, 1.0f);
+	FragColor = ((IsActive == 0) ? ColorControlElement : ColorActiveControlElement);
 	FragColor.a = distance(v_coord, gl_FragCoord.xy);
 }
