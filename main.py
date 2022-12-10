@@ -39,13 +39,15 @@ from .lib import bhqab
 
 from . import __package__ as addon_pkg
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from . props import WindowManagerProperties
+
 HARDCODED_APPLY_KMI = ('SPACE', 'PRESS', False, False, False)
 HARDCODED_CLOSE_PATH_KMI = ('C', 'PRESS', False, False, False)
 HARDCODED_CHANGE_DIRECTION_KMI = ('D', 'PRESS', False, False, False)
 HARDCODED_TOPOLOGY_DISTANCE_KMI = ('T', 'PRESS', False, False, False)
 
-# _____________________________________________________
-# TODO: Move to `bhqab`?
 _REGION_VIEW_3D_N_PANEL_TABS_WIDTH_PX = 21
 
 
@@ -923,7 +925,7 @@ class MESH_OT_select_path(Operator):
 
             with gpu.matrix.push_pop():
                 gpu.state.line_width_set(addon_pref.line_width)
-                gpu.state.blend_set('ALPHA')
+                gpu.state.blend_set('ALPHA_PREMULT')
                 gpu.state.face_culling_set('NONE')
 
                 for path in draw_list:
@@ -1165,7 +1167,7 @@ class MESH_OT_select_path(Operator):
             wm.modal_handler_add(self)
             return {'RUNNING_MODAL'}
 
-        props = wm.select_path
+        props: WindowManagerProperties = wm.select_path
         ts = context.scene.tool_settings
         num_undo_steps = context.preferences.edit.undo_steps
 

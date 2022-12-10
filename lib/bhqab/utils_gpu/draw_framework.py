@@ -177,7 +177,7 @@ def get_depth_map() -> GPUTexture:
     fb = gpu.state.active_framebuffer_get()
     return gpu.types.GPUTexture(
         gpu.state.viewport_get()[2:],
-        data=fb.read_depth(*fb.viewport_get()), format='DEPTH_COMPONENT32F')
+        data=fb.read_depth(*fb.viewport_get()), format='DEPTH_COMPONENT24')
 
 
 def get_viewport_metrics() -> Vector:
