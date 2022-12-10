@@ -41,7 +41,8 @@ from . import __package__ as addon_pkg
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from . props import WindowManagerProperties
+    from . props import WMProps
+    from . pref import Preferences
 
 HARDCODED_APPLY_KMI = ('SPACE', 'PRESS', False, False, False)
 HARDCODED_CLOSE_PATH_KMI = ('C', 'PRESS', False, False, False)
@@ -360,7 +361,7 @@ class MESH_PT_select_path_context(Panel):
     def draw(cls, context: Context) -> None:
         layout = cls.layout
         layout.use_property_split = True
-        props = context.window_manager.select_path
+        props: WMProps = context.window_manager.select_path
         props.ui_draw_func_runtime(layout)
 
 
@@ -481,7 +482,7 @@ class MESH_OT_select_path(Operator):
     def _eval_meshes(cls, context: Context) -> None:
         ret: list[tuple[Object, BMesh]] = list()
 
-        props = context.window_manager.select_path
+        props: WMProps = context.window_manager.select_path
 
         for ob in context.objects_in_mode:
             ob: Object
@@ -900,7 +901,7 @@ class MESH_OT_select_path(Operator):
 
     @classmethod
     def _gpu_draw_callback(cls: MESH_OT_select_path) -> None:
-        addon_pref = bpy.context.preferences.addons[addon_pkg].preferences
+        addon_pref: Preferences = bpy.context.preferences.addons[addon_pkg].preferences
 
         draw_list: list[Path] = [_ for _ in cls.path_arr if _ != cls.active_path]
         draw_list.append(cls.active_path)
@@ -925,7 +926,7 @@ class MESH_OT_select_path(Operator):
 
             with gpu.matrix.push_pop():
                 gpu.state.line_width_set(addon_pref.line_width)
-                gpu.state.blend_set('ALPHA_PREMULT')
+                gpu.state.blend_set('ALPHA')
                 gpu.state.face_culling_set('NONE')
 
                 for path in draw_list:
@@ -978,7 +979,7 @@ class MESH_OT_select_path(Operator):
 
         cls = self.__class__
 
-        props = context.window_manager.select_path
+        props: WMProps = context.window_manager.select_path
 
         if elem and interact_event is InteractEvent.ADD_CP:
             if not cls.path_arr:
@@ -1132,7 +1133,7 @@ class MESH_OT_select_path(Operator):
     def draw(self, context: Context) -> None:
         layout = self.layout
         layout.use_property_split = True
-        props = context.window_manager.select_path
+        props: WMProps = context.window_manager.select_path
         props.ui_draw_func(layout)
 
     def invoke(self, context: Context, event):
@@ -1167,7 +1168,7 @@ class MESH_OT_select_path(Operator):
             wm.modal_handler_add(self)
             return {'RUNNING_MODAL'}
 
-        props: WindowManagerProperties = wm.select_path
+        props: WMProps = wm.select_path
         ts = context.scene.tool_settings
         num_undo_steps = context.preferences.edit.undo_steps
 
@@ -1334,7 +1335,7 @@ class MESH_OT_select_path(Operator):
         if not cls.windows:
             return {'CANCELLED'}
 
-        addon_pref = context.preferences.addons[addon_pkg].preferences
+        addon_pref: Preferences = context.preferences.addons[addon_pkg].preferences
         ev = cls._pack_event(event)
         modal_action = cls.modal_events.get(ev, None)
         undo_redo_action = cls.undo_redo_events.get(ev, None)

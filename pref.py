@@ -24,18 +24,7 @@ TOOL_KM_NAME = "3D View Tool: Edit Mesh, Select Path"
 PREF_TEXTS = dict()
 
 
-class Preferences(AddonPreferences):
-    bl_idname = __package__
-
-    __slots__ = (
-        "tab",
-        "color_control_element",
-        "color_active_control_element",
-        "color_path",
-        "color_active_path",
-        "point_size",
-        "line_width",
-    )
+class Properties:
 
     tab: EnumProperty(
         items=(
@@ -152,6 +141,20 @@ class Preferences(AddonPreferences):
     fxaa_preset: bhqab.utils_gpu.draw_framework.FXAA.prop_preset
     fxaa_value: bhqab.utils_gpu.draw_framework.FXAA.prop_value
     smaa_preset: bhqab.utils_gpu.draw_framework.SMAA.prop_preset
+
+
+class Preferences(AddonPreferences, Properties):
+    bl_idname = __package__
+
+    __slots__ = (
+        "tab",
+        "color_control_element",
+        "color_active_control_element",
+        "color_path",
+        "color_active_path",
+        "point_size",
+        "line_width",
+    )
 
     def draw(self, context: Context) -> None:
         layout: UILayout = self.layout

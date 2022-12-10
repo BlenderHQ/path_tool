@@ -1,5 +1,5 @@
 # Path Tool addon.
-# Copyright (C) 2020  Vlad Kuzmin (ssh4), Ivan Perevala (ivpe)
+# Copyright (C) 2022  Vlad Kuzmin (ssh4), Ivan Perevala (ivpe)
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -76,7 +76,7 @@ _classes = (
     pref.PREFERENCES_MT_path_tool_appearance_preset,
     pref.PREFERENCES_OT_path_tool_appearance_preset,
 
-    props.WindowManagerProperties,
+    props.WMProps,
     props.MESH_MT_select_path_presets,
     props.MESH_OT_select_path_preset_add,
 
@@ -93,7 +93,7 @@ _handlers = (
 
 def register():
     _cls_register()
-    WindowManager.select_path = PointerProperty(type=props.WindowManagerProperties)
+    WindowManager.select_path = PointerProperty(type=props.WMProps)
     bpy.utils.register_tool(PathToolMesh, after={"builtin.select_lasso"}, separator=False, group=False)
 
     for handler, func in _handlers:

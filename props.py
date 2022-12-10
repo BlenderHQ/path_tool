@@ -20,7 +20,7 @@ from . import __package__ as addon_pkg
 from .lib import bhqab
 
 
-class WindowManagerProperties(PropertyGroup):
+class WMProps(PropertyGroup):
     mark_select: EnumProperty(
         items=(
             ('EXTEND', "Extend", "Extend existing selection", 'SELECT_EXTEND', 1),
