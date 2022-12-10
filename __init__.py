@@ -17,8 +17,8 @@
 bl_info = {
     "name": "Path Tool",
     "author": "Vlad Kuzmin (ssh4), Ivan Perevala (ivpe)",
-    "version": (3, 3, 0),
-    "blender": (3, 3, 0),
+    "version": (3, 4, 0),
+    "blender": (3, 4, 0),
     "location": "Toolbar",
     "description": "Tool for selecting and marking up mesh object elements",
     "category": "Mesh",
@@ -47,6 +47,10 @@ from . import props
 
 from .lib import bhqab
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from . props import WMProps
+
 
 class PathToolMesh(WorkSpaceTool):
     bl_idname = "mesh.path_tool"
@@ -60,7 +64,7 @@ class PathToolMesh(WorkSpaceTool):
 
     @staticmethod
     def draw_settings(context: Context, layout: UILayout, tool: WorkSpaceTool):
-        props: props.WindowManagerProperties = context.window_manager.select_path
+        props: WMProps = context.window_manager.select_path
         props.ui_draw_func_runtime(layout)
 
 
