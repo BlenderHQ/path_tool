@@ -136,11 +136,11 @@ class Path:
     )
 
     island_index: int
-    ob: Object
+    ob: None | Object
     batch_control_elements: None | GPUBatch
     control_elements: list[BMVert | BMFace]
     fill_elements: list[list[BMEdge | BMFace]]
-    batch_seq_fills: list[GPUBatch]
+    batch_seq_fills: list[None | GPUBatch]
     flag: PathFlag
 
     def __init__(self,
@@ -164,7 +164,7 @@ class Path:
         self.flag = PathFlag(0)
 
     def __repr__(self):
-        # NOTE: For dev purposes only
+        # NOTE: For development purposes only
         batch_seq_fills_formatted = []
         for i, batch in enumerate(self.batch_seq_fills):
             if batch:
@@ -312,7 +312,7 @@ _context_action_items = (
     (
         InteractEvent.CANCEL.name,
         "Cancel",
-        "Cancel editing pathes",
+        "Cancel editing paths",
         'EVENT_ESC',
         InteractEvent.CANCEL.value,
     ),
