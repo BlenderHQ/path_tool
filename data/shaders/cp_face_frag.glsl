@@ -1,8 +1,11 @@
+//! #version 460
+//! #include "common_lib.glsl"
+
 uniform sampler2D OriginalViewDepthMap;
 uniform vec4 viewportMetrics;
 uniform vec4 ColorControlElement;
 uniform vec4 ColorActiveControlElement;
-uniform flat int ActiveControlElementIndex;
+uniform int ActiveControlElementIndex;
 
 out vec4 FragColor;
 
@@ -13,5 +16,4 @@ void main()
 	}
 	
 	FragColor = ((gl_PrimitiveID < ActiveControlElementIndex) ? ColorControlElement : ColorActiveControlElement);
-	
 }

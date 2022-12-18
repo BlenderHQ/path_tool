@@ -1,4 +1,5 @@
-precision highp float;
+//! #version 460
+//! #include "common_lib.glsl"
 
 uniform sampler2D OriginalViewDepthMap;
 uniform vec4 viewportMetrics;

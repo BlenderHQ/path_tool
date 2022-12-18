@@ -1,3 +1,6 @@
+//! #version 460
+//! #include "common_lib.glsl"
+
 layout(points) in;
 layout(triangle_strip, max_vertices = 12) out;
 

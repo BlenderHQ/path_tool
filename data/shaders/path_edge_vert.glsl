@@ -1,3 +1,5 @@
+//! #version 460
+
 in vec3 Coord;
 
 uniform mat4 ModelViewProjectionMatrix;
