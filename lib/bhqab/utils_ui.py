@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import logging
 from types import FunctionType
 from typing import (
     Generator,
@@ -34,6 +35,7 @@ from bpy.props import (
 )
 import blf
 import rna_keymap_ui
+from bpy.app.handlers import persistent
 from bl_ui import space_statusbar
 
 from . import utils_id
@@ -222,7 +224,7 @@ def template_developer_extras_warning(context: Context, layout: UILayout) -> Non
         text = "This section is intended for developers. You see it because " \
             "you have an active \"Developers Extras\" option in the Blender " \
             "user preferences."
-        draw_wrapped_text(context, col, text)
+        draw_wrapped_text(context, col, text=text)
         col.prop(context.preferences.view, "show_developer_ui")
 
 
@@ -772,3 +774,38 @@ def template_disclosure_enum_flag(layout: UILayout, *, item: ID, prop_enum_flag:
     row.prop_enum(item, prop_enum_flag, flag, icon=icon)
 
     return ret
+
+
+class LoggingUtils:
+    _LOG_LEVELS = (
+        ('CRITICAL', "Critical", logging.CRITICAL),
+        ('ERROR', "Error", logging.ERROR),
+        ('WARNING', "Warning", logging.WARNING),
+        ('INFO', "Info", logging.INFO),
+        ('DEBUG', "Debug", logging.DEBUG),
+        ('NOTSET', "Not Set", logging.NOTSET),
+    )
+
+    def _log_level_update(self, _context: Context):
+        level = logging.NOTSET
+        for key, name, level in LoggingUtils._LOG_LEVELS:
+            if key == self.log_level:
+                break
+        logging.basicConfig(level=level)
+
+    prop_log_level = EnumProperty(
+        items=[(key, name, "") for key, name, _level in _LOG_LEVELS],
+        default='NOTSET',
+        update=_log_level_update,
+        name="Logging Level",
+        description="Logging messages which are less severe than level will be ignored",
+    )
+
+    def load_post_handler(*, addon_module_name: str) -> FunctionType:
+
+        @persistent
+        def wrapper(_=None):
+            addon_pref = bpy.context.preferences.addons[addon_module_name].preferences
+            addon_pref.log_level = addon_pref.log_level  # Call ``_log_level_update``
+
+        return wrapper

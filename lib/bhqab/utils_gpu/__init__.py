@@ -6,7 +6,6 @@ from . import shader
 
 __all__ = (
     "draw_framework",
-    "draw_framework",
     "previews",
     "shader",
 )

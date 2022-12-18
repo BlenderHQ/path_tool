@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-__version__ = (3, 3)
+__version__ = (3, 4)
 
 __author__ = "Vlad Kuzmin (ssh4), Ivan Perevala (ivpe)"
 __copyright__ = "Copyright (C) 2022  Vlad Kuzmin (ssh4), Ivan Perevala (ivpe)"
