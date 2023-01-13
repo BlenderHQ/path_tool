@@ -498,6 +498,27 @@ class MESH_OT_select_path(Operator):
         cls.bm_arr = tuple(ret)
 
     @classmethod
+    def _invoke_tweak_options(cls, context: Context):
+        wm = context.window_manager
+        props: WMProps = wm.select_path
+
+        addon_pref: Preferences = context.preferences.addons[addon_pkg].preferences
+        if addon_pref.auto_tweak_options:
+            num_elements_total = 0
+            if cls.prior_mesh_elements == "edges":
+                for _, bm in cls.bm_arr:
+                    num_elements_total += len(bm.edges)
+            elif cls.prior_mesh_elements == "faces":
+                for _, bm in cls.bm_arr:
+                    num_elements_total += len(bm.faces)
+
+            if num_elements_total == len(cls.initial_select) and props.mark_select == 'EXTEND':
+                props.mark_select = 'NONE'
+            elif num_elements_total > len(cls.initial_select) and props.mark_select == 'NONE':
+                props.mark_select = 'EXTEND'
+
+
+    @classmethod
     @property
     def active_path(cls) -> Path:
         if len(cls.path_arr) - 1 > cls._active_path_index:
@@ -1168,7 +1189,6 @@ class MESH_OT_select_path(Operator):
             wm.modal_handler_add(self)
             return {'RUNNING_MODAL'}
 
-        props: WMProps = wm.select_path
         ts = context.scene.tool_settings
         num_undo_steps = context.preferences.edit.undo_steps
 
@@ -1274,19 +1294,7 @@ class MESH_OT_select_path(Operator):
         cls._eval_meshes(context)
         cls.initial_select = cls._get_selected_elements(cls.initial_mesh_elements)
 
-        # Tweak operator settings in case if all mesh elements are already selected
-        num_elements_total = 0
-        if cls.prior_mesh_elements == "edges":
-            for _, bm in cls.bm_arr:
-                num_elements_total += len(bm.edges)
-        elif cls.prior_mesh_elements == "faces":
-            for _, bm in cls.bm_arr:
-                num_elements_total += len(bm.faces)
-
-        if num_elements_total == len(cls.initial_select) and props.mark_select == 'EXTEND':
-            props.mark_select = 'NONE'
-        elif num_elements_total > len(cls.initial_select) and props.mark_select == 'NONE':
-            props.mark_select = 'EXTEND'
+        cls._invoke_tweak_options(context)
 
         elem, ob = cls._get_element_by_mouse(context, event)
         if not elem:

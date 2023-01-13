@@ -12,10 +12,13 @@ This addon is designed taking into account many points concerning the actual use
 
 # Release Notes
 
-## Version 3.4.0
- * Fixed selection for meshes with glued geometry. The problem was how the standard `bpy.ops.mesh.select_linked` operator works, which selects part of the mesh according to normals. The simplest example to reproduce is two pyramids glued together with their upper faces cut off.
+## Upcoming
+* Added "Auto Tweak Options" preferences option. This used to be the operator's default behavior for ease of use, but is now optional and disabled by default. If no mesh element is initially selected, the selection option will be changed to "Extend". If all elements are selected, it will be changed to "Do nothing". The option is in the addon preferences under `Behavior > Auto Tweak Options`.
 
- * Brought back transparency options for drawing paths and their controls.
+## Version 3.4.0
+* Fixed selection for meshes with glued geometry. The problem was how the standard `bpy.ops.mesh.select_linked` operator works, which selects part of the mesh according to normals. The simplest example to reproduce is two pyramids glued together with their upper faces cut off.
+
+* Brought back transparency options for drawing paths and their controls.
 
 ## Version 3.3.0
 

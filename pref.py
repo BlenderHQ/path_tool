@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 
-import bpy
 from bpy.types import (
     AddonPreferences,
     Context,
@@ -11,6 +10,7 @@ from bpy.types import (
     UILayout,
 )
 from bpy.props import (
+    BoolProperty,
     EnumProperty,
     FloatVectorProperty,
     IntProperty,
@@ -29,6 +29,7 @@ class Properties:
     tab: EnumProperty(
         items=(
             ('APPEARANCE', "Appearance", "Appearance settings"),
+            ('BEHAVIOR', "Behavior", "Behavior settings"),
             ('KEYMAP', "Keymap", "Keymap settings"),
             ('INFO', "Info", "How to use the addon, relative links and licensing information"),
         ),
@@ -142,6 +143,15 @@ class Properties:
     fxaa_value: bhqab.utils_gpu.draw_framework.FXAA.prop_value
     smaa_preset: bhqab.utils_gpu.draw_framework.SMAA.prop_preset
 
+    auto_tweak_options: BoolProperty(
+        default=False,
+        name="Auto Tweak Options",
+        options={'HIDDEN', 'SKIP_SAVE'},
+        description=(
+            "Adjust operator options. If no mesh element is initially selected, the selection option will be changed "
+            "to \"Extend\". If all elements are selected, it will be changed to \"Do nothing\"")
+    )
+
 
 class Preferences(AddonPreferences, Properties):
     bl_idname = __package__
@@ -199,6 +209,9 @@ class Preferences(AddonPreferences, Properties):
                     col.prop(self, "smaa_preset")
                 else:
                     col.label(text="Unknown Anti-Aliasing Method.")
+
+            case 'BEHAVIOR':
+                layout.prop(self, "auto_tweak_options")
 
             case 'KEYMAP':
                 bhqab.utils_ui.template_tool_keymap(context, layout, km_name=TOOL_KM_NAME)
