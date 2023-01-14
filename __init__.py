@@ -60,7 +60,143 @@ class PathToolMesh(WorkSpaceTool):
     bl_options = {}
     bl_description = "Select items using editable paths"
     bl_icon = os.path.join(os.path.dirname(__file__), "data", "ops.mesh.path_tool")
-    bl_keymap = ((main.MESH_OT_select_path.bl_idname, dict(type='LEFTMOUSE', value='PRESS',), None),)
+    bl_keymap = (
+        (
+            main.MESH_OT_select_path.bl_idname,
+            dict(
+                type='LEFTMOUSE',
+                value='PRESS',
+                shift=True,
+            ),
+            dict(
+                properties=[("action", main.InteractEvent.ADD_NEW_PATH.name), ]
+            )
+        ),
+        (
+            main.MESH_OT_select_path.bl_idname,
+            dict(
+                type='LEFTMOUSE',
+                value='PRESS',
+                ctrl=True,
+            ),
+            dict(
+                properties=[("action", main.InteractEvent.REMOVE_CP.name), ]
+            )
+        ),
+        (
+            main.MESH_OT_select_path.bl_idname,
+            dict(
+                type='T',
+                value='PRESS',
+            ),
+            dict(
+                properties=[("action", main.InteractEvent.TOPOLOGY_DISTANCE.name), ]
+            )
+        ),
+        (
+            main.MESH_OT_select_path.bl_idname,
+            dict(
+                type='D',
+                value='PRESS',
+            ),
+            dict(
+                properties=[("action", main.InteractEvent.CHANGE_DIRECTION.name), ]
+            )
+        ),
+        (
+            main.MESH_OT_select_path.bl_idname,
+            dict(
+                type='C',
+                value='PRESS',
+            ),
+            dict(
+                properties=[("action", main.InteractEvent.CLOSE_PATH.name), ]
+            )
+        ),
+        (
+            main.MESH_OT_select_path.bl_idname,
+            dict(
+                type='Z',
+                value='PRESS',
+                shift=True,
+                ctrl=True,
+            ),
+            dict(
+                properties=[("action", main.InteractEvent.REDO.name), ]
+            )
+        ),
+        (
+            main.MESH_OT_select_path.bl_idname,
+            dict(
+                type='Z',
+                value='PRESS',
+                ctrl=True,
+            ),
+            dict(
+                properties=[("action", main.InteractEvent.UNDO.name), ]
+            )
+        ),
+        (
+            main.MESH_OT_select_path.bl_idname,
+            dict(
+                type='ESC',
+                value='PRESS',
+            ),
+            dict(
+                properties=[("action", main.InteractEvent.CANCEL.name), ]
+            )
+        ),
+        (
+            main.MESH_OT_select_path.bl_idname,
+            dict(
+                type='SPACE',
+                value='PRESS',
+            ),
+            dict(
+                properties=[("action", main.InteractEvent.APPLY_PATHS.name), ]
+            )
+        ),
+        (
+            main.MESH_OT_select_path.bl_idname,
+            dict(
+                type='RET',
+                value='PRESS',
+            ),
+            dict(
+                properties=[("action", main.InteractEvent.APPLY_PATHS.name), ]
+            )
+        ),
+        (
+            main.MESH_OT_select_path.bl_idname,
+            dict(
+                type='RIGHTMOUSE',
+                value='PRESS',
+            ),
+            dict(
+                properties=[("action", main.InteractEvent.PIE.name), ]
+            )
+        ),
+        (
+            main.MESH_OT_select_path.bl_idname,
+            dict(
+                type='LEFTMOUSE',
+                value='PRESS',
+            ),
+            dict(
+                properties=[("action", main.InteractEvent.NONE.name), ]
+            )
+        ),
+        (
+            main.MESH_OT_select_path.bl_idname,
+            dict(
+                type='LEFTMOUSE',
+                value='PRESS',
+            ),
+            dict(
+                properties=[("action", main.InteractEvent.ADD_CP.name), ]
+            )
+        ),
+    )
 
     @staticmethod
     def draw_settings(context: Context, layout: UILayout, tool: WorkSpaceTool):

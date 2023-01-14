@@ -15,6 +15,10 @@ This addon is designed taking into account many points concerning the actual use
 ## Upcoming
 * Added "Auto Tweak Options" preferences option. This used to be the operator's default behavior for ease of use, but is now optional and disabled by default. If no mesh element is initially selected, the selection option will be changed to "Extend". If all elements are selected, it will be changed to "Do nothing". The option is in the addon preferences under `Behavior > Auto Tweak Options`.
 
+* Main operator has been fixed in a situation where you do undo and redo and then cancel the operator, after which start a new instance of the operator again
+
+* Added a system of keyboard shortcuts that were previously hardcoded. All of them are available in user preferences. Here, Blender has limitations because it does not provide any possibility to create keymaps for modal operators through the Python API. Among the identified shortcomings (however, they were there before) - it is not possible to assign "Double Click" and "Click-and-Drag" actions to the keys.
+
 ## Version 3.4.0
 * Fixed selection for meshes with glued geometry. The problem was how the standard `bpy.ops.mesh.select_linked` operator works, which selects part of the mesh according to normals. The simplest example to reproduce is two pyramids glued together with their upper faces cut off.
 

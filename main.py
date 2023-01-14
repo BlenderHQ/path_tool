@@ -10,6 +10,7 @@ from bpy.types import (
     Area,
     Context,
     Event,
+    KeyMap,
     KeyMapItem,
     Mesh,
     Object,
@@ -18,10 +19,12 @@ from bpy.types import (
     Region,
     RegionView3D,
     SpaceView3D,
-    STATUSBAR_HT_header,
-    UILayout,
     UIPieMenu,
     Window,
+)
+
+from bpy.props import (
+    EnumProperty,
 )
 
 import bmesh
@@ -44,12 +47,9 @@ if TYPE_CHECKING:
     from . props import WMProps
     from . pref import Preferences
 
-HARDCODED_APPLY_KMI = ('SPACE', 'PRESS', False, False, False)
-HARDCODED_CLOSE_PATH_KMI = ('C', 'PRESS', False, False, False)
-HARDCODED_CHANGE_DIRECTION_KMI = ('D', 'PRESS', False, False, False)
-HARDCODED_TOPOLOGY_DISTANCE_KMI = ('T', 'PRESS', False, False, False)
-
 _REGION_VIEW_3D_N_PANEL_TABS_WIDTH_PX = 21
+
+TOOL_KM_NAME = "3D View Tool: Edit Mesh, Select Path"
 
 
 def eval_view3d_n_panel_width(context: Context) -> int:
@@ -59,6 +59,10 @@ def eval_view3d_n_panel_width(context: Context) -> int:
 
 
 class InteractEvent(IntFlag):
+    """Interaction event enumeration flag"""
+    NONE = auto()
+    "No Any Interaction"
+
     ADD_CP = auto()
     "Add new control point"
 
@@ -89,11 +93,14 @@ class InteractEvent(IntFlag):
     REDO = auto()
     "Redo last event"
 
-    APPLY_PATHES = auto()
-    "Apply all pathes"
+    APPLY_PATHS = auto()
+    "Apply all paths"
 
     CANCEL = auto()
     "Cancel"
+
+    PIE = auto()
+    "Open Pie Menu"
 
 
 class PathFlag(IntFlag):
@@ -288,7 +295,7 @@ class Path:
 # |    Topology                Options      |
 # |                 Cancel                  |
 # -------------------------------------------
-_context_action_items = (
+CONTEXT_ACTION_ITEMS = (
     # West
     (
         InteractEvent.CHANGE_DIRECTION.name,
@@ -298,7 +305,7 @@ _context_action_items = (
          "from the opposite end of the path, from it will be formed a section to the next control element that "
          "you create."),
         'NONE',  # 'CON_CHILDOF',
-        InteractEvent.CHANGE_DIRECTION.value,
+        InteractEvent.CHANGE_DIRECTION.value
     ),
     # *** East ***
     (
@@ -306,39 +313,39 @@ _context_action_items = (
         "Close Path",
         "Connect between the beginning and end of the active path",
         'NONE',  # 'MESH_CIRCLE',
-        InteractEvent.CLOSE_PATH.value,
+        InteractEvent.CLOSE_PATH.value
     ),
     # *** South ***
     (
         InteractEvent.CANCEL.name,
         "Cancel",
         "Cancel editing paths",
-        'EVENT_ESC',
-        InteractEvent.CANCEL.value,
+        'NONE',  # 'EVENT_ESC',
+        InteractEvent.CANCEL.value
     ),
     # *** North ***
     (
-        InteractEvent.APPLY_PATHES.name,
+        InteractEvent.APPLY_PATHS.name,
         "Apply",  # 5 chars
         "Apply the created mesh paths according to the selected options",
-        'EVENT_RETURN',
-        InteractEvent.APPLY_PATHES.value,
+        'NONE',  # 'EVENT_RETURN',
+        InteractEvent.APPLY_PATHS.value
     ),
     # *** North-East ***
     (
         InteractEvent.UNDO.name,
         "Undo",
         "Take a step back",
-        'LOOP_BACK',
-        InteractEvent.UNDO.value,
+        'NONE',  # 'LOOP_BACK',
+        InteractEvent.UNDO.value
     ),
     # *** North-West ***
     (
         InteractEvent.REDO.name,
         "Redo",
         "Redo previous undo",
-        'LOOP_FORWARDS',
-        InteractEvent.REDO.value,
+        'NONE',  # 'LOOP_FORWARDS',
+        InteractEvent.REDO.value
     ),
     # *** South-West ***
     (
@@ -347,9 +354,47 @@ _context_action_items = (
         ("Algorithm for calculating the path: simple or using a mesh topology"
          "(Find the minimum number of steps, ignoring spatial distance)"),
         'NONE',  # 'DRIVER_DISTANCE',
-        InteractEvent.TOPOLOGY_DISTANCE.value,
+        InteractEvent.TOPOLOGY_DISTANCE.value
     ),
     # *** South-East *** - reserved for "Options" panel (MESH_PT_select_path_context)
+)
+
+ACTION_ITEMS = CONTEXT_ACTION_ITEMS + (
+    (
+        InteractEvent.NONE.name,
+        "Select Path", "", 'NONE',
+        InteractEvent.NONE.value
+    ),
+    (
+        InteractEvent.ADD_CP.name,
+        "Add new control point", "", 'NONE',
+        InteractEvent.ADD_CP.value
+    ),
+    (
+        InteractEvent.ADD_NEW_PATH.name,
+        "Add new path", "", 'NONE',
+        InteractEvent.ADD_NEW_PATH.value
+    ),
+    (
+        InteractEvent.REMOVE_CP.name,
+        "Remove control point", "", 'NONE',
+        InteractEvent.REMOVE_CP.value
+    ),
+    (
+        InteractEvent.DRAG_CP.name,
+        "Drag control point", "", 'NONE',
+        InteractEvent.DRAG_CP.value
+    ),
+    (
+        InteractEvent.RELEASE_PATH.name,
+        "Release path", "", 'NONE',
+        InteractEvent.RELEASE_PATH.value
+    ),
+    (
+        InteractEvent.PIE.name,
+        "Open Pie Menu", "", 'NONE',
+        InteractEvent.PIE.value
+    ),
 )
 
 
@@ -366,7 +411,7 @@ class MESH_PT_select_path_context(Panel):
 
 
 def __validate_context_action_items_display_symmetry_concept(bias: int = 1):
-    W, E, S, N, NE, NW, SW = (_[1] for _ in _context_action_items)
+    W, E, S, N, NE, NW, SW = (_[1] for _ in CONTEXT_ACTION_ITEMS)
     SE = MESH_PT_select_path_context.bl_label
 
     len_cmp_order = {
@@ -403,10 +448,16 @@ class MESH_OT_select_path(Operator):
 
     __slots__ = ()
 
-    context_action: bpy.props.EnumProperty(
-        items=_context_action_items,
+    context_action: EnumProperty(
+        items=CONTEXT_ACTION_ITEMS,
         default=set(),
         options={'ENUM_FLAG', 'HIDDEN', 'SKIP_SAVE'},
+    )
+
+    action: EnumProperty(
+        items=ACTION_ITEMS,
+        default=InteractEvent.NONE.name,
+        options={'HIDDEN', 'SKIP_SAVE'},
     )
 
     # Input events and keys
@@ -414,13 +465,11 @@ class MESH_OT_select_path(Operator):
     "Select mouse button"
     pie_mb: Literal['LEFTMOUSE', 'RIGHTMOUSE']
     "Contextual pie menu mouse button"
-    modal_events: dict[_PackedEvent_T, str]
-    "Standard modal keymap modal events: ``'APPLY'``, ``'CANCEL'``, ect."
-    undo_redo_events: dict[_PackedEvent_T, Literal['UNDO', 'REDO']]
-    "Standard keymap undo and redo keys"
+
     nav_events: tuple[_PackedEvent_T]
     "Standard 3D View navigation events"
-    is_mouse_pressed: bool
+    is_interaction: bool = False
+    """Is there an interaction with the path element"""
 
     # Tool settings mesh select modes and mesh elements
     initial_ts_msm: tuple[int | bool, int | bool, int | bool]
@@ -517,7 +566,6 @@ class MESH_OT_select_path(Operator):
             elif num_elements_total > len(cls.initial_select) and props.mark_select == 'NONE':
                 props.mark_select = 'EXTEND'
 
-
     @classmethod
     @property
     def active_path(cls) -> Path:
@@ -593,8 +641,7 @@ class MESH_OT_select_path(Operator):
         cls = self.__class__
 
         if len(cls.undo_history) == 1:
-            cls._cancel_all_instances(context)
-            return {'CANCELLED'}
+            cls.path_arr.clear()
 
         elif len(cls.undo_history) > 1:
             step = cls.undo_history.pop()
@@ -604,10 +651,6 @@ class MESH_OT_select_path(Operator):
             cls.path_arr = list(undo_step_path_seq)
             cls._just_closed_path = False
 
-        context.area.tag_redraw()
-
-        return {'RUNNING_MODAL'}
-
     def _redo(self, context: Context) -> None:
         cls = self.__class__
 
@@ -616,7 +659,7 @@ class MESH_OT_select_path(Operator):
             cls.undo_history.append(step)
             undo_step_active_path_index, undo_step_path_seq = cls.undo_history[-1]
             cls._active_path_index = undo_step_active_path_index
-            cls.path_arr = undo_step_path_seq
+            cls.path_arr = list(undo_step_path_seq)
             context.area.tag_redraw()
         else:
             self.report({'WARNING'}, message="Can not redo anymore")
@@ -835,36 +878,6 @@ class MESH_OT_select_path(Operator):
         pie.popover(MESH_PT_select_path_context.__name__)
 
     @staticmethod
-    def _ui_draw_statusbar(self, context: Context) -> None:
-        layout = self.layout
-        layout: UILayout
-
-        wm = context.window_manager
-
-        cancel_keys = set()
-        apply_keys = {HARDCODED_APPLY_KMI[0]}
-
-        kc = wm.keyconfigs.user
-        for kmi in kc.keymaps["Standard Modal Map"].keymap_items:
-            kmi: KeyMapItem
-            if kmi.propvalue == 'CANCEL':
-                cancel_keys.add(kmi.type)
-            elif kmi.propvalue == 'APPLY' and 'MOUSE' not in kmi.type:
-                apply_keys.add(kmi.type)
-
-        bhqab.utils_ui.template_input_info_kmi_from_type(layout, label="Cancel", event_types=cancel_keys)
-        bhqab.utils_ui.template_input_info_kmi_from_type(layout, label="Apply", event_types=apply_keys)
-        bhqab.utils_ui.template_input_info_kmi_from_type(
-            layout, label="Close Path", event_types={HARDCODED_CLOSE_PATH_KMI[0]}
-        )
-        bhqab.utils_ui.template_input_info_kmi_from_type(
-            layout, label="Change Direction", event_types={HARDCODED_CHANGE_DIRECTION_KMI[0]}
-        )
-        bhqab.utils_ui.template_input_info_kmi_from_type(
-            layout, label="Topology Distance", event_types={HARDCODED_TOPOLOGY_DISTANCE_KMI[0]}
-        )
-
-    @staticmethod
     def _gpu_gen_batch_faces_seq(fill_seq, is_active, shader):
         tmp_bm = bmesh.new()
         for face in fill_seq:
@@ -1001,6 +1014,11 @@ class MESH_OT_select_path(Operator):
         cls = self.__class__
 
         props: WMProps = context.window_manager.select_path
+
+        if interact_event is InteractEvent.UNDO:
+            self._undo(context)
+        elif interact_event is InteractEvent.REDO:
+            self._redo(context)
 
         if elem and interact_event is InteractEvent.ADD_CP:
             if not cls.path_arr:
@@ -1159,6 +1177,11 @@ class MESH_OT_select_path(Operator):
 
     def invoke(self, context: Context, event):
         cls = self.__class__
+
+        # The operator can be invoked with various options, in order not to break the operation of the operator, cancel
+        if self.context_action or InteractEvent.NONE.name != self.action:
+            return {'PASS_THROUGH'}
+
         wm = context.window_manager
 
         if not cls.windows:
@@ -1205,22 +1228,6 @@ class MESH_OT_select_path(Operator):
         if cls.select_mb == 'LEFTMOUSE':
             cls.pie_mb = 'RIGHTMOUSE'
 
-        # Modal keymap.
-        cls.modal_events = dict()
-        for kmi in kc.keymaps["Standard Modal Map"].keymap_items:
-            ev = cls._pack_event(kmi)
-            cls.modal_events[(ev[0], ev[1], False, False, False)] = kmi.propvalue
-
-        # Operator's undo/redo keymap.
-        cls.undo_redo_events = dict()
-        km_screen = kc.keymaps['Screen']
-
-        kmi = km_screen.keymap_items.find_from_operator(idname='ed.undo')
-        cls.undo_redo_events[cls._pack_event(kmi)] = 'UNDO'
-
-        kmi = km_screen.keymap_items.find_from_operator(idname='ed.redo')
-        cls.undo_redo_events[cls._pack_event(kmi)] = 'REDO'
-
         # Navigation events which would be passed through operator's modal cycle.
         nav_events = []
         for kmi in kc.keymaps['3D View'].keymap_items:
@@ -1251,8 +1258,6 @@ class MESH_OT_select_path(Operator):
                     ev[0] = 'WHEELDOWNMOUSE'
                 nav_events.append(tuple(ev))
         cls.nav_events = tuple(nav_events)
-
-        cls.is_mouse_pressed = False
 
         # ____________________________________________________________________ #
         # Initialize variables.
@@ -1301,8 +1306,6 @@ class MESH_OT_select_path(Operator):
             cls._cancel_all_instances(context)
             return {'CANCELLED'}
 
-        STATUSBAR_HT_header.prepend(cls._ui_draw_statusbar)
-
         cls.gpu_handles = [
             SpaceView3D.draw_handler_add(self._gpu_draw_callback, tuple(), 'WINDOW', 'POST_VIEW'),
         ]
@@ -1325,7 +1328,6 @@ class MESH_OT_select_path(Operator):
         cls._set_selection_state(cls.initial_select, True)
         cls._update_meshes()
         cls._gpu_remove_handles()
-        STATUSBAR_HT_header.remove(cls._ui_draw_statusbar)
 
     def cancel(self, context: Context):
         cls = self.__class__
@@ -1345,29 +1347,28 @@ class MESH_OT_select_path(Operator):
 
         addon_pref: Preferences = context.preferences.addons[addon_pkg].preferences
         ev = cls._pack_event(event)
-        modal_action = cls.modal_events.get(ev, None)
-        undo_redo_action = cls.undo_redo_events.get(ev, None)
+
         interact_event = None
 
+        kc = context.window_manager.keyconfigs.user
+        km: KeyMap = kc.keymaps.get(TOOL_KM_NAME)
+
+        kmi: None | KeyMapItem = km.keymap_items.match_event(event)
+
         if (
-            modal_action == 'CANCEL'
-            or InteractEvent.CANCEL.name in self.context_action
+            InteractEvent.CANCEL.name in self.context_action
+            or kmi and InteractEvent.CANCEL.name == kmi.properties.action
         ):
-            self.context_action = set()
             cls._cancel_all_instances(context)
             return {'CANCELLED'}
 
         elif (
-            modal_action == 'APPLY'
-            or ev == HARDCODED_APPLY_KMI
-            or InteractEvent.APPLY_PATHES.name in self.context_action
+            InteractEvent.APPLY_PATHS.name in self.context_action
+            or kmi and InteractEvent.APPLY_PATHS.name == kmi.properties.action
         ):
-            self.context_action = set()
-
             cls.windows.clear()
             cls._eval_final_element_indices_arrays()
             cls._gpu_remove_handles()
-            STATUSBAR_HT_header.remove(cls._ui_draw_statusbar)
             return self.execute(context)
 
         elif cls._get_interactive_ui_under_mouse(context, event) is None:
@@ -1378,35 +1379,55 @@ class MESH_OT_select_path(Operator):
 
         elif (
             InteractEvent.CLOSE_PATH.name in self.context_action
-            or ev == HARDCODED_CLOSE_PATH_KMI
+            or kmi and InteractEvent.CLOSE_PATH.name == kmi.properties.action
         ):
-            self.context_action = set()
             interact_event = InteractEvent.CLOSE_PATH
 
         elif (
             InteractEvent.CHANGE_DIRECTION.name in self.context_action
-            or ev == HARDCODED_CHANGE_DIRECTION_KMI
+            or kmi and InteractEvent.CHANGE_DIRECTION.name == kmi.properties.action
         ):
-            self.context_action = set()
             interact_event = InteractEvent.CHANGE_DIRECTION
 
         elif (
             InteractEvent.TOPOLOGY_DISTANCE.name in self.context_action
-            or ev == HARDCODED_TOPOLOGY_DISTANCE_KMI
+            or kmi and InteractEvent.TOPOLOGY_DISTANCE.name == kmi.properties.action
         ):
-            self.context_action = set()
             interact_event = InteractEvent.TOPOLOGY_DISTANCE
 
-        elif (undo_redo_action == 'UNDO') or (InteractEvent.UNDO.name in self.context_action):
-            self.context_action = set()
-            return self._undo(context)
+        elif (
+            InteractEvent.UNDO.name in self.context_action
+            or kmi and InteractEvent.UNDO.name == kmi.properties.action
+        ):
+            interact_event = InteractEvent.UNDO
 
-        elif (undo_redo_action == 'REDO') or (InteractEvent.REDO.name in self.context_action):
-            self.context_action = set()
-            self._redo(context)
+        elif (
+            InteractEvent.REDO.name in self.context_action
+            or kmi and InteractEvent.REDO.name == kmi.properties.action
+        ):
+            interact_event = InteractEvent.REDO
 
-        elif ev == (cls.pie_mb, 'PRESS', False, False, False):
-            cls.is_mouse_pressed = False
+        elif kmi and InteractEvent.ADD_CP.name == kmi.properties.action:
+            cls.is_interaction = True
+            interact_event = InteractEvent.ADD_CP
+
+        elif kmi and InteractEvent.ADD_NEW_PATH.name == kmi.properties.action:
+            cls.is_interaction = True
+            interact_event = InteractEvent.ADD_NEW_PATH
+
+        elif kmi and InteractEvent.REMOVE_CP.name == kmi.properties.action:
+            interact_event = InteractEvent.REMOVE_CP
+
+        # NOTE: Strange spam of 'INBETWEEN_MOUSEMOVE' events on Linux
+        elif cls.is_interaction and 'MOUSEMOVE' == event.type:
+            interact_event = InteractEvent.DRAG_CP
+
+        if 'RELEASE' == event.value:
+            cls.is_interaction = False
+            interact_event = InteractEvent.RELEASE_PATH
+
+        if kmi and InteractEvent.PIE.name == kmi.properties.action:
+            cls.is_interaction = False
             context.window_manager.popup_menu_pie(
                 event=event,
                 draw_func=self._ui_draw_popup_menu_pie,
@@ -1415,30 +1436,7 @@ class MESH_OT_select_path(Operator):
             )
             return {'RUNNING_MODAL'}
 
-        elif ev == (cls.select_mb, 'PRESS', False, False, False):
-            cls.is_mouse_pressed = True
-            interact_event = InteractEvent.ADD_CP
-
-        elif ev == (cls.select_mb, 'PRESS', False, False, True):
-            cls.is_mouse_pressed = True
-            interact_event = InteractEvent.ADD_NEW_PATH
-
-        elif ev == (cls.select_mb, 'PRESS', False, True, False):
-            cls.is_mouse_pressed = False
-            interact_event = InteractEvent.REMOVE_CP
-
-        elif ev in ((cls.select_mb, 'RELEASE', False, False, False),
-                    (cls.select_mb, 'RELEASE', False, True, False),
-                    (cls.select_mb, 'RELEASE', False, False, True),
-                    ):
-            cls.is_mouse_pressed = False
-            interact_event = InteractEvent.RELEASE_PATH
-
-        # NOTE: Strange spam of 'INBETWEEN_MOUSEMOVE' events on Linux
-        elif cls.is_mouse_pressed and ev[0] in {'MOUSEMOVE', }:
-            interact_event = InteractEvent.DRAG_CP
-
-        if interact_event is not None:
+        elif interact_event is not None:
             elem, ob = cls._get_element_by_mouse(context, event)
             self._interact_control_element(context, elem, ob, interact_event)
 
@@ -1448,6 +1446,8 @@ class MESH_OT_select_path(Operator):
         if not len(cls.path_arr):
             cls._cancel_all_instances(context)
             return {'CANCELLED'}
+
+        self.context_action = set()
 
         cls.gpu_draw_framework.aa_method = addon_pref.aa_method
         if addon_pref.aa_method == 'FXAA':

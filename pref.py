@@ -5,6 +5,7 @@ import os
 from bpy.types import (
     AddonPreferences,
     Context,
+    KeyMap,
     Menu,
     Operator,
     UILayout,
@@ -15,12 +16,14 @@ from bpy.props import (
     FloatVectorProperty,
     IntProperty,
 )
+
+import rna_keymap_ui
 from bl_operators.presets import AddPresetBase
 
+from . import main
 from . import __package__ as addon_pkg
 from .lib import bhqab
 
-TOOL_KM_NAME = "3D View Tool: Edit Mesh, Select Path"
 PREF_TEXTS = dict()
 
 
@@ -214,7 +217,17 @@ class Preferences(AddonPreferences, Properties):
                 layout.prop(self, "auto_tweak_options")
 
             case 'KEYMAP':
-                bhqab.utils_ui.template_tool_keymap(context, layout, km_name=TOOL_KM_NAME)
+                kc = context.window_manager.keyconfigs.user
+                km: KeyMap = kc.keymaps.get(main.TOOL_KM_NAME)
+                if km:
+                    for kmi in km.keymap_items:
+                        prop: set[str] = kmi.properties.action
+                        for item in main.ACTION_ITEMS:
+                            key, name, _desc, icon, _val = item
+                            if prop == key:
+                                row = layout.row()
+                                row.label(text=name, icon=icon)
+                                rna_keymap_ui.draw_kmi([], kc, km, kmi, row, 0)
 
             case 'INFO':
                 base_dir = os.path.join(os.path.dirname(__file__), "data", "info")
