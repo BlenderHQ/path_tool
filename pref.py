@@ -216,6 +216,16 @@ class Preferences(AddonPreferences, Properties):
             case 'BEHAVIOR':
                 layout.prop(self, "auto_tweak_options")
 
+                pref_inputs = context.preferences.inputs
+                if not pref_inputs.use_mouse_depth_navigate:
+                    col = layout.column(align=True)
+                    col.label(text="Recommended", icon='QUESTION')
+                    col.prop(context.preferences.inputs, "use_mouse_depth_navigate")
+                if not pref_inputs.use_zoom_to_mouse:
+                    col = layout.column(align=True)
+                    col.label(text="Recommended", icon='QUESTION')
+                    col.prop(context.preferences.inputs, "use_zoom_to_mouse")
+
             case 'KEYMAP':
                 kc = context.window_manager.keyconfigs.user
                 km: KeyMap = kc.keymaps.get(main.TOOL_KM_NAME)
