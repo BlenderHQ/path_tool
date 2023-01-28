@@ -33,9 +33,6 @@ class PrvID(Enum):
     :cvar Enum AC: `Action`_
     :cvar Enum NT: `NodeTree`_
 
-    .. seealso::
-
-        :func:`bhqab.utils_gpu.previews.generate_preview_textures_dict`
     """
     OB = auto()
     MA = auto()

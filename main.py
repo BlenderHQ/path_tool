@@ -444,8 +444,6 @@ class MESH_OT_select_path(Operator):
     bl_label = "Select Path"
     bl_options = {'REGISTER', 'UNDO', 'INTERNAL'}
 
-    windows: set[Window] = set()
-
     __slots__ = ()
 
     context_action: EnumProperty(
@@ -460,14 +458,10 @@ class MESH_OT_select_path(Operator):
         options={'HIDDEN', 'SKIP_SAVE'},
     )
 
-    # Input events and keys
-    select_mb: Literal['LEFTMOUSE', 'RIGHTMOUSE']
-    "Select mouse button"
-    pie_mb: Literal['LEFTMOUSE', 'RIGHTMOUSE']
-    "Contextual pie menu mouse button"
-
-    nav_events: tuple[_PackedEvent_T]
-    "Standard 3D View navigation events"
+    windows: set[Window] = set()
+    """Program windows in which the operator is invoked"""
+    nav_events: tuple[_PackedEvent_T] = tuple()
+    """Standard 3D View navigation events"""
     is_interaction: bool = False
     """Is there an interaction with the path element"""
 
@@ -637,7 +631,7 @@ class MESH_OT_select_path(Operator):
     def _get_current_state_copy(cls) -> tuple[int, tuple[Path]]:
         return tuple((cls._active_path_index, tuple(n.copy() for n in cls.path_arr)))
 
-    def _undo(self, context: Context) -> set[Literal['CANCELLED', 'RUNNING_MODAL']]:
+    def _undo(self, context: Context):
         cls = self.__class__
 
         if len(cls.undo_history) == 1:
@@ -950,13 +944,12 @@ class MESH_OT_select_path(Operator):
             shader_path = cls.gpu_shaders["path_face"]
 
         depth_map = bhqab.utils_gpu.draw_framework.get_depth_map()
-        viewport_metrics = bhqab.utils_gpu.draw_framework.get_viewport_metrics()
 
-        offscreen = cls.gpu_draw_framework.get(index=0)
-
-        with offscreen.bind():
-            fb = gpu.state.active_framebuffer_get()
+        fb_framework = cls.gpu_draw_framework.get(index=0)
+        fb = fb_framework.get()
+        with fb.bind():
             fb.clear(color=(0.0, 0.0, 0.0, 0.0))
+            viewport_metrics = bhqab.utils_gpu.draw_framework.get_viewport_metrics()
 
             with gpu.matrix.push_pop():
                 gpu.state.line_width_set(addon_pref.line_width)
@@ -1003,7 +996,7 @@ class MESH_OT_select_path(Operator):
 
                         path.batch_control_elements.draw(shader_ce)
 
-        cls.gpu_draw_framework.draw(texture=offscreen.texture_color)
+        cls.gpu_draw_framework.draw(texture=fb_framework.get_color_texture())
 
     def _interact_control_element(self,
                                   context: Context,
@@ -1020,7 +1013,7 @@ class MESH_OT_select_path(Operator):
         elif interact_event is InteractEvent.REDO:
             self._redo(context)
 
-        if elem and interact_event is InteractEvent.ADD_CP:
+        elif elem and interact_event is InteractEvent.ADD_CP:
             if not cls.path_arr:
                 return self._interact_control_element(context, elem, ob, InteractEvent.ADD_NEW_PATH)
 
@@ -1222,12 +1215,6 @@ class MESH_OT_select_path(Operator):
         km_path_tool = kc.keymaps["3D View Tool: Edit Mesh, Select Path"]
         kmi = km_path_tool.keymap_items[0]
 
-        # Select and context pie menu mouse buttons.
-        cls.select_mb = kmi.type
-        cls.pie_mb = 'LEFTMOUSE'
-        if cls.select_mb == 'LEFTMOUSE':
-            cls.pie_mb = 'RIGHTMOUSE'
-
         # Navigation events which would be passed through operator's modal cycle.
         nav_events = []
         for kmi in kc.keymaps['3D View'].keymap_items:
@@ -1310,10 +1297,10 @@ class MESH_OT_select_path(Operator):
             SpaceView3D.draw_handler_add(self._gpu_draw_callback, tuple(), 'WINDOW', 'POST_VIEW'),
         ]
 
-        cls.gpu_shaders = bhqab.utils_gpu.shader.eval_shaders_dict(
+        cls.gpu_shaders = bhqab.utils_gpu.shaders.eval_shaders_dict(
             dir_path=os.path.join(os.path.dirname(__file__), "data", "shaders")
         )
-        cls.gpu_draw_framework = bhqab.utils_gpu.draw_framework.DrawFramework(num_offscreens=1)
+        cls.gpu_draw_framework = bhqab.utils_gpu.draw_framework.DrawFramework(num=1)
 
         self._interact_control_element(context, elem, ob, InteractEvent.ADD_NEW_PATH)
         wm.modal_handler_add(self)
@@ -1422,7 +1409,7 @@ class MESH_OT_select_path(Operator):
         elif cls.is_interaction and 'MOUSEMOVE' == event.type:
             interact_event = InteractEvent.DRAG_CP
 
-        if 'RELEASE' == event.value:
+        if cls.is_interaction and 'RELEASE' == event.value:
             cls.is_interaction = False
             interact_event = InteractEvent.RELEASE_PATH
 
@@ -1455,7 +1442,11 @@ class MESH_OT_select_path(Operator):
             cls.gpu_draw_framework.aa.value = addon_pref.fxaa_value
         elif addon_pref.aa_method == 'SMAA':
             cls.gpu_draw_framework.aa.preset = addon_pref.smaa_preset
-        cls.gpu_draw_framework.modal_eval(format='RGBA8', percentage=100)
+        cls.gpu_draw_framework.modal_eval(
+            context, color_format='RGBA8',
+            depth_format='DEPTH_COMPONENT16',
+            percentage=100
+        )
         # NOTE: Use this print statement for debugging purposes.
         # print(self.path_arr)
 

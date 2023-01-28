@@ -1,9 +1,15 @@
 from __future__ import annotations
+
 from enum import auto, IntEnum
 from typing import Literal
 
+from bpy.types import (
+    Context,
+)
+
 from mathutils import Matrix
 
+import gpu
 from gpu.types import (
     GPUTexture,
 )
@@ -25,6 +31,7 @@ class AAPreset(IntEnum):
     :cvar IntEnum MEDIUM: Medium anti-aliasing level
     :cvar IntEnum HIGH: High anti-aliasing level
     :cvar IntEnum ULTRA: Ultra anti-aliasing level
+
     """
     NONE = auto()
     LOW = auto()
@@ -39,6 +46,13 @@ IDENTITY_M4X4 = Matrix.Identity(4)
 class AABase(object):
     """
     Base class for anti-aliasing methods
+
+    :cvar str name: The name of the anti-aliasing method. Corresponds to the name of the class
+    :cvar str description: The description of the anti-aliasing method. Corresponds to the documentation string of the
+    class
+
+    :ivar str preset: Current preset
+
     """
     __slots__ = (
         "_preset",
@@ -47,13 +61,13 @@ class AABase(object):
     _preset: AAPreset
     _preset_0: AAPreset
 
-    def __init__(self):
+    def __init__(self, *, area_type='VIEW_3D', region_type='WINDOW'):
         self._preset = AAPreset.NONE
         self._preset_0 = AAPreset.NONE
 
     @classmethod
     @property
-    def name(cls):
+    def name(cls) -> str:
         return cls.__name__
 
     @classmethod
@@ -81,6 +95,29 @@ class AABase(object):
             self._preset_0 = self._preset
             return True
         return False
+
+    @staticmethod
+    def _setup_gpu_state():
+        gpu.matrix.load_matrix(IDENTITY_M4X4)
+        gpu.matrix.load_projection_matrix(IDENTITY_M4X4)
+        gpu.state.blend_set('ALPHA_PREMULT')
+        gpu.state.front_facing_set(True)
+        gpu.state.face_culling_set('BACK')
+        gpu.state.depth_mask_set(0)
+        gpu.state.depth_test_set('ALWAYS')
+
+    def modal_eval(self, context: Context, color_format: str = "", percentage: int = 100):
+        """
+        Modal evaluation
+
+        :param context: Current context
+        :type context: `Context`_
+        :param color_format: Color texture format. See `GPUTexture`_ for details, defaults to ""
+        :type color_format: str, optional
+        :param percentage: Size percentage, defaults to 100
+        :type percentage: int, optional
+        """
+        pass
 
     def draw(self, *, texture: GPUTexture) -> None:
         """

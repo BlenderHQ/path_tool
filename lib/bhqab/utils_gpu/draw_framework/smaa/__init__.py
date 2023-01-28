@@ -6,6 +6,10 @@ from typing import Literal
 import numpy as np
 import os
 
+from bpy.types import (
+    Context,
+)
+
 from bpy.props import (
     EnumProperty,
 )
@@ -18,7 +22,7 @@ from gpu.types import (
 )
 
 from .. import _aa_base
-from .. import _offscreen_framework
+from .. import _framebuffer_framework
 
 __all__ = (
     "SMAA",
@@ -31,17 +35,17 @@ class SMAA(_aa_base.AABase):
     # NOTE: __doc__ may be used also in UI purposes.
 
     __slots__ = (
-        "_off_framework_stage_0",
-        "_off_framework_stage_1",
+        "_fb_framework_stage_0",
+        "_fb_framework_stage_1",
         "_shaders_eval",
         "_batches_eval",
     )
 
-    _off_framework_stage_0: _offscreen_framework.OffscreenFramework
+    _fb_framework_stage_0: _framebuffer_framework.FrameBufferFramework
     """
     An offscreen framework for the first stage of processing.
     """
-    _off_framework_stage_1: _offscreen_framework.OffscreenFramework
+    _fb_framework_stage_1: _framebuffer_framework.FrameBufferFramework
     """
     An offscreen framework for the second stage of processing.
     """
@@ -76,27 +80,28 @@ class SMAA(_aa_base.AABase):
                 (
                     _aa_base.AAPreset.NONE.name,
                     "None",
-                    "Do not use sub-pixel morphological anti-aliasing",
+                    r"Do not use sub-pixel morphological anti-aliasing",
                 ),
                 (
                     _aa_base.AAPreset.LOW.name,
                     "Low",
-                    "60% of the quality. High threshold, very a few search steps, no detection of corners and diagonals",
+                    (r"60% of the quality. High threshold, very a few search steps, no detection of corners and "
+                     r"diagonals"),
                 ),
                 (
                     _aa_base.AAPreset.MEDIUM.name,
                     "Medium",
-                    "80% of the quality. Medium threshold, few search steps, no detection of corners and diagonals",
+                    r"80% of the quality. Medium threshold, few search steps, no detection of corners and diagonals",
                 ),
                 (
                     _aa_base.AAPreset.HIGH.name,
                     "High",
-                    "95% of the quality. Medium threshold, more search steps, detection of corners and diagonals",
+                    r"95% of the quality. Medium threshold, more search steps, detection of corners and diagonals",
                 ),
                 (
                     _aa_base.AAPreset.ULTRA.name,
                     "Ultra",
-                    "99% of the quality. A lot of search steps, diagonal and corner search steps, lowest threshold",
+                    r"99% of the quality. A lot of search steps, diagonal and corner search steps, lowest threshold",
                 ),
             ),
             default=_aa_base.AAPreset.HIGH.name,
@@ -150,15 +155,16 @@ class SMAA(_aa_base.AABase):
             _do_update_on_preset_change = self._do_preset_eval()
             if not self._shaders_eval or _do_update_on_preset_change:
                 if not cls._cached_shader_code:
+                    directory = os.path.dirname(__file__)
                     with (
-                        open(file=os.path.join(os.path.dirname(__file__), "smaa_vert.glsl"), mode='r', encoding="utf-8") as smaa_vert_file,
-                        open(file=os.path.join(os.path.dirname(__file__), "smaa_frag.glsl"), mode='r', encoding="utf-8") as smaa_frag_file,
-                        open(file=os.path.join(os.path.dirname(__file__), "smaa_lib.glsl"), mode='r', encoding="utf-8") as smaa_lib_file
+                        open(file=os.path.join(directory, "smaa_vert.glsl"), mode='r', encoding="utf-8") as vert_file,
+                        open(file=os.path.join(directory, "smaa_frag.glsl"), mode='r', encoding="utf-8") as frag_file,
+                        open(file=os.path.join(directory, "smaa_lib.glsl"), mode='r', encoding="utf-8") as lib_file
                     ):
                         cls._cached_shader_code = (
-                            smaa_vert_file.read(),
-                            smaa_frag_file.read(),
-                            smaa_lib_file.read(),
+                            vert_file.read(),
+                            frag_file.read(),
+                            lib_file.read(),
                         )
                 vertexcode, fragcode, libcode = cls._cached_shader_code
 
@@ -176,13 +182,13 @@ class SMAA(_aa_base.AABase):
                     ) for i in range(3)
                 ))
 
-                self._batches_eval = tuple((_offscreen_framework.eval_unit_rect_batch(shader)
+                self._batches_eval = tuple((_framebuffer_framework.eval_unit_rect_batch(shader)
                                            for shader in self._shaders_eval))
         else:
             self._shaders_eval = tuple()
             self._batches_eval = tuple()
 
-    def modal_eval(self, *, format: Literal['RGBA8', 'RGBA16', 'RGBA16F', 'RGBA32F'] = 'RGBA8', percentage: int = 100):
+    def modal_eval(self, context: Context, *, color_format: str = "", percentage: int = 100):
         """
         The class and instance data update method should be called in the modal part of the control operator
 
@@ -196,15 +202,31 @@ class SMAA(_aa_base.AABase):
         cls._eval_textures()
         self._eval_shaders()
 
-        self._off_framework_stage_0.modal_eval(format=format, percentage=percentage)
-        self._off_framework_stage_1.modal_eval(format=format, percentage=percentage)
+        self._fb_framework_stage_0.modal_eval(
+            context,
+            color_format=color_format,
+            depth_format="",  # Current shader implementation does not need depth texture
+            percentage=percentage
+        )
+        self._fb_framework_stage_1.modal_eval(
+            context,
+            color_format=color_format,
+            depth_format="",  # Current shader implementation does not need depth texture
+            percentage=percentage
+        )
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *, area_type='VIEW_3D', region_type='WINDOW'):
+        super().__init__(area_type=area_type, region_type=region_type)
         self._shaders_eval = tuple()
         self._batches_eval = tuple()
-        self._off_framework_stage_0 = _offscreen_framework.OffscreenFramework()
-        self._off_framework_stage_1 = _offscreen_framework.OffscreenFramework()
+        self._fb_framework_stage_0 = _framebuffer_framework.FrameBufferFramework(
+            area_type=area_type,
+            region_type=region_type
+        )
+        self._fb_framework_stage_1 = _framebuffer_framework.FrameBufferFramework(
+            area_type=area_type,
+            region_type=region_type
+        )
 
     def draw(self, *, texture: GPUTexture) -> None:
         """
@@ -216,43 +238,40 @@ class SMAA(_aa_base.AABase):
         super().draw(texture=texture)
 
         cls = self.__class__
-        viewport_metrics = _offscreen_framework.get_viewport_metrics()
+        viewport_metrics = _framebuffer_framework.get_viewport_metrics()
 
-        def _setup_gl(clear: bool) -> None:
-            if clear:
-                fb = gpu.state.active_framebuffer_get()
-                fb.clear(color=(0.0, 0.0, 0.0, 0.0))
+        fb_framework_0 = self._fb_framework_stage_0
+        fb = fb_framework_0.get()
+        with fb.bind():
+            fb.clear(color=(0.0, 0.0, 0.0, 0.0))
+            self._setup_gpu_state()
 
-            gpu.matrix.load_matrix(_aa_base.IDENTITY_M4X4)
-            gpu.matrix.load_projection_matrix(_aa_base.IDENTITY_M4X4)
-            gpu.state.blend_set('ALPHA_PREMULT')
-
-        offscreen_stage_0 = self._off_framework_stage_0.get()
-        with offscreen_stage_0.bind():
-            _setup_gl(clear=True)
             shader = self._shaders_eval[0]
             shader.bind()
             shader.uniform_sampler("colorTex", texture)
             shader.uniform_float("viewportMetrics", viewport_metrics)
             self._batches_eval[0].draw(shader)
 
-        offscreen_stage_1 = self._off_framework_stage_1.get()
-        with offscreen_stage_1.bind():
-            _setup_gl(clear=True)
+        fb_framework_1 = self._fb_framework_stage_1
+        fb = fb_framework_1.get()
+        with fb.bind():
+            fb.clear(color=(0.0, 0.0, 0.0, 0.0))
+            self._setup_gpu_state()
 
             shader = self._shaders_eval[1]
             shader.bind()
-            shader.uniform_sampler("edgesTex", offscreen_stage_0.texture_color)
+            shader.uniform_sampler("edgesTex", fb_framework_0.get_color_texture())
             shader.uniform_sampler("searchTex", cls._cached_smaa_textures[0])
             shader.uniform_sampler("areaTex", cls._cached_smaa_textures[1])
             shader.uniform_float("viewportMetrics", viewport_metrics)
             self._batches_eval[1].draw(shader)
 
         with gpu.matrix.push_pop():
-            _setup_gl(clear=False)
+            self._setup_gpu_state()
+
             shader = self._shaders_eval[2]
             shader.bind()
             shader.uniform_sampler("colorTex", texture)
-            shader.uniform_sampler("blendTex", offscreen_stage_1.texture_color)
+            shader.uniform_sampler("blendTex", fb_framework_1.get_color_texture())
             shader.uniform_float("viewportMetrics", viewport_metrics)
             self._batches_eval[2].draw(shader)

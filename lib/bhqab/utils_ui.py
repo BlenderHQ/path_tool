@@ -138,8 +138,8 @@ def _string_width(string):
 
 def draw_wrapped_text(context: Context, layout: UILayout, *, text: str) -> None:
     """
-    Draws a block of ``text`` in the given layout, dividing it into lines according to the width of the current region of
-    the interface.
+    Draws a block of ``text`` in the given layout, dividing it into lines according to the width of the current region
+    of the interface.
 
     :param context: Current context
     :type context: `Context`_
@@ -500,7 +500,7 @@ class progress(metaclass=_progress_meta):
     @classmethod
     def complete(cls, *, item: ProgressPropertyItem):
         """
-        Removes progressbar from UI. If removed progressbar was the last one, would be called 
+        Removes progressbar from UI. If removed progressbar was the last one, would be called
         :func:`progress.release_all` class method.
 
         :param item: Progress item to be removed
@@ -778,12 +778,12 @@ def template_disclosure_enum_flag(layout: UILayout, *, item: ID, prop_enum_flag:
 
 class LoggingUtils:
     _LOG_LEVELS = (
-        ('CRITICAL', "Critical", logging.CRITICAL),
-        ('ERROR', "Error", logging.ERROR),
-        ('WARNING', "Warning", logging.WARNING),
-        ('INFO', "Info", logging.INFO),
-        ('DEBUG', "Debug", logging.DEBUG),
-        ('NOTSET', "Not Set", logging.NOTSET),
+        (logging.getLevelName(logging.CRITICAL), "Critical", logging.CRITICAL),
+        (logging.getLevelName(logging.ERROR), "Error", logging.ERROR),
+        (logging.getLevelName(logging.WARNING), "Warning", logging.WARNING),
+        (logging.getLevelName(logging.INFO), "Info", logging.INFO),
+        (logging.getLevelName(logging.DEBUG), "Debug", logging.DEBUG),
+        (logging.getLevelName(logging.NOTSET), "Not Set", logging.NOTSET),
     )
 
     def _log_level_update(self, _context: Context):
@@ -791,11 +791,12 @@ class LoggingUtils:
         for key, name, level in LoggingUtils._LOG_LEVELS:
             if key == self.log_level:
                 break
-        logging.basicConfig(level=level)
+        # logging.basicConfig(level=level)
+        logging.root.setLevel(level)
 
     prop_log_level = EnumProperty(
         items=[(key, name, "") for key, name, _level in _LOG_LEVELS],
-        default='NOTSET',
+        default=logging.getLevelName(logging.NOTSET),
         update=_log_level_update,
         name="Logging Level",
         description="Logging messages which are less severe than level will be ignored",

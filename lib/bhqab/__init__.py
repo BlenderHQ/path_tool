@@ -27,9 +27,11 @@ __license__ = "GPLv3"
 from . import utils_gpu
 from . import utils_ui
 from . import utils_id
+from . import utils_wm
 
 __all__ = (
     "utils_gpu",
     "utils_id",
     "utils_ui",
+    "utils_wm",
 )

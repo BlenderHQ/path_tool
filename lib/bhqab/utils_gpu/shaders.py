@@ -13,9 +13,11 @@ def eval_shaders_dict(
         suffix_fragcode: str = "frag",
         suffix_geocode: str = "geom",
         suffix_libcode: str = "lib",
-        suffix_defines: str = "def"
+        suffix_defines: str = "def",
+        defines: str = ""
 ) -> dict[str, GPUShader]:
-    """A function that helps generate shaders from text files in a certain directory.
+    """
+    Helper function for generating shaders from files.
 
     :param dir_path: Directory containing shader files
     :type dir_path: str
@@ -33,8 +35,10 @@ def eval_shaders_dict(
     :type suffix_libcode: str, optional
     :param suffix_defines: Defines file name suffix, default to ``"def"``
     :type suffix_defines: str, optional
+    :param defines: Pre-processor definitions required for operations
+    :type defines: str, optional
 
-    :return: A verb with shader names as keys and shaders as values
+    :return: Dictionary with shader names as keys and shaders as values
     :rtype: dict[str, `GPUShader`_]:
     """
 
@@ -43,7 +47,7 @@ def eval_shaders_dict(
     if not bpy.app.background:
         shaders_kwargs_eval: dict[str, dict[str, str]] = dict()
         libcode_eval = ""
-        defines_eval = ""
+        defines_eval = f"\n{defines}\n\n"
 
         shader_suffix_to_code_kwarg = {
             suffix_vertexcode: "vertexcode",

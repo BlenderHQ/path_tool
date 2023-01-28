@@ -3,6 +3,10 @@ from __future__ import annotations
 from typing import Literal
 import os
 
+from bpy.types import (
+    Context,
+)
+
 from bpy.props import (
     EnumProperty,
     FloatProperty,
@@ -16,7 +20,7 @@ from gpu.types import (
 )
 
 from .. import _aa_base
-from .. import _offscreen_framework
+from .. import _framebuffer_framework
 
 __all__ = (
     "FXAA",
@@ -31,12 +35,12 @@ class FXAA(_aa_base.AABase):
     __slots__ = (
         "_value",
         "_value_0",
-        "_off_framework",
+        "_fb_framework",
         "_shader_eval",
         "_batch_eval",
     )
 
-    _off_framework: _offscreen_framework.OffscreenFramework
+    _fb_framework: _framebuffer_framework.FrameBufferFramework
     """
     An offscreen framework.
     """
@@ -141,30 +145,40 @@ class FXAA(_aa_base.AABase):
                     defines=defines,
                     name="FXAA",
                 )
-                self._batch_eval = _offscreen_framework.eval_unit_rect_batch(self._shader_eval)
+                self._batch_eval = _framebuffer_framework.eval_unit_rect_batch(self._shader_eval)
         else:
             self._shader_eval = None
             self._batch_eval = None
 
-    def modal_eval(self, *, format: Literal['RGBA8', 'RGBA16', 'RGBA16F', 'RGBA32F'] = 'RGBA8', percentage: int = 100):
+    def modal_eval(self, context: Context, *, color_format: str = "", percentage: int = 100):
         """
         The class and instance data update method should be called in the modal part of the control operator
 
+        :param context: Current context
+        :type context: `Context`_
         :param format: Required format of data buffers, defaults to 'RGBA8'
         :type format: Literal['RGBA8', 'RGBA16', 'RGBA16F', 'RGBA32F'], optional
         :param percentage: Resolution percentage, defaults to 100
         :type percentage: int, optional
         """
-        self._off_framework.modal_eval(format=format, percentage=percentage)
+        self._fb_framework.modal_eval(
+            context,
+            color_format=color_format,
+            depth_format="",  # FXAA does not need depth texture
+            percentage=percentage
+        )
         self._eval_shader()
 
-    def __init__(self):
+    def __init__(self, *, area_type='VIEW_3D', region_type='WINDOW'):
         super().__init__()
         self._value = 0.0
         self._value_0 = 0.0
         self._shader_eval = None
         self._batch_eval = None
-        self._off_framework = _offscreen_framework.OffscreenFramework()
+        self._fb_framework = _framebuffer_framework.FrameBufferFramework(
+            area_type=area_type,
+            region_type=region_type
+        )
 
     def draw(self, *, texture: GPUTexture) -> None:
         """
@@ -177,12 +191,10 @@ class FXAA(_aa_base.AABase):
 
         super().draw(texture=texture)
 
-        viewport_metrics = _offscreen_framework.get_viewport_metrics()
+        viewport_metrics = _framebuffer_framework.get_viewport_metrics()
 
         with gpu.matrix.push_pop():
-            gpu.matrix.load_matrix(_aa_base.IDENTITY_M4X4)
-            gpu.matrix.load_projection_matrix(_aa_base.IDENTITY_M4X4)
-            gpu.state.blend_set('ALPHA_PREMULT')
+            self._setup_gpu_state()
 
             shader.bind()
             shader.uniform_sampler("image", texture)

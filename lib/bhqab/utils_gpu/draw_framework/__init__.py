@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from typing import Literal
 
+from bpy.types import (
+    Context,
+)
 
 from bpy.props import (
     EnumProperty,
@@ -15,20 +18,16 @@ from gpu.types import (
 )
 
 from . import _aa_base
-from . import _offscreen_framework
+from . import _framebuffer_framework
 from . import fxaa
 from . import smaa
 
 __all__ = (
     "AAPreset",
     "IDENTITY_M4X4",
-    # "byte_size_fmt",
-    "iter_areas",
-    "iter_area_regions",
-    "iter_area_spaces",
     "get_depth_map",
     "get_viewport_metrics",
-    "OffscreenFramework",
+    "FrameBufferFramework",
     "DrawFramework",
     "AABase",
     "SMAA",
@@ -40,36 +39,44 @@ AABase = _aa_base.AABase
 IDENTITY_M4X4 = _aa_base.IDENTITY_M4X4
 """Identity matrix 4x4"""
 
-iter_areas = _offscreen_framework.iter_areas
-iter_area_regions = _offscreen_framework.iter_area_regions
-iter_area_spaces = _offscreen_framework.iter_area_spaces
-get_depth_map = _offscreen_framework.get_depth_map
-get_viewport_metrics = _offscreen_framework.get_viewport_metrics
-OffscreenFramework = _offscreen_framework.OffscreenFramework
+get_depth_map = _framebuffer_framework.get_depth_map
+get_viewport_metrics = _framebuffer_framework.get_viewport_metrics
+
+FrameBufferFramework = _framebuffer_framework.FrameBufferFramework
 SMAA = smaa.SMAA
 FXAA = fxaa.FXAA
 
 
 class DrawFramework:
     """
-    A framework for operations with several offscreens in several viewports with anti-aliasing support
+    Framework for working with framebuffers. Designed to simplify work in several open windows with all possible
+    viewports in them. The essence of working with the framework is to create the required number of framebuffers for
+    each viewport, if necessary with the buffers for anti-aliasing (depends on the selected options).
+
+    :ivar str aa_method: Anti-aliasing method
+    :aa AABase aa: Anti-aliasing method class instance
     """
+
     __slots__ = (
         "_aa_instance",
-        "_off_frameworks",
+        "_fb_frameworks",
     )
 
-    __aa_methods_registry__: set[_aa_base.AABase] = set()
+    __aa_methods_registry__: set[AABase] = set()
 
-    _aa_instance: None | _aa_base.AABase
-    _off_frameworks: tuple[OffscreenFramework]
+    _aa_instance: None | AABase
+    _fb_frameworks: tuple[FrameBufferFramework]
 
     __shader_2d_image__: GPUShader = gpu.shader.from_builtin(shader_name='2D_IMAGE')  # type: ignore
-    __unit_rect_batch__: GPUBatch = _offscreen_framework.eval_unit_rect_batch(__shader_2d_image__)
+    __unit_rect_batch__: GPUBatch = _framebuffer_framework.eval_unit_rect_batch(__shader_2d_image__)
 
     @classmethod
     @property
     def prop_aa_method(cls) -> EnumProperty:  # type: ignore
+        """
+        :return: Property for use in user preferences
+        :rtype: `EnumProperty`_
+        """
         return EnumProperty(
             items=tuple(((_.name, _.name, _.description) for _ in cls.__aa_methods_registry__)),
             options={'HIDDEN', 'SKIP_SAVE'},
@@ -78,7 +85,13 @@ class DrawFramework:
         )
 
     @classmethod
-    def register_aa_method(cls, method_class: _aa_base.AABase):
+    def register_aa_method(cls, method_class: AABase):
+        """
+        A method for registering an anti-aliasing class
+
+        :param method_class: Anti-aliasing class
+        :type method_class: AABase
+        """
         cls.__aa_methods_registry__.add(method_class)
 
     @property
@@ -91,41 +104,73 @@ class DrawFramework:
     def aa_method(self, value: str):
         cls = self.__class__
 
+        area_type = self._fb_frameworks[0]._area_type
+        region_type = self._fb_frameworks[0]._region_type
+
         if (not self._aa_instance) or (self._aa_instance and self._aa_instance.name != value):
             for item in cls.__aa_methods_registry__:
                 if item.name == value:
-                    self._aa_instance = item()
+                    self._aa_instance = item(area_type=area_type, region_type=region_type)
 
     @property
-    def aa(self):
+    def aa(self) -> AABase | None:
         return self._aa_instance
 
-    def get(self, *, index: int):
-        return self._off_frameworks[index].get()
-
-    def modal_eval(self, *, format: Literal['RGBA8', 'RGBA16', 'RGBA16F', 'RGBA32F'] = 'RGBA8', percentage: int = 100):
+    def get(self, *, index: int = 0) -> FrameBufferFramework:
         """
-        The class and instance data update method should be called in the modal part of the control operator
+        The method of obtaining a framework by index
 
-        :param format: Required format of data buffers, defaults to 'RGBA8'
-        :type format: Literal['RGBA8', 'RGBA16', 'RGBA16F', 'RGBA32F'], optional
+        :param index: The index of the required framework, defaults to 0
+        :type index: int, optional
+        :return: framework
+        :rtype: FrameBufferFramework
+        """
+        return self._fb_frameworks[index]
+
+    def modal_eval(self, context: Context, *, color_format: str = "", depth_format: str = "", percentage: int = 100):
+        """
+        A method for updating framebuffers data according to the size/availability of viewports. Must be called in
+        modal part of the operator
+
+        :param context: Current context
+        :type context: `Context`_
+        :param color_format: The color texture format or an empty value if no color texture is required, defaults to ''
+        :type color_format: str, see `GPUTexture`_ for details, optional
+        :param depth_format: The depth texture format or an empty value if no depth texture is required, defaults to ''
+        :type depth_format: str, see `GPUTexture`_ for details, optional
         :param percentage: Resolution percentage, defaults to 100
         :type percentage: int, optional
         """
-        for item in self._off_frameworks:
-            item.modal_eval(format=format, percentage=percentage)
+        for fb_framework in self._fb_frameworks:
+            fb_framework.modal_eval(
+                context,
+                color_format=color_format,
+                depth_format=depth_format,
+                percentage=percentage
+            )
         if self._aa_instance:
-            self._aa_instance.modal_eval(format=format, percentage=percentage)
+            self._aa_instance.modal_eval(
+                context,
+                color_format=color_format,
+                percentage=percentage
+            )
 
-    def __init__(self, *, num_offscreens: int = 1):
+    def __init__(self, *, num: int = 1, area_type='VIEW_3D', region_type='WINDOW'):
+        self._fb_frameworks = tuple(
+            _framebuffer_framework.FrameBufferFramework(
+                area_type=area_type,
+                region_type=region_type
+            )
+            for _ in range(max(1, num))
+        )
+
         self._aa_instance = None
-        self._off_frameworks = tuple((_offscreen_framework.OffscreenFramework() for _ in range(num_offscreens)))
 
     def draw(self, *, texture: GPUTexture) -> None:
         """
-        Draw method
+        Display the texture according to the selected anti-aliasing options
 
-        :param texture: Input texture
+        :param texture: Texture
         :type texture: `GPUTexture`_
         """
         cls = self.__class__
@@ -134,9 +179,7 @@ class DrawFramework:
 
         if (self._aa_instance is None) or (self._aa_instance._preset is AAPreset.NONE):
             with gpu.matrix.push_pop():  # type: ignore
-                gpu.matrix.load_matrix(IDENTITY_M4X4)
-                gpu.matrix.load_projection_matrix(IDENTITY_M4X4)
-                gpu.state.blend_set('ALPHA_PREMULT')
+                AABase._setup_gpu_state()
 
                 shader = cls.__shader_2d_image__
                 shader.uniform_sampler("image", texture)
