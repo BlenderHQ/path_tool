@@ -14,7 +14,7 @@ This addon is designed taking into account many points concerning the actual use
 
 # Release Notes
 
-## Upcoming
+## Version 3.4.1
 * Added "Auto Tweak Options" preferences option. This used to be the operator's default behavior for ease of use, but is now optional and disabled by default. If no mesh element is initially selected, the selection option will be changed to "Extend". If all elements are selected, it will be changed to "Do nothing". The option is in the addon preferences under `Behavior > Auto Tweak Options`.
 
 * Main operator has been fixed in a situation where you do undo and redo and then cancel the operator, after which start a new instance of the operator again
