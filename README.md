@@ -8,6 +8,8 @@ The standard operator works great, but in terms of user experience, it could be 
 
 This addon is designed taking into account many points concerning the actual use of it in work tasks. The initial idea is quite simple - the operation of selecting the shortest path should be similar to working with the "Knife" tool.
 
+![Preview](https://user-images.githubusercontent.com/16822993/215295866-9ab83780-be27-43f0-9e46-0b47480e61a6.png)
+
 ---
 
 # Release Notes
