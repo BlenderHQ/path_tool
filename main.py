@@ -1406,12 +1406,13 @@ class MESH_OT_select_path(Operator):
             interact_event = InteractEvent.REMOVE_CP
 
         # NOTE: Strange spam of 'INBETWEEN_MOUSEMOVE' events on Linux
-        elif cls.is_interaction and 'MOUSEMOVE' == event.type:
-            interact_event = InteractEvent.DRAG_CP
+        if cls.is_interaction:
+            if 'MOUSEMOVE' == event.type:
+                interact_event = InteractEvent.DRAG_CP
 
-        if cls.is_interaction and 'RELEASE' == event.value:
-            cls.is_interaction = False
-            interact_event = InteractEvent.RELEASE_PATH
+            elif 'RELEASE' == event.value:
+                cls.is_interaction = False
+                interact_event = InteractEvent.RELEASE_PATH
 
         if kmi and InteractEvent.PIE.name == kmi.properties.action:
             cls.is_interaction = False
