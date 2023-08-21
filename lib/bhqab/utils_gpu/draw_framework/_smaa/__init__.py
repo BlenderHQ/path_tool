@@ -142,8 +142,8 @@ class SMAA(_common.AABase):
                 if not cls._cached_shader_code:
                     directory = os.path.dirname(__file__)
                     with (
-                        open(file=os.path.join(directory, "smaa_vert.glsl"), mode='r', encoding="utf-8") as vert_file,
-                        open(file=os.path.join(directory, "smaa_frag.glsl"), mode='r', encoding="utf-8") as frag_file,
+                        open(file=os.path.join(directory, "smaa.vert"), mode='r', encoding="utf-8") as vert_file,
+                        open(file=os.path.join(directory, "smaa.frag"), mode='r', encoding="utf-8") as frag_file,
                         open(file=os.path.join(directory, "smaa_lib.glsl"), mode='r', encoding="utf-8") as lib_file
                     ):
                         cls._cached_shader_code = (

@@ -110,8 +110,8 @@ class FXAA(_common.AABase):
             _do_update_on_value_change = self._do_value_eval()
             if self._shader_eval is None or _do_update_on_preset_change or _do_update_on_value_change:
                 if not cls._cached_shader_code:
-                    with (open(os.path.join(os.path.dirname(__file__), "fxaa_vert.glsl")) as fxaa_vert_file,
-                          open(os.path.join(os.path.dirname(__file__), "fxaa_frag.glsl")) as fxaa_frag_file,
+                    with (open(os.path.join(os.path.dirname(__file__), "fxaa.vert")) as fxaa_vert_file,
+                          open(os.path.join(os.path.dirname(__file__), "fxaa.frag")) as fxaa_frag_file,
                           open(os.path.join(os.path.dirname(__file__), "fxaa_lib.glsl")) as fxaa_lib_file):
                         cls._cached_shader_code = (fxaa_vert_file.read(), fxaa_frag_file.read(), fxaa_lib_file.read())
 
