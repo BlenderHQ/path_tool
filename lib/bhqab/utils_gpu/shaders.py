@@ -1,8 +1,8 @@
 import os
+import re
 
 import bpy
 from gpu.types import GPUShader
-
 
 def eval_shaders_dict(
         *,
@@ -14,7 +14,10 @@ def eval_shaders_dict(
         suffix_geocode: str = "geom",
         suffix_libcode: str = "lib",
         suffix_defines: str = "def",
-        defines: str = ""
+        suffix_defines_vert: str = "vertdef",
+        libcode: str = "",
+        defines: str = "",
+        vert_defines: str = "",
 ) -> dict[str, GPUShader]:
     """
     Helper function for generating shaders from files.
@@ -35,8 +38,14 @@ def eval_shaders_dict(
     :type suffix_libcode: str, optional
     :param suffix_defines: Defines file name suffix, default to ``"def"``
     :type suffix_defines: str, optional
+    :param suffix_defines_vert: Defines applied for vertex shader only file name suffix, default to ``"vertdef"``
+    :type suffix_defines_vert: str, optional
+    :param libcode: Library code.
+    :type libcode: str, optional
     :param defines: Pre-processor definitions required for operations
     :type defines: str, optional
+    :param vert_defines: Vertex stage pre-processor definitions required for operations
+    :type vert_defines: str, optional
 
     :return: Dictionary with shader names as keys and shaders as values
     :rtype: dict[str, `GPUShader`_]:
@@ -46,8 +55,9 @@ def eval_shaders_dict(
 
     if not bpy.app.background:
         shaders_kwargs_eval: dict[str, dict[str, str]] = dict()
-        libcode_eval = ""
+        libcode_eval = f"\n{libcode}\n\n"
         defines_eval = f"\n{defines}\n\n"
+        defines_vert_eval = f"\n{vert_defines}\n\n"
 
         shader_suffix_to_code_kwarg = {
             suffix_vertexcode: "vertexcode",
@@ -88,11 +98,17 @@ def eval_shaders_dict(
                         with open(fp, 'r', encoding='utf-8') as file:
                             defines_eval += f"\n\n{file.read()}\n\n"
 
+                    elif name_suffix == suffix_defines_vert:
+                        with open(fp, 'r', encoding='utf-8') as file:
+                            defines_vert_eval += f"\n\n{file.read()}\n\n"
+
         for shader_name, kwargs in shaders_kwargs_eval.items():
             if libcode_eval:
                 kwargs["libcode"] = libcode_eval
             if defines_eval:
                 kwargs["defines"] = defines_eval
+            if defines_vert_eval:
+                kwargs["vertexcode"] = defines_vert_eval + '\n' + kwargs["vertexcode"]
 
             r_dict[shader_name] = GPUShader(**kwargs)
 

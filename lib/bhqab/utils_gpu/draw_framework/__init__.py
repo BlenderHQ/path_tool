@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from typing import Literal
-
+import bpy
 from bpy.types import (
     Context,
+    UILayout,
+    AddonPreferences,
 )
 
 from bpy.props import (
@@ -17,14 +18,12 @@ from gpu.types import (
     GPUTexture,
 )
 
-from . import _aa_base
-from . import _framebuffer_framework
-from . import fxaa
-from . import smaa
+from . import _common
 
 __all__ = (
+    "BatchPreset",
+    "Mode",
     "AAPreset",
-    "IDENTITY_M4X4",
     "get_depth_map",
     "get_viewport_metrics",
     "FrameBufferFramework",
@@ -34,27 +33,26 @@ __all__ = (
     "FXAA",
 )
 
-AAPreset = _aa_base.AAPreset
-AABase = _aa_base.AABase
-IDENTITY_M4X4 = _aa_base.IDENTITY_M4X4
-"""Identity matrix 4x4"""
+BatchPreset = _common.BatchPreset
 
-get_depth_map = _framebuffer_framework.get_depth_map
-get_viewport_metrics = _framebuffer_framework.get_viewport_metrics
+Mode = _common.Mode
+AAPreset = _common.AAPreset
+AABase = _common.AABase
 
-FrameBufferFramework = _framebuffer_framework.FrameBufferFramework
-SMAA = smaa.SMAA
-FXAA = fxaa.FXAA
+get_depth_map = _common.get_depth_map
+get_viewport_metrics = _common.get_viewport_metrics
+
+FrameBufferFramework = _common.FrameBufferFramework
 
 
 class DrawFramework:
     """
-    Framework for working with framebuffers. Designed to simplify work in several open windows with all possible
-    viewports in them. The essence of working with the framework is to create the required number of framebuffers for
-    each viewport, if necessary with the buffers for anti-aliasing (depends on the selected options).
+    Фреймворк для роботи з буферами кадру для спрощення роботи з декількома вікнами програми і усіма наявними в них
+    переглядачами. Суть роботи в тому аби створити і оновлювати буфери кадру для кожного переглядача, враховуючи
+    необхідні додаткові буфери для згладжування а також самі методи згладжування.
 
-    :ivar str aa_method: Anti-aliasing method
-    :aa AABase aa: Anti-aliasing method class instance
+    :ivar str aa_method: Назва необхідного методу згладжування. Використовується для встановлення необхідного методу.
+    :aa AABase aa: Екземпляр класу методу згладжування, використовується для встановлення налаштувань поточного методу.
     """
 
     __slots__ = (
@@ -67,14 +65,42 @@ class DrawFramework:
     _aa_instance: None | AABase
     _fb_frameworks: tuple[FrameBufferFramework]
 
-    __shader_2d_image__: GPUShader = gpu.shader.from_builtin(shader_name='2D_IMAGE')  # type: ignore
-    __unit_rect_batch__: GPUBatch = _framebuffer_framework.eval_unit_rect_batch(__shader_2d_image__)
+    __shader_2d_image__: None | GPUShader = None
 
     @classmethod
     @property
-    def prop_aa_method(cls) -> EnumProperty:  # type: ignore
+    def shader_2d_image(cls) -> None | GPUShader:
+        if not cls.__shader_2d_image__ and not bpy.app.background:
+            vertexcode = (
+                """
+                in vec2 P;
+                in vec2 UV;
+                uniform mat4 ModelViewProjectionMatrix;
+                out vec2 v_UV;
+                void main() {
+                    v_UV = UV;
+                    gl_Position = ModelViewProjectionMatrix * vec4(P, 0.0, 1.0);
+                }
+                """
+            )
+            fragcode = (
+                """
+                in vec2 v_UV;
+                uniform sampler2D image;
+                out vec4 f_Color;
+                void main() {
+                    f_Color = texture(image, v_UV);
+                }
+                """
+            )
+            cls.__shader_2d_image__ = GPUShader(vertexcode=vertexcode, fragcode=fragcode)
+        return cls.__shader_2d_image__
+
+    @classmethod
+    @property
+    def prop_aa_method(cls) -> EnumProperty:
         """
-        :return: Property for use in user preferences
+        :return: Властивість для використання в користувацьких налаштуваннях.
         :rtype: `EnumProperty`_
         """
         return EnumProperty(
@@ -87,9 +113,9 @@ class DrawFramework:
     @classmethod
     def register_aa_method(cls, method_class: AABase):
         """
-        A method for registering an anti-aliasing class
+        Метод для реєстрації методу згладжування.
 
-        :param method_class: Anti-aliasing class
+        :param method_class: Клас методу згладжування.
         :type method_class: AABase
         """
         cls.__aa_methods_registry__.add(method_class)
@@ -118,28 +144,34 @@ class DrawFramework:
 
     def get(self, *, index: int = 0) -> FrameBufferFramework:
         """
-        The method of obtaining a framework by index
+        Надає фреймворк за індексом.
 
-        :param index: The index of the required framework, defaults to 0
-        :type index: int, optional
-        :return: framework
+        :param index: Індекс необхідного фреймворку, за замовчуванням 0.
+        :type index: int, опційно
+        :return: Фреймворк.
         :rtype: FrameBufferFramework
         """
         return self._fb_frameworks[index]
 
-    def modal_eval(self, context: Context, *, color_format: str = "", depth_format: str = "", percentage: int = 100):
+    def modal_eval(
+            self,
+            context: Context,
+            *,
+            color_format: str = "",
+            depth_format: str = "",
+            percentage: int = 100):
         """
-        A method for updating framebuffers data according to the size/availability of viewports. Must be called in
-        modal part of the operator
+        Оновлює буфери кадру відповідно до розміру переглядачів і їх наявності. Повинен бути викликаний в модальній
+        частині оператора.
 
-        :param context: Current context
+        :param context: Поточний контекст виконання.
         :type context: `Context`_
-        :param color_format: The color texture format or an empty value if no color texture is required, defaults to ''
-        :type color_format: str, see `GPUTexture`_ for details, optional
-        :param depth_format: The depth texture format or an empty value if no depth texture is required, defaults to ''
-        :type depth_format: str, see `GPUTexture`_ for details, optional
-        :param percentage: Resolution percentage, defaults to 100
-        :type percentage: int, optional
+        :param color_format: Формат текстури кольору або пустий рядок, якщо вона не потрібна, за замовчуванням ''.
+        :type color_format: str, див. наявні опції `GPUTexture`_, опційно.
+        :param depth_format: Формат текстури глибини або пустий рядок, якщо вона не потрібна, за замовчуванням ''.
+        :type depth_format: str, див. наявні опції `GPUTexture`_, опційно.
+        :param percentage: Відсоток від розміру переглядача, за замовчуванням 100.
+        :type percentage: int, опційно
         """
         for fb_framework in self._fb_frameworks:
             fb_framework.modal_eval(
@@ -157,7 +189,7 @@ class DrawFramework:
 
     def __init__(self, *, num: int = 1, area_type='VIEW_3D', region_type='WINDOW'):
         self._fb_frameworks = tuple(
-            _framebuffer_framework.FrameBufferFramework(
+            _common.FrameBufferFramework(
                 area_type=area_type,
                 region_type=region_type
             )
@@ -168,9 +200,11 @@ class DrawFramework:
 
     def draw(self, *, texture: GPUTexture) -> None:
         """
-        Display the texture according to the selected anti-aliasing options
+        Відображення текстури відповідно до поточних налаштувань згладжування. Якщо обрано метод згладжування
+        :attr:`AAPreset.NONE` буде викликано просте відображення текстури, інакше - текстуру буде передано до поточного
+        методу згладжування і виконано відображення з його допомоги.
 
-        :param texture: Texture
+        :param texture: Текстура.
         :type texture: `GPUTexture`_
         """
         cls = self.__class__
@@ -178,18 +212,64 @@ class DrawFramework:
         mvp_restore = gpu.matrix.get_projection_matrix() @ gpu.matrix.get_model_view_matrix()
 
         if (self._aa_instance is None) or (self._aa_instance._preset is AAPreset.NONE):
-            with gpu.matrix.push_pop():  # type: ignore
-                AABase._setup_gpu_state()
+            with gpu.matrix.push_pop():
+                AABase._setup_gpu_state(alpha_premult=True)
 
-                shader = cls.__shader_2d_image__
+                shader = cls.shader_2d_image
                 shader.uniform_sampler("image", texture)
-
-                cls.__unit_rect_batch__.draw(shader)
+                BatchPreset.ndc_rectangle_tris_P_UV.draw(shader)
         else:
             self._aa_instance.draw(texture=texture)
 
         gpu.matrix.load_matrix(mvp_restore)
 
+    @classmethod
+    def ui_preferences(cls, layout: UILayout, *, pref: AddonPreferences, **kwargs):
+        """
+        Метод для відображення налаштувань згладжування в користувацьких налаштуваннях. Можна визначити які анотації
+        класу налаштувань зберігають необхідні опції надаючи ключові слова за шаблоном:
+        ``attr_[*, aa_method, smaa_preset, fxaa_preset, fxaa_value]``
+
+        :param layout: Поточний інтерфейс користувача.
+        :type layout: `UILayout`_
+        :param pref: Екземпляр користувацьких налаштувань.
+        :type pref: `AddonPreferences`_
+        """
+        attr_aa_method = kwargs.get("attr_aa_method", "aa_method")
+
+        row = layout.row(align=True)
+        row.prop(pref, attr_aa_method, expand=True)
+
+        aa_method = getattr(pref, attr_aa_method)
+        for cls in cls.__aa_methods_registry__:
+            if aa_method == cls.__name__:
+                cls.ui_preferences(layout, pref=pref, **kwargs)
+
+    def update_from_preferences(self, *, pref: AddonPreferences, **kwargs):
+        """
+        Метод оновлення властивостей з користувацьких налаштувань. Можна визначити які анотації класу налаштувань
+        зберігають необхідні опції надаючи ключові слова за шаблоном:
+        ``attr_[*, aa_method, smaa_preset, fxaa_preset, fxaa_value]``
+
+        :param pref: Екземпляр користувацьких налаштувань.
+        :type pref: `AddonPreferences`_
+        """
+        cls = self.__class__
+        attr_aa_method = kwargs.get("attr_aa_method", "aa_method")
+        aa_method = getattr(pref, attr_aa_method)
+
+        self.aa_method = aa_method
+
+        for cls in cls.__aa_methods_registry__:
+            if aa_method == cls.__name__:
+                self._aa_instance.update_from_preferences(pref=pref, **kwargs)
+
+
+from . import _smaa
+from . import _fxaa
+
+SMAA = _smaa.SMAA
+FXAA = _fxaa.FXAA
 
 DrawFramework.register_aa_method(FXAA)
 DrawFramework.register_aa_method(SMAA)

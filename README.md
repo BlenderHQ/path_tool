@@ -1,6 +1,14 @@
 # Path Tool
 
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+- [Path Tool](#path-tool)
+  - [Release Notes](#release-notes)
+    - [Version 3.4.1](#version-341)
+    - [Version 3.4.0](#version-340)
+    - [Version 3.3.0](#version-330)
+    - [Version 3.2.0](#version-320)
+  - [How To Use the Addon](#how-to-use-the-addon)
+  - [License](#license)
+
 
 An add-on for Blender that complements the standard shortcut operator with new features.
 
@@ -12,9 +20,9 @@ This addon is designed taking into account many points concerning the actual use
 
 ---
 
-# Release Notes
+## Release Notes
 
-## Version 3.4.1
+### Version 3.4.1
 * Added "Auto Tweak Options" preferences option. This used to be the operator's default behavior for ease of use, but is now optional and disabled by default. If no mesh element is initially selected, the selection option will be changed to "Extend". If all elements are selected, it will be changed to "Do nothing". The option is in the addon preferences under `Behavior > Auto Tweak Options`.
 
 * Main operator has been fixed in a situation where you do undo and redo and then cancel the operator, after which start a new instance of the operator again
@@ -23,12 +31,12 @@ This addon is designed taking into account many points concerning the actual use
 
 * Standard settings that simplify navigation - "Auto Perspective" and "Zoom to Mouse Position" have been added to the behavior settings. This is useful for faster setup.
 
-## Version 3.4.0
+### Version 3.4.0
 * Fixed selection for meshes with glued geometry. The problem was how the standard `bpy.ops.mesh.select_linked` operator works, which selects part of the mesh according to normals. The simplest example to reproduce is two pyramids glued together with their upper faces cut off.
 
 * Brought back transparency options for drawing paths and their controls.
 
-## Version 3.3.0
+### Version 3.3.0
 
 * Fixed possible Blender crashes when changing the anti-aliasing method. The reason was how Blender calculates VAO.
 
@@ -41,7 +49,7 @@ This addon is designed taking into account many points concerning the actual use
 * Removed the "Default presets" option from the preferences. Added a completely new system of presets. The new system is more maintainable and native to Blender. Appearance presets have also been added.
 
 
-## Version 3.2.0
+### Version 3.2.0
 
 * Added support for work in all view-ports as well as in all open Blender windows - now there is no binding to a specific viewport in the specific window in which the work was started.
 
@@ -57,7 +65,7 @@ This addon is designed taking into account many points concerning the actual use
 
 * Added option from standard operator "Topology distance". It can be enabled for each individual path and enabled by default for all new ones in the operator / tool options.
 
-# How To Use the Addon
+## How To Use the Addon
 
 After installing the addon, next to the standard tools for selecting mesh elements ("Tweak", "Select Box", ...) will appear "Select Path" tool.
 
@@ -86,3 +94,33 @@ When you click on the next mesh element, a new control element will be added and
 Work with several Path's is also supported. To create a new Path, you can use the shortcut displayed in the status bar. When you do this, a new control element independent of the first Path will be created and the work will continue in the already familiar way.
 
 There are also some interesting points - different Paths can interact. If the control at the beginning or end of one Path is moved to the beginning or end of another Path, these Paths will merge into one. If the control is not finite then the paths will not be merged. Instead, all the control elements of all the paths that are on the same element of the mesh, in the same place, can be moved together, they seem to stick together
+
+## License
+
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue)](https://www.gnu.org/licenses/gpl-3.0)
+
+Copyright © 2023 Vlad Kuzmin (ssh4), Ivan Perevala (ivpe).
+
+<details><summary>
+GNU GPL v3 License.
+</summary>
+
+```
+Path Tool addon.
+Copyright (C) 2022-2023 Vlad Kuzmin (ssh4), Ivan Perevala (ivpe)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+```
+
+</details>

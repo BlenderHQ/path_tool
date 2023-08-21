@@ -1,17 +1,13 @@
 from __future__ import annotations
 
 import os
-import logging
-from types import FunctionType
 from typing import (
     Generator,
     Iterable,
-    Literal,
 )
 import random
 import string
 import importlib
-import atexit
 
 import bpy
 from bpy.types import (
@@ -25,20 +21,21 @@ from bpy.types import (
     UILayout,
     WindowManager,
 )
+
 from bpy.props import (
     BoolProperty,
     CollectionProperty,
-    EnumProperty,
     FloatProperty,
     IntProperty,
     StringProperty,
 )
+from mathutils import Vector
 import blf
 import rna_keymap_ui
-from bpy.app.handlers import persistent
 from bl_ui import space_statusbar
-
-from . import utils_id
+# ifdef DEBUG
+from bpy_extras.io_utils import ExportHelper
+# endif // !DEBUG
 
 __all__ = (
     "supported_image_extensions",
@@ -49,7 +46,6 @@ __all__ = (
     "template_tool_keymap",
     "template_input_info_kmi_from_type",
     "progress",
-    "launch_progress_update_id_previews",
     "copy_default_presets_from",
     "template_preset",
     "template_disclosure_enum_flag",
@@ -72,9 +68,9 @@ _IMAGE_EXTENSIONS = {
 
 def supported_image_extensions() -> set[str]:
     """
-    Blender supported image extensions.
+    Набір розширень файлів зображень які підтримує Blender.
 
-    :return: Tuple of lowercase extensions:
+    :return: Набір розширень нижнього реєстру:
 
         `.bmp`,
         `.sgi`, `.rgb`, `.bw`,
@@ -92,7 +88,7 @@ def supported_image_extensions() -> set[str]:
 
     .. seealso::
 
-        The data provided by this function comes from:
+        Дані походять з:
 
         `Supported Image Extensions`_
 
@@ -111,9 +107,9 @@ def eval_unique_name(*, arr: Iterable, prefix: str = "", suffix: str = "") -> st
     :param prefix: Name prefix, defaults to "". If the 'bpy.ops' module acts as an array, then the ``prefix`` acts as a
         'bpy.ops.[prefix]' (and the result will be the 'id_name' of the new operator in the format
         [``prefix``].[random_unique_part][``suffix``])
-    :type prefix: str, optional
+    :type prefix: str, опційно
     :param suffix: Name suffix, defaults to ""
-    :type suffix: str, optional
+    :type suffix: str, опційно
     :return: Generated unique name
     :rtype: str
     """
@@ -129,23 +125,43 @@ def eval_unique_name(*, arr: Iterable, prefix: str = "", suffix: str = "") -> st
         return ret
 
 
-def _string_width(string):
-    if len(string) == 1:
-        num_single_ch_samples = 100
-        return blf.dimensions(0, string * num_single_ch_samples)[0] / num_single_ch_samples
-    return blf.dimensions(0, string)[0]
+def eval_text_pixel_dimensions(*, fontid: int = 0, text: str = "") -> Vector:
+    """
+    Обчислює розмір тексту в пікселях з поточними налаштуваннями модуля ``blf``.
+
+    :param fontid: Ідентифікатор шрифту, за замовчуванням ``0``.
+    :type fontid: int, опційно
+    :param text: Текст для обробки, за замовчуванням - пустий рядок.
+    :type text: str, опційно
+    :return: Висота і ширина тексту.
+    :rtype: `mathutils.Vector`_
+    """
+    ret = Vector((0.0, 0.0))
+    if not text:
+        return ret
+
+    is_single_char = bool(len(text) == 1)
+    SINGLE_CHARACTER_SAMPLES = 100
+    if is_single_char:
+        text *= SINGLE_CHARACTER_SAMPLES
+
+    ret.x, ret.y = blf.dimensions(fontid, text)
+
+    if is_single_char:
+        ret.x /= SINGLE_CHARACTER_SAMPLES
+
+    return ret
 
 
 def draw_wrapped_text(context: Context, layout: UILayout, *, text: str) -> None:
     """
-    Draws a block of ``text`` in the given layout, dividing it into lines according to the width of the current region
-    of the interface.
+    Відображує текстовий блок, з автоматичний перенесенням рядків відповідно до ширини поточного регіону.
 
-    :param context: Current context
+    :param context: Поточний контекст.
     :type context: `Context`_
-    :param layout: Current layout
+    :param layout: Поточний користувацький інтерфейс.
     :type layout: `UILayout`_
-    :param text: Text to be wrapped and drawn
+    :param text: Текст для відображення.
     :type text: str
     """
     col = layout.column(align=True)
@@ -158,7 +174,7 @@ def draw_wrapped_text(context: Context, layout: UILayout, *, text: str) -> None:
         win_padding = 52
 
     wrap_width = context.region.width - win_padding
-    space_width = _string_width(' ')
+    space_width = eval_text_pixel_dimensions(text=' ').x
 
     for line in text.split('\n'):
         num_characters = len(line)
@@ -167,7 +183,7 @@ def draw_wrapped_text(context: Context, layout: UILayout, *, text: str) -> None:
             col.separator()
             continue
 
-        line_words = list((_, _string_width(_)) for _ in line.split(' '))
+        line_words = list((_, eval_text_pixel_dimensions(text=_).x) for _ in line.split(' '))
         num_line_words = len(line_words)
         line_words_last = num_line_words - 1
 
@@ -198,11 +214,11 @@ def draw_wrapped_text(context: Context, layout: UILayout, *, text: str) -> None:
 
 def developer_extras_poll(context: Context) -> bool:
     """
-    A method for determining whether a user interface intended for developers should be displayed.
+    Чи потрібно відобразити секцію користувацького інтерфейсу, яка призначена для розробки або налагодження.
 
-    :param context: Current context
+    :param context: Поточний контекст.
     :type context: `Context`_
-    :return: A positive value means that it should
+    :return: Позитивне значення означає що так, потрібно.
     :rtype: bool
     """
     return context.preferences.view.show_developer_ui
@@ -210,12 +226,12 @@ def developer_extras_poll(context: Context) -> bool:
 
 def template_developer_extras_warning(context: Context, layout: UILayout) -> None:
     """
-    Output message in the user interface that this section of the interface is visible because the active options in the
-    Blender settings. These options are also displayed with the ability to disable them.
+    Шаблон для відображення попередження про те що ця секція користувацького інтерфейсу призначена виключно для розробки
+    та налагодження.
 
-    :param context: Current context
+    :param context: Поточний контекст.
     :type context: `Context`_
-    :param layout: Current UI layout
+    :param layout: Поточний користувацький інтерфейс.
     :type layout: `UILayout`_
     """
     if developer_extras_poll(context):
@@ -230,13 +246,13 @@ def template_developer_extras_warning(context: Context, layout: UILayout) -> Non
 
 def template_tool_keymap(context: Context, layout: UILayout, *, km_name: str):
     """
-    Template for tool keymap items.
+    Шаблон для відображення набору клавіатурних скорочень інструмента.
 
-    :param context: Current context
+    :param context: Поточний контекст.
     :type context: `Context`_
-    :param layout: Current UI layout
+    :param layout: Поточний користувацький інтерфейс.
     :type layout: `UILayout`_
-    :param km_name: Tool keymap name. For example, "3D View Tool: Edit Mesh, Path Tool"
+    :param km_name: Назва набору клавіатурних скорочень, наприклад "3D View Tool: Edit Mesh, Path Tool"
     :type km_name: str
     """
 
@@ -288,14 +304,14 @@ def _eval_kmi_icons():
 
 def template_input_info_kmi_from_type(layout: UILayout, *, label: str, event_types: set[str] = set()) -> None:
     """
-    Method for displaying icons of possible keys.
+    Метод відображення іконок можливих клавіатурних скорочень.
 
-    :param layout: Current UI layout
+    :param layout: Поточний користувацький інтерфейс.
     :type layout: `UILayout`_
-    :param label: Label to be displayed with possible keys icons
+    :param label: Заголовок для відображення.
     :type label: str
-    :param event_types: Set of event types (see `Event.type`_), defaults to set()
-    :type event_types: set[str], optional
+    :param event_types: Набір типів подій (see `Event.type`_), за замовчуванням set().
+    :type event_types: set[str], опційно
     """
     if not _KMI_ICONS:
         _eval_kmi_icons()
@@ -331,13 +347,13 @@ class _progress_meta(type):
 
 
 class progress(metaclass=_progress_meta):
-    """A class that implements the initialization and completion of progressbars. The module provides the ability to
-    display the progressbar (and even several progressbars) in the status bar of the Blender. This technique can be used
-    mainly with modal operators that run for a relatively long time and require the output of the progress of their
-    work.
+    """
+    Клас для відображення індикаторів прогресу в рядку статусу.
 
-    :cvar int PROGRESS_BAR_UI_UNITS: Number of UI units in range [4...12] used for progressbar without text label
-        and icon. Default to 6 (readonly)
+    :cvar int PROGRESS_BAR_UI_UNITS: Кількість одиниць користувацького інтерфейсу [4...12] для одного індикатора
+        прогресу (ширина заголовку і значка не враховується). За замовчуванням - 6 (тільки для читання).
+
+    .. versionadded:: 3.3
     """
 
     _PROGRESS_BAR_UI_UNITS = 6
@@ -348,15 +364,8 @@ class progress(metaclass=_progress_meta):
     _attrname = ""
 
     class ProgressPropertyItem(PropertyGroup):
-        """Progress bar item that allows you to dynamically change some display parameters.
-
-        :ivar int num_steps: Number of progress steps.
-        :ivar int step: Current progress step.
-        :ivar float value: Evaluated progress value (readonly).
-        :ivar str icon: Blender icon to be displayed.
-        :ivar int icon_value: Icon id to be displayed.
-        :ivar str label: Progressbar text label.
-        :ivar bool cancellable: Positive value means that progressbar should draw cancel button.
+        """
+        Індикатор прогресу.
         """
 
         def _common_value_update(self, _context):
@@ -367,6 +376,9 @@ class progress(metaclass=_progress_meta):
             update=_common_value_update,
         )
 
+        #: Кількість кроків виконання операції.
+        #:
+        #: .. versionadded:: 3.3
         num_steps: IntProperty(
             min=1,
             default=1,
@@ -375,6 +387,9 @@ class progress(metaclass=_progress_meta):
             update=_common_value_update,
         )
 
+        #: Поточний крок виконання операції.
+        #:
+        #: .. versionadded:: 3.3
         step: IntProperty(
             min=0,
             default=0,
@@ -389,6 +404,9 @@ class progress(metaclass=_progress_meta):
         def _set_progress(self, _value):
             pass
 
+        #: Оцінений прогрес виконання, лише для зчитування.
+        #:
+        #: .. versionadded:: 3.3
         value: FloatProperty(
             min=0.0,
             max=100.0,
@@ -399,6 +417,9 @@ class progress(metaclass=_progress_meta):
             options={'HIDDEN'},
         )
 
+        #: Значок для відображення.
+        #:
+        #: .. versionadded:: 3.3
         icon: StringProperty(
             default='NONE',
             maxlen=64,
@@ -406,6 +427,9 @@ class progress(metaclass=_progress_meta):
             update=_common_value_update,
         )
 
+        #: Індекс значка попереднього перегляду для відображення.
+        #:
+        #: .. versionadded:: 3.3
         icon_value: IntProperty(
             min=0,
             default=0,
@@ -414,12 +438,18 @@ class progress(metaclass=_progress_meta):
             update=_common_value_update,
         )
 
+        #: Заголовок.
+        #:
+        #: .. versionadded:: 3.3
         label: StringProperty(
             default="Progress",
             options={'HIDDEN'},
             update=_common_value_update,
         )
 
+        #: Чи відображувати кнопку скасування операції.
+        #:
+        #: .. versionadded:: 3.3
         cancellable: BoolProperty(
             default=False,
             options={'HIDDEN'},
@@ -459,17 +489,17 @@ class progress(metaclass=_progress_meta):
     @classmethod
     def progress_items(cls):
         """
-        :return: All progress property items
-        :rtype: Array of :class:`ProgressPropertyItem`
+        :return: Всі індикатори прогресу.
+        :rtype: Масив з :class:`ProgressPropertyItem`
         """
         return getattr(bpy.context.window_manager, cls._attrname)
 
     @classmethod
     def valid_progress_items(cls) -> Generator[ProgressPropertyItem]:
         """
-        Iterate over valid progress property items
+        Генератор що містить лише незавершені індикатори прогресу.
 
-        :yield: Valid item
+        :yield: Незавершений прогрес.
         :rtype: Generator[:class:`ProgressPropertyItem`]
         """
         return (_ for _ in cls.progress_items() if _.valid)
@@ -477,9 +507,9 @@ class progress(metaclass=_progress_meta):
     @classmethod
     def invoke(cls) -> ProgressPropertyItem:
         """
-        Invoke new progressbar for each call.
+        Створює новий індикатор прогресу.
 
-        :return: New initialized progress property item
+        :return: Індикатор прогресу.
         :rtype: :class:`ProgressPropertyItem`
         """
         if not cls._is_drawn:
@@ -500,10 +530,10 @@ class progress(metaclass=_progress_meta):
     @classmethod
     def complete(cls, *, item: ProgressPropertyItem):
         """
-        Removes progressbar from UI. If removed progressbar was the last one, would be called
-        :func:`progress.release_all` class method.
+        Позначає індикатор прогресу як завершений. Якщо він був останнім то буде викликано метод класу
+        :func:`progress.release_all`.
 
-        :param item: Progress item to be removed
+        :param item: Індикатор прогресу що відображає перебіг виконання операції яку вже завершено.
         :type item: :class:`ProgressPropertyItem`
         """
         assert (isinstance(item, progress.ProgressPropertyItem))
@@ -516,7 +546,9 @@ class progress(metaclass=_progress_meta):
 
     @classmethod
     def release_all(cls):
-        """Removes all progressbars"""
+        """
+        Видаляє всі індикатори прогресу і відновлює стандартне відображення рядку статусу.
+        """
         if not cls._is_drawn:
             return
 
@@ -531,182 +563,11 @@ class progress(metaclass=_progress_meta):
         cls._is_drawn = False
 
 
-class BHQAB_OT_update_previews_internal(Operator):
-    # NOTE: `bl_idname` would be evaluated just before registration
-    bl_label = "BHQAB Update Previews (Internal)"
-    bl_options = {'INTERNAL'}
-
-    type: EnumProperty(
-        items=utils_id.prop_prv_id_items(),
-        default=utils_id.prop_prv_id_items()[0][0],
-    )
-
-    __instances__: set = set()
-    __timer__: None | bpy.types.Timer = None
-
-    @classmethod
-    def _validate_cls_instances(cls):
-        invalid = set()
-        for inst in cls.__instances__:
-            try:
-                getattr(inst, "bl_idname")
-            except ReferenceError:
-                invalid.add(inst)
-        if invalid:
-            cls.__instances__.difference_update(invalid)
-
-    __slots__ = (
-        "_progress",
-        "_coll",
-        "_draw_func",
-    )
-    _initial_show_statusbar: bool = True
-    _progress: progress.ProgressPropertyItem
-    _coll: bpy.types.bpy_prop_collection
-    _draw_func: FunctionType
-
-    def get_draw_func(self):
-        def draw_func(item, _context):
-            layout: UILayout = item.layout
-            row = layout.row(align=True)
-            for i in range(self._progress.step, min(self._progress.step + 1, self._progress.num_steps)):
-                icon_value = self._coll[i].preview_ensure().icon_id
-                row.template_icon(icon_value=icon_value)  # Large preview
-                # NOTE: Sometimes for some reason Blender do not render smaller preview
-                row.label(icon_value=icon_value)
-            # NOTE: There's a trick here: we add progress only when the icon is already shown, not the normal way, in
-            # the modal part
-            self._progress.step += 1
-        return draw_func
-
-    def invoke(self, context, _event):
-        cls = self.__class__
-
-        # Check that no instance is running with the same data type
-        cls._validate_cls_instances()
-        for inst in cls.__instances__:
-            if inst.type == self.type:
-                return {'CANCELLED'}
-        cls.__instances__.add(self)
-
-        # Evaluate which blend data we would process
-        prv_id = utils_id.PrvID[self.type]
-        self._coll = utils_id.eval_coll_from_type(prv_id)
-
-        # Immediately terminate if there is no data to process
-        if not self._coll:
-            return {'CANCELLED'}
-
-        # Statusbar must be shown at least while we shoving previews, otherwise preview generation would not be called
-        # Also, create a restore point, if statusbar was hidden initially
-        screen = context.window.screen
-        cls._initial_show_statusbar = screen.show_statusbar
-        screen.show_statusbar = True
-
-        # Create UI progressbar
-        self._progress = progress.invoke()
-        self._progress.label = f"{utils_id.eval_name_from_type(prv_id)} previews"
-        self._progress.num_steps = len(self._coll)
-        self._progress.step = 0
-        self._progress.cancellable = True
-
-        # Add draw function to statusbar
-        self._draw_func = self.get_draw_func()
-
-        importlib.reload(space_statusbar)
-        STATUSBAR_HT_header.append(self._draw_func)
-
-        # Add modal handler and event timer
-        wm = context.window_manager
-        if cls.__timer__ is None:
-            cls.__timer__ = wm.event_timer_add(1 / 60, window=context.window)
-        wm.modal_handler_add(self)
-
-        return {'RUNNING_MODAL'}
-
-    def cancel(self, context):
-        cls = self.__class__
-        # Clear draw function callback
-        importlib.reload(space_statusbar)
-        STATUSBAR_HT_header.remove(self._draw_func)
-        del self._draw_func
-
-        # Restore screen's statusbar visibility after execution
-        screen = context.window.screen
-        screen.show_statusbar = cls._initial_show_statusbar
-
-        # Clear progress
-        progress.complete(item=self._progress)
-
-        cls._validate_cls_instances()
-        # Remove self from class instances
-        cls.__instances__.remove(self)
-
-        # Remove class event timer if no instances left
-        if cls.__timer__ is not None and not cls.__instances__:
-            context.window_manager.event_timer_remove(cls.__timer__)
-            cls.__timer__ = None
-
-    def modal(self, context, event: Event):
-        if (self._progress.step >= self._progress.num_steps) or (not self._progress.valid):
-            self.cancel(context)
-            return {'FINISHED'}
-        return {'PASS_THROUGH'}
-
-
-def _reg_ot_update_previews_internal():
-    if not hasattr(BHQAB_OT_update_previews_internal, "bl_idname"):
-        BHQAB_OT_update_previews_internal.bl_idname = eval_unique_name(
-            arr=bpy.ops,
-            prefix="bhqab",
-            suffix="_update_previews_internal"
-        )
-
-    try:
-        bpy.utils.register_class(BHQAB_OT_update_previews_internal)
-    except ValueError:
-        pass
-
-
-def _unreg_ot_update_previews_internal():
-    try:
-        bpy.utils.unregister_class(BHQAB_OT_update_previews_internal)
-    except ValueError:
-        pass
-
-
-if 0:  # NOTE: For some reasons Blender quits with error if this was called
-    atexit.register(_unreg_ot_update_previews_internal)
-
-
-def launch_progress_update_id_previews(
-    *,
-    id_type: Literal['OB', 'MA', 'TE', 'WO', 'LA',
-                     'IM', 'BR', 'GR', 'SCE', 'SCR', 'AC', 'NT']
-):
-    """
-    Starts showing a preview of the selected type in the status bar. This is more of a gimmicky way, but it allows
-    you to trigger a generation preview in the same way that Blender does it by itself, without blocking the main thread
-    of the application. It is obvious that this method is not ideal from a user interface point of view, but currently
-    Blender has no other way to trigger preview generation via API calls.
-
-    :param id_type: ID name prefix
-    :type id_type: Literal['OB', 'MA', 'TE', 'WO', 'LA', 'IM', 'BR', 'GR', 'SCE', 'SCR', 'AC', 'NT']
-
-    .. seealso::
-
-        :class:`bhqab.utils_id.PrvID`
-    """
-    _reg_ot_update_previews_internal()
-    func = eval(f"bpy.ops.{BHQAB_OT_update_previews_internal.bl_idname}")
-    func('INVOKE_DEFAULT', type=id_type)
-
-
 def copy_default_presets_from(*, src_root: str):
-    """Copying preset files from the ``src_root`` directory (by design, which is in the addon itself) to the directory
-    with Blender presets.
+    """
+    Створює копії файлів шаблонів з директорії аддону до директорії де Blender зберігає шаблони.
 
-    :param src_root: Source preset files root directory.
+    :param src_root: Директорія що містить файли шаблонів.
     :type src_root: str
     """
     for root, _dir, files in os.walk(src_root):
@@ -727,13 +588,13 @@ def copy_default_presets_from(*, src_root: str):
 
 def template_preset(layout: UILayout, *, menu: Menu, operator: str) -> None:
     """
-    Template for drawing presets. Can be used to unify the appearance.
+    Метод відображення шаблонів в користувацькому інтерфейсі.
 
-    :param layout: Current layout
+    :param layout: Поточний користувацький інтерфейс.
     :type layout: `UILayout`_
-    :param menu: The menu class that will be used for selection
+    :param menu: Клас меню що буде використано для відображення списку шаблонів.
     :type menu: 'Menu'_
-    :param operator: Operator ``bl_idname`` used to add and remove presets
+    :param operator: ``bl_idname`` оператора для створення і видалення шаблонів.
     :type operator: str
     """
     row = layout.row(align=True)
@@ -746,22 +607,21 @@ def template_preset(layout: UILayout, *, menu: Menu, operator: str) -> None:
 
 def template_disclosure_enum_flag(layout: UILayout, *, item: ID, prop_enum_flag: str, flag: str) -> bool:
     """
-    A function for unifying the rendering and management of sections of the user interface without creating additional
-    panels.
+    Відображення секцій користувацького інтерфейсу без створення додаткових панелей. Загалом, для використання в
+    вікні користувацьких налаштувань, оскільки інші панелі не є унікальними - секцію буде згорнуто або розгорнуто всюди.
 
-    :param layout: Current UI layout
-    :type layout: UILayout
-    :param item: The parent class that stores the ``prop_enum_flag`` property.
-    :type item: ID
-    :param prop_enum_flag: A property that stores the available sections. It is a class annotation and derives from
-        `EnumProperty`_ `(options={'ENUM_FLAG'})`
+    :param layout: Поточний користувацький інтерфейс.
+    :type layout: `UILayout`_
+    :param item: екземпляр класу що містить властивість ``prop_enum_flag``.
+    :type item: `ID`_
+    :param prop_enum_flag: Назва анотації класу що містить набір секцій (`EnumProperty`_ `з (options={'ENUM_FLAG'})`).
     :type prop_enum_flag: str
-    :param flag: The flag to be checked.
+    :param flag: Прапор необхідної секції.
     :type flag: str
-    :return: A positive value means that you need to draw this section.
+    :return: Позитивне значення означає що секцію треба відображувати.
     :rtype: bool
     """
-    row = layout.row()
+    row = layout.row(align=True)
     row.use_property_split = False
     row.emboss = 'NONE_OR_STATUS'
     row.alignment = 'LEFT'
@@ -771,42 +631,10 @@ def template_disclosure_enum_flag(layout: UILayout, *, item: ID, prop_enum_flag:
     if flag in getattr(item, prop_enum_flag):
         icon = 'DISCLOSURE_TRI_DOWN'
         ret = True
+
+    icon_value = UILayout.enum_item_icon(item, prop_enum_flag, flag)
+    if icon_value:
+        row.label(icon_value=icon_value)
     row.prop_enum(item, prop_enum_flag, flag, icon=icon)
 
     return ret
-
-
-class LoggingUtils:
-    _LOG_LEVELS = (
-        (logging.getLevelName(logging.CRITICAL), "Critical", logging.CRITICAL),
-        (logging.getLevelName(logging.ERROR), "Error", logging.ERROR),
-        (logging.getLevelName(logging.WARNING), "Warning", logging.WARNING),
-        (logging.getLevelName(logging.INFO), "Info", logging.INFO),
-        (logging.getLevelName(logging.DEBUG), "Debug", logging.DEBUG),
-        (logging.getLevelName(logging.NOTSET), "Not Set", logging.NOTSET),
-    )
-
-    def _log_level_update(self, _context: Context):
-        level = logging.NOTSET
-        for key, name, level in LoggingUtils._LOG_LEVELS:
-            if key == self.log_level:
-                break
-        # logging.basicConfig(level=level)
-        logging.root.setLevel(level)
-
-    prop_log_level = EnumProperty(
-        items=[(key, name, "") for key, name, _level in _LOG_LEVELS],
-        default=logging.getLevelName(logging.NOTSET),
-        update=_log_level_update,
-        name="Logging Level",
-        description="Logging messages which are less severe than level will be ignored",
-    )
-
-    def load_post_handler(*, addon_module_name: str) -> FunctionType:
-
-        @persistent
-        def wrapper(_=None):
-            addon_pref = bpy.context.preferences.addons[addon_module_name].preferences
-            addon_pref.log_level = addon_pref.log_level  # Call ``_log_level_update``
-
-        return wrapper

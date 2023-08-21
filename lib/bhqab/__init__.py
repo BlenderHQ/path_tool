@@ -24,14 +24,19 @@ __maintainer__ = "Ivan Perevala (ivpe)"
 __credits__ = ["Vlad Kuzmin (ssh4)", ]
 __license__ = "GPLv3"
 
-from . import utils_gpu
-from . import utils_ui
-from . import utils_id
-from . import utils_wm
+if "bpy" in locals():
+    from importlib import reload
+
+    reload(utils_gpu)
+    reload(utils_ui)
+    reload(utils_wm)
+else:
+    from . import utils_gpu
+    from . import utils_ui
+    from . import utils_wm
 
 __all__ = (
     "utils_gpu",
-    "utils_id",
     "utils_ui",
     "utils_wm",
 )

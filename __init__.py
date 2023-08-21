@@ -1,5 +1,5 @@
 # Path Tool addon.
-# Copyright (C) 2022  Vlad Kuzmin (ssh4), Ivan Perevala (ivpe)
+# Copyright (C) 2020-2023  Vlad Kuzmin (ssh4), Ivan Perevala (ivpe)
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by

@@ -20,7 +20,7 @@ __all__ = (
 
 def iter_areas(context: Context, *, area_type: str = 'VIEW_3D') -> Iterator[Area]:
     """
-    Iterator for the area in all open program windows.
+    Ітератор всіх ділянок необхідного типу у всіх вікнах програми.
 
     .. code-block:: python
         :emphasize-lines: 1
@@ -29,11 +29,11 @@ def iter_areas(context: Context, *, area_type: str = 'VIEW_3D') -> Iterator[Area
             print(area)
         ...
 
-    :param context: Current context
+    :param context: Поточний контекст.
     :type context: `Context`_
-    :param area_type: Area type. See `Area.type`_, defaults to 'VIEW_3D'
-    :type area_type: str, optional
-    :yield: Areas iterator
+    :param area_type: Тип ділянки. Див. `Area.type`_, за замовчуванням 'VIEW_3D'
+    :type area_type: str, опційно
+    :yield: Ділянка.
     :rtype: Iterator[`Area`_]
     """
     for window in context.window_manager.windows:
@@ -45,7 +45,7 @@ def iter_areas(context: Context, *, area_type: str = 'VIEW_3D') -> Iterator[Area
 
 def iter_regions(context: Context, *, area_type: str = 'VIEW_3D', region_type: str = 'WINDOW') -> Iterator[Region]:
     """
-    Iterator of regions of type in areas of type
+    Ітератор регіонів в усіх ділянках всіх вікон програми необхідного типу.
 
     .. code-block:: python
         :emphasize-lines: 1
@@ -54,13 +54,13 @@ def iter_regions(context: Context, *, area_type: str = 'VIEW_3D', region_type: s
             print(region)
         ...
 
-    :param context: Current context
+    :param context: Поточний контекст.
     :type context: `Context`_
-    :param area_type: Area type. See `Area.type`_, defaults to 'VIEW_3D'
-    :type area_type: str, optional
-    :param region_type: Type of region. See `Region.type`_, defaults to 'WINDOW'
-    :type region_type: str, optional
-    :yield: Regions iterator
+    :param area_type: Тип ділянок які містять регіони. Див. `Area.type`_, за замовчуванням 'VIEW_3D'
+    :type area_type: str, опційно
+    :param region_type: Тип регіону. Див. `Region.type`_, за замовчуванням 'WINDOW'
+    :type region_type: str, опційно
+    :yield: Регіон.
     :rtype: Iterator[`Region`_]
     """
     for window in context.window_manager.windows:
@@ -73,9 +73,9 @@ def iter_regions(context: Context, *, area_type: str = 'VIEW_3D', region_type: s
                         yield region
 
 
-def iter_area_regions(*, area: Area, region_type: str = 'WINDOW') -> Iterator[Region]:
+def iter_area_regions(*, area: Area, region_type: str = 'WINDOW') -> None:
     """
-    Iterator of regions in an area by type.
+    Ітератор регіонів певного типу одного екземпляру ділянки.
 
     .. code-block:: python
         :emphasize-lines: 2
@@ -85,11 +85,11 @@ def iter_area_regions(*, area: Area, region_type: str = 'WINDOW') -> Iterator[Re
             print(region)
         ...
 
-    :param area: Processing area
+    :param area: Ділянка.
     :type area: `Area`_
-    :param region_type: Type of region. See `Region.type`_, defaults to 'WINDOW'
-    :type region_type: str, optional
-    :yield: Regions iterator
+    :param region_type: Тип регіону. Див. `Region.type`_, за замовчуванням 'WINDOW'
+    :type region_type: str, опційно
+    :yield: Регіон.
     :rtype: Iterator[`Region`_]
     """
     for region in area.regions:
@@ -101,7 +101,7 @@ def iter_area_regions(*, area: Area, region_type: str = 'WINDOW') -> Iterator[Re
 
 def iter_area_spaces(*, area: Area, space_type: str = 'VIEW_3D') -> Iterator[Space]:
     """
-    Iterator of spaces in an area by type.
+    Ітератор просторів певного типу одного екземпляру ділянки.
 
     .. code-block:: python
         :emphasize-lines: 2
@@ -112,11 +112,11 @@ def iter_area_spaces(*, area: Area, space_type: str = 'VIEW_3D') -> Iterator[Spa
         ...
 
 
-    :param area: Processing area
+    :param area: Ділянка.
     :type area: `Area`_
-    :param space_type: Type of space. See `Space.type`_, defaults to 'VIEW_3D'
-    :type space_type: str, optional
-    :yield: Spaces iterator
+    :param space_type: Тип простору. Див. `Space.type`_, за замовчуванням 'VIEW_3D'
+    :type space_type: str, опційно
+    :yield: Простір.
     :rtype: Iterator[`Space`_]
     """
     for space in area.spaces:
@@ -128,12 +128,12 @@ def iter_area_spaces(*, area: Area, space_type: str = 'VIEW_3D') -> Iterator[Spa
 
 def tag_redraw_all_regions(*, area_type: str = 'VIEW_3D', region_type: str = 'WINDOW'):
     """
-    Call `Region.tag_redraw()`_ for each region of required type in all areas of required type
+    Виклик `Region.tag_redraw()`_ для кожного регіону необхідного типу в ділянках необхідного типу.
 
-    :param area_type: `Area.type`_, defaults to 'VIEW_3D'
-    :type area_type: str, optional
-    :param region_type: `Region.type`_, defaults to 'WINDOW'
-    :type region_type: str, optional
+    :param area_type: Тип ділянки (`Area.type`_), за замовчуванням 'VIEW_3D'
+    :type area_type: str, опційно
+    :param region_type: Тип регіону (`Region.type`_), за замовчуванням 'WINDOW'
+    :type region_type: str, опційно
     """
     for area in iter_areas(bpy.context, area_type=area_type):
         for region in iter_area_regions(area=area, region_type=region_type):
