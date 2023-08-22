@@ -28,6 +28,22 @@ bl_info = {
 
 import os
 
+if "bpy" in locals():
+    from importlib import reload
+
+    reload(bhqab)
+    reload(pref)
+    reload(main)
+    reload(props)
+    reload(localization)
+else:
+    from .lib import bhqab
+    from . import pref
+    from . import main
+    from . import props
+    from . import localization
+
+
 import bpy
 from bpy.types import (
     Context,
@@ -40,13 +56,6 @@ from bpy.props import (
 )
 from bpy.app.handlers import persistent
 
-
-from . import pref
-from . import main
-from . import props
-from . import localization
-
-from .lib import bhqab
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
