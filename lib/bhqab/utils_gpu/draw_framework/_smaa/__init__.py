@@ -138,7 +138,6 @@ class SMAA(_common.AABase):
         if _common.AAPreset.NONE != self._preset:
             _do_update_on_preset_change = self._do_preset_eval()
             if not self._shaders_eval or _do_update_on_preset_change:
-                self._shaders_eval = 1  # -------------------------------
                 if not cls._cached_shader_code:
                     directory = os.path.dirname(__file__)
                     with (

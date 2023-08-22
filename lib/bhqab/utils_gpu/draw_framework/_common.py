@@ -254,21 +254,28 @@ class BatchPreset:
     Заздалегідь заготовлені групи вершин. Всі змінні класу можна використовувати лише для зчитування.
     """
 
-    #: Квадрат типу 'TRIS' з центром на початку координат і стороною 1 одиницю виміру.
-    _unit_rectangle_tris_P: None | GPUBatch = None
-    #: Квадрат типу 'TRIS' зі стороною 2 одиниці виміру для відображення в нормалізованих координатах.Містить атрибути
-    #: "P" (-1.0 ... 1.0) і "UV" (0.0 ... 1.0).
-    _ndc_rectangle_tris_P_UV: None | GPUBatch = None
+    _unit_rectangle_tris_P_vbo: None | GPUVertBuf = None
+    _unit_rectangle_tris_P_ibo: None | GPUIndexBuf = None
+
+    _ndc_rectangle_tris_P_UV_vbo: None | GPUVertBuf = None
+    _ndc_rectangle_tris_P_UV_ibo: None | GPUIndexBuf = None
 
     @classmethod
     @property
     def unit_rectangle_tris_P(cls) -> GPUBatch:
-        if not cls._unit_rectangle_tris_P:
-            cls.update_unit_rectangle_tris_P()
-        return cls._unit_rectangle_tris_P
+        """
+        :return: Квадрат типу 'TRIS' з центром на початку координат і стороною 1 одиницю виміру.
+        :rtype: `GPUBatch`_
+        """
+        if not cls._unit_rectangle_tris_P_vbo or not cls._unit_rectangle_tris_P_ibo:
+            cls._update_unit_rectangle_tris_P_buffer_objects()
+        # Створюємо новий кожного разу, оскільки:
+        # ERROR (gpu.debug):  : GL_INVALID_OPERATION error generated. VAO names must be generated with glGenVertexArrays
+        # before they can be bound or used.
+        return GPUBatch(type='TRIS', buf=cls._unit_rectangle_tris_P_vbo, elem=cls._unit_rectangle_tris_P_ibo)
 
     @classmethod
-    def update_unit_rectangle_tris_P(cls):
+    def _update_unit_rectangle_tris_P_buffer_objects(cls):
         vert_fmt = GPUVertFormat()
         vert_fmt.attr_add(id="P", comp_type='F32', len=2, fetch_mode='FLOAT')
 
@@ -276,17 +283,27 @@ class BatchPreset:
         vbo.attr_fill(id="P", data=((0.0, 0.0), (0.0, 1.0), (1.0, 1.0), (1.0, 0.0)))
 
         ibo = GPUIndexBuf(type='TRIS', seq=((0, 1, 2), (0, 2, 3)))
-        cls._unit_rectangle_tris_P = GPUBatch(type='TRIS', buf=vbo, elem=ibo)
+
+        cls._unit_rectangle_tris_P_vbo = vbo
+        cls._unit_rectangle_tris_P_ibo = ibo
 
     @classmethod
     @property
     def ndc_rectangle_tris_P_UV(cls) -> GPUBatch:
-        if not cls._ndc_rectangle_tris_P_UV:
-            cls.update_ndc_rectangle_tris_P_UV()
-        return cls._ndc_rectangle_tris_P_UV
+        """
+        :return: Квадрат типу 'TRIS' зі стороною 2 одиниці виміру для відображення в нормалізованих координатах.Містить
+            атрибути "P" (-1.0 ... 1.0) і "UV" (0.0 ... 1.0).
+        :rtype: `GPUBatch`_
+        """
+        if not cls._ndc_rectangle_tris_P_UV_vbo or not cls._ndc_rectangle_tris_P_UV_ibo:
+            cls._update_ndc_rectangle_tris_P_UV_buffer_objects()
+        # Створюємо новий кожного разу, оскільки:
+        # ERROR (gpu.debug):  : GL_INVALID_OPERATION error generated. VAO names must be generated with glGenVertexArrays
+        # before they can be bound or used.
+        return GPUBatch(type='TRIS', buf=cls._ndc_rectangle_tris_P_UV_vbo, elem=cls._ndc_rectangle_tris_P_UV_ibo)
 
     @classmethod
-    def update_ndc_rectangle_tris_P_UV(cls):
+    def _update_ndc_rectangle_tris_P_UV_buffer_objects(cls):
         vert_fmt = GPUVertFormat()
         vert_fmt.attr_add(id="P", comp_type='F32', len=2, fetch_mode='FLOAT')
         vert_fmt.attr_add(id="UV", comp_type='F32', len=2, fetch_mode='FLOAT')
@@ -297,7 +314,8 @@ class BatchPreset:
 
         ibo = GPUIndexBuf(type='TRIS', seq=((0, 1, 2), (0, 2, 3)))
 
-        cls._ndc_rectangle_tris_P_UV = GPUBatch(type='TRIS', buf=vbo, elem=ibo)
+        cls._ndc_rectangle_tris_P_UV_vbo = vbo
+        cls._ndc_rectangle_tris_P_UV_ibo = ibo
 
 
 class AAPreset(IntEnum):
@@ -370,8 +388,10 @@ class AABase(object):
         gpu.matrix.load_matrix(Matrix.Identity(4))
         gpu.matrix.load_projection_matrix(Matrix.Identity(4))
         gpu.state.blend_set('ALPHA_PREMULT' if alpha_premult else 'ALPHA')
-        gpu.state.front_facing_set(False)
-        gpu.state.face_culling_set('NONE')  # FRONT | BACK causes glitches while rendering in offscreen
+        # Не потрібно встановлювати взагалі, https://github.com/BlenderHQ/path_tool/issues/5
+        # gpu.state.front_facing_set(False)
+        # FRONT | BACK створює ґлітчі під час рендерингу у фоновому режимі.
+        # gpu.state.face_culling_set('NONE')
         gpu.state.depth_mask_set(False)
         gpu.state.depth_test_set('ALWAYS')
 

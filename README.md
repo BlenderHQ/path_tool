@@ -99,7 +99,7 @@ There are also some interesting points - different Paths can interact. If the co
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue)](https://www.gnu.org/licenses/gpl-3.0)
 
-Copyright © 2023 Vlad Kuzmin (ssh4), Ivan Perevala (ivpe).
+Copyright © 2020-2023 Vlad Kuzmin (ssh4), Ivan Perevala (ivpe).
 
 <details><summary>
 GNU GPL v3 License.
@@ -107,7 +107,7 @@ GNU GPL v3 License.
 
 ```
 Path Tool addon.
-Copyright (C) 2022-2023 Vlad Kuzmin (ssh4), Ivan Perevala (ivpe)
+Copyright (C) 2020-2023 Vlad Kuzmin (ssh4), Ivan Perevala (ivpe)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

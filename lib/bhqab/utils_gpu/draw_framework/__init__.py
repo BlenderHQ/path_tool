@@ -1,24 +1,32 @@
 from __future__ import annotations
 
+if "bpy" in locals():
+    from importlib import reload
+
+    reload(_common)
+    reload(_smaa)
+    reload(_fxaa)
+else:
+    from . import _common
+
 import bpy
 from bpy.types import (
     Context,
     UILayout,
     AddonPreferences,
 )
-
 from bpy.props import (
     EnumProperty,
 )
 
 import gpu
 from gpu.types import (
-    GPUBatch,
     GPUShader,
     GPUTexture,
+    GPUShaderCreateInfo,
+    GPUStageInterfaceInfo,
 )
 
-from . import _common
 
 __all__ = (
     "BatchPreset",
@@ -71,29 +79,27 @@ class DrawFramework:
     @property
     def shader_2d_image(cls) -> None | GPUShader:
         if not cls.__shader_2d_image__ and not bpy.app.background:
-            vertexcode = (
+            info = GPUShaderCreateInfo()
+            info.vertex_in(0, 'VEC2', "P")
+            info.vertex_in(1, 'VEC2', "UV")
+
+            vs_out = GPUStageInterfaceInfo("image")
+            vs_out.smooth('VEC2', "v_UV")
+            info.vertex_out(vs_out)
+            info.push_constant('MAT4', "ModelViewProjectionMatrix")
+            info.sampler(0, 'FLOAT_2D', "u_Image")
+            info.fragment_out(0, 'VEC4', "f_Color")
+            info.vertex_source(
                 """
-                in vec2 P;
-                in vec2 UV;
-                uniform mat4 ModelViewProjectionMatrix;
-                out vec2 v_UV;
                 void main() {
                     v_UV = UV;
                     gl_Position = ModelViewProjectionMatrix * vec4(P, 0.0, 1.0);
                 }
                 """
             )
-            fragcode = (
-                """
-                in vec2 v_UV;
-                uniform sampler2D image;
-                out vec4 f_Color;
-                void main() {
-                    f_Color = texture(image, v_UV);
-                }
-                """
-            )
-            cls.__shader_2d_image__ = GPUShader(vertexcode=vertexcode, fragcode=fragcode)
+            info.fragment_source("void main() { f_Color = texture(u_Image, v_UV); }")
+
+            cls.__shader_2d_image__ = gpu.shader.create_from_info(info)
         return cls.__shader_2d_image__
 
     @classmethod
@@ -216,7 +222,7 @@ class DrawFramework:
                 AABase._setup_gpu_state(alpha_premult=True)
 
                 shader = cls.shader_2d_image
-                shader.uniform_sampler("image", texture)
+                shader.uniform_sampler("u_Image", texture)
                 BatchPreset.ndc_rectangle_tris_P_UV.draw(shader)
         else:
             self._aa_instance.draw(texture=texture)
