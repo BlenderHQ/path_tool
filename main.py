@@ -1474,8 +1474,8 @@ class MESH_OT_select_path(Operator):
         elif addon_pref.aa_method == 'SMAA':
             cls.gpu_draw_framework.aa.preset = addon_pref.smaa_preset
         cls.gpu_draw_framework.modal_eval(
-            context, color_format='RGBA8',
-            depth_format='DEPTH_COMPONENT16',
+            context, color_format='RGBA32F',
+            depth_format='DEPTH_COMPONENT32F',
             percentage=100
         )
 
