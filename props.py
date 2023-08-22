@@ -24,6 +24,10 @@ from .lib import bhqab
 
 
 class WMProps(PropertyGroup):
+    is_runtime: BoolProperty(
+        options={'HIDDEN'},
+    )
+
     mark_select: EnumProperty(
         items=(
             ('EXTEND', "Extend", "Extend existing selection", 'SELECT_EXTEND', 1),
@@ -136,7 +140,7 @@ class MESH_OT_select_path_preset_add(AddPresetBase, Operator):
     @classmethod
     def description(cls, _context: Context, properties: OperatorProperties) -> str:
         msgctxt = cls.__qualname__
-        print(msgctxt)
+        
         if properties.remove_active:
             return pgettext("Remove preset", msgctxt)
         else:

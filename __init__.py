@@ -35,12 +35,14 @@ if "bpy" in locals():
     from importlib import reload
 
     reload(bhqab)
+    reload(bhqglsl)
     reload(pref)
     reload(main)
     reload(props)
     reload(localization)
 else:
     from .lib import bhqab
+    from .lib import bhqglsl
     from . import pref
     from . import main
     from . import props
@@ -213,8 +215,9 @@ class PathToolMesh(WorkSpaceTool):
 
     @staticmethod
     def draw_settings(context: Context, layout: UILayout, tool: WorkSpaceTool):
-        props: WMProps = context.window_manager.select_path
-        props.ui_draw_func_runtime(layout)
+        wm_props: WMProps = context.window_manager.select_path
+        layout.enabled = not wm_props.is_runtime
+        wm_props.ui_draw_func_runtime(layout)
 
 
 @persistent

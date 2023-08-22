@@ -2,7 +2,16 @@ __pycache__/
 *.py[c]
 *$py.class
 
-.vscode/
 .vs/
+.vscode/
 
 *.blend[1,2,3,4,5,6,7,8,9]
+
+lib/bhqglsl/colorspace.glsl
+lib/bhqglsl/dithering.glsl
+lib/bhqglsl/fxaa_lib.glsl
+lib/bhqglsl/lens_distortion.glsl
+lib/bhqglsl/mask_vertex_stage.glsl
+lib/bhqglsl/sampler_map.glsl
+lib/bhqglsl/space.glsl
+lib/bhqglsl/tiles.glsl

@@ -59,7 +59,9 @@ There are also some interesting points - different Paths can interact. If the co
 
 * Brought back module reload support.
 
-* Added localization support, with initial `uk_UA` translations. Users can create their own translations in other languages ​​using fields from this dictionary. 
+* Added localization support, with initial `uk_UA` translations. Users can create their own translations in other languages ​​using fields from this dictionary.
+
+* Now, while working with paths, the addon's UI will become inactive, as access to it is not possible at this time and this should be reflected in the UI.
 
 <details><summary>
 <b>Version 3.4.1</b>

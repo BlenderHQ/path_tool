@@ -300,7 +300,6 @@ class PREFERENCES_OT_path_tool_appearance_preset(AddPresetBase, Operator):
     @classmethod
     def description(cls, _context: Context, properties: OperatorProperties) -> str:
         msgctxt = cls.__qualname__
-        print(msgctxt)
         if properties.remove_active:
             return pgettext("Remove preset", msgctxt)
         else:

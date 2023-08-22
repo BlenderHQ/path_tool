@@ -40,7 +40,8 @@ from gpu_extras.batch import batch_for_shader
 from bpy.app.translations import pgettext
 
 from .lib import bhqab
-from . import DATA_DIR
+from .lib import bhqglsl
+from . import shaders
 
 from . import __package__ as addon_pkg
 
@@ -513,9 +514,9 @@ class MESH_OT_select_path(Operator):
     _drag_elem: None | BMVert | BMFace = None
     _just_closed_path: bool = False
 
-    gpu_shaders: dict[str, gpu.types.GPUShader] = dict()
     gpu_draw_framework: None | bhqab.utils_gpu.draw_framework.DrawFramework = None
     gpu_handles: list = list()
+    gpu_common_ubo: None | bhqglsl.ubo.UBO[shaders.CommonParams] = None
 
     undo_history: collections.deque[tuple[int, tuple[Path]]]
     redo_history: collections.deque[tuple[int, tuple[Path]]]
@@ -741,15 +742,14 @@ class MESH_OT_select_path(Operator):
             path.fill_elements[fill_index] = fill_seq
 
             batch = None
+            shader = shaders.get("path")
             if cls.prior_ts_msm[1]:  # Edge mesh select mode
-                shader = cls.gpu_shaders["path_edge"]
                 coord = []
                 for edge in fill_seq:
                     coord.extend([vert.co for vert in edge.verts])
-                batch = batch_for_shader(shader, 'LINES', dict(Coord=coord))
+                batch = batch_for_shader(shader, 'LINES', dict(P=coord))
 
             elif cls.prior_ts_msm[2]:  # Faces mesh select mode
-                shader = cls.gpu_shaders["path_face"]
                 batch, _ = cls._gpu_gen_batch_faces_seq(fill_seq, False, shader)
 
             path.batch_seq_fills[fill_index] = batch
@@ -895,7 +895,7 @@ class MESH_OT_select_path(Operator):
 
         r_batch = batch_for_shader(
             shader, 'TRIS',
-            dict(Coord=tuple((v.co for v in tmp_bm.verts))),
+            dict(P=tuple((v.co for v in tmp_bm.verts))),
             indices=tuple(((loop.vert.index for loop in tri) for tri in tmp_loops))
         )
 
@@ -912,15 +912,15 @@ class MESH_OT_select_path(Operator):
 
     @classmethod
     def _gpu_gen_batch_control_elements(cls, is_active, path):
-        shader = cls.gpu_shaders["cp_vert"]
+        shader = shaders.get('cp_vert')
         if cls.prior_ts_msm[2]:
-            shader = cls.gpu_shaders["cp_face"]
+            shader = shaders.get('cp_face')
 
         r_batch = None
         r_active_elem_start_index = 0
 
         if cls.prior_ts_msm[1]:
-            r_batch = batch_for_shader(shader, 'POINTS', dict(Coord=tuple((v.co for v in path.control_elements))))
+            r_batch = batch_for_shader(shader, 'POINTS', dict(P=tuple((v.co for v in path.control_elements))))
             if is_active:
                 r_active_elem_start_index = len(path.control_elements) - 1
         elif cls.prior_ts_msm[2]:
@@ -938,6 +938,18 @@ class MESH_OT_select_path(Operator):
             SpaceView3D.draw_handler_remove(handle, 'WINDOW')
         cls.gpu_handles.clear()
 
+        cls.gpu_common_ubo = None
+
+    @classmethod
+    def _gpu_update_common_ubo(cls, context: Context):
+        addon_pref = context.preferences.addons[addon_pkg].preferences
+        if not cls.gpu_common_ubo:
+            cls.gpu_common_ubo = bhqglsl.ubo.UBO(ubo_type=shaders.CommonParams)
+
+        params = cls.gpu_common_ubo.data
+
+        cls.gpu_common_ubo.update()
+
     @classmethod
     def _gpu_draw_callback(cls: MESH_OT_select_path) -> None:
         addon_pref: Preferences = bpy.context.preferences.addons[addon_pkg].preferences
@@ -946,13 +958,11 @@ class MESH_OT_select_path(Operator):
         draw_list.append(cls.active_path)
 
         # if cls.prior_ts_msm[1]:
-        shader_ce = cls.gpu_shaders["cp_vert"]
+        shader_ce = shaders.get('cp_vert')
         if cls.prior_ts_msm[2]:
-            shader_ce = cls.gpu_shaders["cp_face"]
+            shader_ce = shaders.get('cp_face')
 
-        shader_path = cls.gpu_shaders["path_edge"]
-        if cls.prior_ts_msm[2]:
-            shader_path = cls.gpu_shaders["path_face"]
+        shader_path = shaders.get('path')
 
         depth_map = bhqab.utils_gpu.draw_framework.get_depth_map()
 
@@ -984,26 +994,32 @@ class MESH_OT_select_path(Operator):
                         if path.flag & PathFlag.TOPOLOGY:
                             color_path = addon_pref.color_active_path_topology
 
+                    params = cls.gpu_common_ubo.data
+
+                    params.model_matrix = tuple(_[:] for _ in path.ob.matrix_world.col)
+                    params.color_path = color_path[:]
+                    params.color_cp = color_ce[:]
+                    params.color_active_cp = color_active_ce[:]
+                    params.index_active = active_ce_index
+                    if cls.prior_ts_msm[1]:
+                        params.point_size = (addon_pref.point_size + 6.0)
+
+                    cls.gpu_common_ubo.update()
+
                     shader_path.bind()
                     for batch in path.batch_seq_fills:
                         if batch:
-                            shader_path.uniform_float("ModelMatrix", path.ob.matrix_world)
-                            shader_path.uniform_float("ColorPath", color_path)
-                            shader_path.uniform_sampler("OriginalViewDepthMap", depth_map)
-                            shader_path.uniform_float("viewportMetrics", viewport_metrics)
+                            shader_path.uniform_block("u_Params", cls.gpu_common_ubo.ubo)
+                            shader_path.uniform_sampler("u_DepthMap", depth_map)
+                            shader_path.uniform_float("u_ViewportMetrics", viewport_metrics)
                             batch.draw(shader_path)
 
                     shader_ce.bind()
 
                     if path.batch_control_elements:
-                        shader_ce.uniform_float("ModelMatrix", path.ob.matrix_world)
-                        shader_ce.uniform_float("ColorControlElement", color_ce)
-                        shader_ce.uniform_float("ColorActiveControlElement", color_active_ce)
-                        shader_ce.uniform_int("ActiveControlElementIndex", (active_ce_index,))
-                        shader_ce.uniform_sampler("OriginalViewDepthMap", depth_map)
-                        shader_ce.uniform_float("viewportMetrics", viewport_metrics)
-                        if cls.prior_ts_msm[1]:
-                            shader_ce.uniform_float("DiskRadius", (addon_pref.point_size + 6))
+                        shader_path.uniform_block("u_Params", cls.gpu_common_ubo.ubo)
+                        shader_ce.uniform_sampler("u_DepthMap", depth_map)
+                        shader_ce.uniform_float("u_ViewportMetrics", viewport_metrics)
 
                         path.batch_control_elements.draw(shader_ce)
 
@@ -1309,9 +1325,10 @@ class MESH_OT_select_path(Operator):
             SpaceView3D.draw_handler_add(self._gpu_draw_callback, tuple(), 'WINDOW', 'POST_VIEW'),
         ]
 
-        cls.gpu_shaders = bhqab.utils_gpu.shaders.eval_shaders_dict(
-            dir_path=os.path.join(DATA_DIR, "shaders")
-        )
+        shaders.register()
+
+        cls._gpu_update_common_ubo(context)
+
         cls.gpu_draw_framework = bhqab.utils_gpu.draw_framework.DrawFramework(num=1)
 
         self._interact_control_element(context, elem, ob, InteractEvent.ADD_NEW_PATH)
@@ -1320,6 +1337,8 @@ class MESH_OT_select_path(Operator):
 
     @classmethod
     def _cancel_all_instances(cls, context: Context) -> None:
+        wm_props: WMProps = context.window_manager.select_path
+
         cls.windows.clear()
         ts = context.tool_settings
 
@@ -1327,6 +1346,8 @@ class MESH_OT_select_path(Operator):
         cls._set_selection_state(cls.initial_select, True)
         cls._update_meshes()
         cls._gpu_remove_handles()
+
+        wm_props.is_runtime = False
 
     def cancel(self, context: Context):
         cls = self.__class__
@@ -1344,6 +1365,8 @@ class MESH_OT_select_path(Operator):
         if not cls.windows:
             return {'CANCELLED'}
 
+        wm = context.window_manager
+        wm_props: WMProps = wm.select_path
         addon_pref: Preferences = context.preferences.addons[addon_pkg].preferences
         ev = cls._pack_event(event)
 
@@ -1460,8 +1483,10 @@ class MESH_OT_select_path(Operator):
             depth_format='DEPTH_COMPONENT16',
             percentage=100
         )
-        # NOTE: Use this print statement for debugging purposes.
-        # print(self.path_arr)
+
+        cls._gpu_update_common_ubo(context)
+
+        wm_props.is_runtime = True
 
         return {'RUNNING_MODAL'}
 
@@ -1497,50 +1522,51 @@ class MESH_OT_select_path(Operator):
     def execute(self, context: Context):
         cls = self.__class__
         ts = context.tool_settings
-        props = context.window_manager.select_path
+        wm_props = context.window_manager.select_path
         ts.mesh_select_mode = cls.prior_ts_msm
         cls._eval_meshes(context)
         cls.initial_select = cls._get_selected_elements(cls.prior_mesh_elements)
 
         for ob, bm in cls.bm_arr:
-            if props.mark_select != 'NONE':
+            if wm_props.mark_select != 'NONE':
                 index_select_seq = cls.exec_select_arr[ob]
                 elem_seq = bm.edges
                 if cls.prior_ts_msm[2]:
                     elem_seq = bm.faces
-                if props.mark_select == 'EXTEND':
+                if wm_props.mark_select == 'EXTEND':
                     for i in index_select_seq:
                         elem_seq[i].select_set(True)
-                elif props.mark_select == 'SUBTRACT':
+                elif wm_props.mark_select == 'SUBTRACT':
                     for i in index_select_seq:
                         elem_seq[i].select_set(False)
-                elif props.mark_select == 'INVERT':
+                elif wm_props.mark_select == 'INVERT':
                     for i in index_select_seq:
                         elem_seq[i].select_set(not elem_seq[i].select)
 
             index_markup_seq = cls.exec_markup_arr[ob]
             elem_seq = bm.edges
-            if props.mark_seam != 'NONE':
-                if props.mark_seam == 'MARK':
+            if wm_props.mark_seam != 'NONE':
+                if wm_props.mark_seam == 'MARK':
                     for i in index_markup_seq:
                         elem_seq[i].seam = True
-                elif props.mark_seam == 'CLEAR':
+                elif wm_props.mark_seam == 'CLEAR':
                     for i in index_markup_seq:
                         elem_seq[i].seam = False
-                elif props.mark_seam == 'TOGGLE':
+                elif wm_props.mark_seam == 'TOGGLE':
                     for i in index_markup_seq:
                         elem_seq[i].seam = not elem_seq[i].seam
 
-            if props.mark_sharp != 'NONE':
-                if props.mark_sharp == 'MARK':
+            if wm_props.mark_sharp != 'NONE':
+                if wm_props.mark_sharp == 'MARK':
                     for i in index_markup_seq:
                         elem_seq[i].smooth = False
-                elif props.mark_sharp == 'CLEAR':
+                elif wm_props.mark_sharp == 'CLEAR':
                     for i in index_markup_seq:
                         elem_seq[i].smooth = True
-                elif props.mark_sharp == 'TOGGLE':
+                elif wm_props.mark_sharp == 'TOGGLE':
                     for i in index_markup_seq:
                         elem_seq[i].smooth = not elem_seq[i].smooth
 
+        wm_props.is_runtime = False
         self._update_meshes()
         return {'FINISHED'}
