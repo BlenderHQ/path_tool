@@ -942,13 +942,8 @@ class MESH_OT_select_path(Operator):
 
     @classmethod
     def _gpu_update_common_ubo(cls, context: Context):
-        addon_pref = context.preferences.addons[addon_pkg].preferences
         if not cls.gpu_common_ubo:
             cls.gpu_common_ubo = bhqglsl.ubo.UBO(ubo_type=shaders.CommonParams)
-
-        params = cls.gpu_common_ubo.data
-
-        cls.gpu_common_ubo.update()
 
     @classmethod
     def _gpu_draw_callback(cls: MESH_OT_select_path) -> None:
@@ -1483,8 +1478,6 @@ class MESH_OT_select_path(Operator):
             depth_format='DEPTH_COMPONENT16',
             percentage=100
         )
-
-        cls._gpu_update_common_ubo(context)
 
         wm_props.is_runtime = True
 
