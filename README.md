@@ -4,7 +4,6 @@
   - [About](#about)
   - [How To Use the Addon](#how-to-use-the-addon)
   - [Release Notes](#release-notes)
-    - [Version 3.6.2](#version-362)
   - [License](#license)
 
 ## About
@@ -51,11 +50,15 @@ There are also some interesting points - different Paths can interact. If the co
 
 ## Release Notes
 
-### Version 3.6.2
+<b>Version 3.6.2</b>
 
 * Fixed an issue with flipped normals in the viewport. #5
 
-* Fixed different distance between Select, Seam, Sharp options in tool settings and radial menu.
+* Updated the shader system to the new Blender development design standards (maintenance update).
+
+* Increased accuracy of depth and color to 32-bit float - this reduces polygon depth fighting in the viewport.
+
+* Fixed different distance between "Select", "Seam", "Sharp" options in tool settings and radial menu.
 
 * Brought back module reload support.
 
