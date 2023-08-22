@@ -1,14 +1,13 @@
 # Path Tool
 
 - [Path Tool](#path-tool)
-  - [Release Notes](#release-notes)
-    - [Version 3.4.1](#version-341)
-    - [Version 3.4.0](#version-340)
-    - [Version 3.3.0](#version-330)
-    - [Version 3.2.0](#version-320)
+  - [About](#about)
   - [How To Use the Addon](#how-to-use-the-addon)
+  - [Release Notes](#release-notes)
+    - [Version 3.6.2](#version-362)
   - [License](#license)
 
+## About
 
 An add-on for Blender that complements the standard shortcut operator with new features.
 
@@ -16,54 +15,7 @@ The standard operator works great, but in terms of user experience, it could be 
 
 This addon is designed taking into account many points concerning the actual use of it in work tasks. The initial idea is quite simple - the operation of selecting the shortest path should be similar to working with the "Knife" tool.
 
-![Preview](https://user-images.githubusercontent.com/16822993/215295866-9ab83780-be27-43f0-9e46-0b47480e61a6.png)
-
----
-
-## Release Notes
-
-### Version 3.4.1
-* Added "Auto Tweak Options" preferences option. This used to be the operator's default behavior for ease of use, but is now optional and disabled by default. If no mesh element is initially selected, the selection option will be changed to "Extend". If all elements are selected, it will be changed to "Do nothing". The option is in the addon preferences under `Behavior > Auto Tweak Options`.
-
-* Main operator has been fixed in a situation where you do undo and redo and then cancel the operator, after which start a new instance of the operator again
-
-* Added a system of keyboard shortcuts that were previously hardcoded. All of them are available in user preferences. Here, Blender has limitations because it does not provide any possibility to create keymaps for modal operators through the Python API. Among the identified shortcomings (however, they were there before) - it is not possible to assign "Double Click" and "Click-and-Drag" actions to the keys.
-
-* Standard settings that simplify navigation - "Auto Perspective" and "Zoom to Mouse Position" have been added to the behavior settings. This is useful for faster setup.
-
-### Version 3.4.0
-* Fixed selection for meshes with glued geometry. The problem was how the standard `bpy.ops.mesh.select_linked` operator works, which selects part of the mesh according to normals. The simplest example to reproduce is two pyramids glued together with their upper faces cut off.
-
-* Brought back transparency options for drawing paths and their controls.
-
-### Version 3.3.0
-
-* Fixed possible Blender crashes when changing the anti-aliasing method. The reason was how Blender calculates VAO.
-
-* Fixed incomplete selection of mesh elements when working with edges. The reason was the absence of one of the mesh update calls.
-
-* Fixed the incorrect merging of paths in the case when they are connected to the first control element of the first path with the first control element of the second path. The reason was a typo in determining element indexes.
-
-* Fixed lags when dragging control elements on Linux (tested on Ubuntu). The problem was in the spam of `INBETWEEN_MOUSEMOVE` events by Blender.
-
-* Removed the "Default presets" option from the preferences. Added a completely new system of presets. The new system is more maintainable and native to Blender. Appearance presets have also been added.
-
-
-### Version 3.2.0
-
-* Added support for work in all view-ports as well as in all open Blender windows - now there is no binding to a specific viewport in the specific window in which the work was started.
-
-* Added support for anti-aliasing FXAA, SMAA, with configurable options. They are performed sequentially - that is, you can enable only some of these methods for finer tuning on your hardware.
-
-* Changes to the operation logic of operator properties:
-    
-    * Added operator presets.
-
-    * The option to apply options to tool properties has been removed - now the tool properties and the properties of the current operator session are combined.
-
-    * Options in the pie menu reflect actions for the current path of the operator - it can be reversed, closed, etc. but operator options and access to addon preferences are in a separate submenu. An important change is that now it will not disappear after each tweak of the options.
-
-* Added option from standard operator "Topology distance". It can be enabled for each individual path and enabled by default for all new ones in the operator / tool options.
+![Path Tool](https://github.com/BlenderHQ/path_tool/assets/16822993/c3d6947e-31bf-4da5-84ab-73f3952e8c40)
 
 ## How To Use the Addon
 
@@ -94,6 +46,72 @@ When you click on the next mesh element, a new control element will be added and
 Work with several Path's is also supported. To create a new Path, you can use the shortcut displayed in the status bar. When you do this, a new control element independent of the first Path will be created and the work will continue in the already familiar way.
 
 There are also some interesting points - different Paths can interact. If the control at the beginning or end of one Path is moved to the beginning or end of another Path, these Paths will merge into one. If the control is not finite then the paths will not be merged. Instead, all the control elements of all the paths that are on the same element of the mesh, in the same place, can be moved together, they seem to stick together
+
+---
+
+## Release Notes
+
+### Version 3.6.2
+
+* Fixed an issue with flipped normals in the viewport #5
+
+<details><summary>
+<b>Version 3.4.1</b>
+</summary>
+* Added "Auto Tweak Options" preferences option. This used to be the operator's default behavior for ease of use, but is now optional and disabled by default. If no mesh element is initially selected, the selection option will be changed to "Extend". If all elements are selected, it will be changed to "Do nothing". The option is in the addon preferences under `Behavior > Auto Tweak Options`.
+
+* Main operator has been fixed in a situation where you do undo and redo and then cancel the operator, after which start a new instance of the operator again
+
+* Added a system of keyboard shortcuts that were previously hardcoded. All of them are available in user preferences. Here, Blender has limitations because it does not provide any possibility to create keymaps for modal operators through the Python API. Among the identified shortcomings (however, they were there before) - it is not possible to assign "Double Click" and "Click-and-Drag" actions to the keys.
+
+* Standard settings that simplify navigation - "Auto Perspective" and "Zoom to Mouse Position" have been added to the behavior settings. This is useful for faster setup.
+</details>
+
+
+<details><summary>
+<b>Version 3.4.0</b>
+</summary>
+* Fixed selection for meshes with glued geometry. The problem was how the standard `bpy.ops.mesh.select_linked` operator works, which selects part of the mesh according to normals. The simplest example to reproduce is two pyramids glued together with their upper faces cut off.
+
+* Brought back transparency options for drawing paths and their controls.
+</details>
+
+
+<details><summary>
+<b>Version 3.3.0</b>
+</summary>
+* Fixed possible Blender crashes when changing the anti-aliasing method. The reason was how Blender calculates VAO.
+
+* Fixed incomplete selection of mesh elements when working with edges. The reason was the absence of one of the mesh update calls.
+
+* Fixed the incorrect merging of paths in the case when they are connected to the first control element of the first path with the first control element of the second path. The reason was a typo in determining element indexes.
+
+* Fixed lags when dragging control elements on Linux (tested on Ubuntu). The problem was in the spam of `INBETWEEN_MOUSEMOVE` events by Blender.
+
+* Removed the "Default presets" option from the preferences. Added a completely new system of presets. The new system is more maintainable and native to Blender. Appearance presets have also been added.
+
+</details>
+
+
+<details><summary>
+<b>Version 3.2.0</b>
+</summary>
+
+* Added support for work in all view-ports as well as in all open Blender windows - now there is no binding to a specific viewport in the specific window in which the work was started.
+
+* Added support for anti-aliasing FXAA, SMAA, with configurable options. They are performed sequentially - that is, you can enable only some of these methods for finer tuning on your hardware.
+
+* Changes to the operation logic of operator properties:
+    
+    * Added operator presets.
+
+    * The option to apply options to tool properties has been removed - now the tool properties and the properties of the current operator session are combined.
+
+    * Options in the pie menu reflect actions for the current path of the operator - it can be reversed, closed, etc. but operator options and access to addon preferences are in a separate submenu. An important change is that now it will not disappear after each tweak of the options.
+
+* Added option from standard operator "Topology distance". It can be enabled for each individual path and enabled by default for all new ones in the operator / tool options.
+
+</details>
 
 ## License
 
