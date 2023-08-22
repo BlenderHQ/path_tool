@@ -6,7 +6,6 @@ import gpu
 from gpu.types import (
     GPUShader,
     GPUShaderCreateInfo,
-    GPUStageInterfaceInfo,
 )
 
 from ..lib import bhqglsl
@@ -21,6 +20,7 @@ from ..lib.bhqglsl.ubo import (
 
 __all__ = (
     "INTERN_DIR",
+    "CommonParams",
     "get",
     "register",
 )
