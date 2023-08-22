@@ -30,6 +30,7 @@ class WMProps(PropertyGroup):
         ),
         default='EXTEND',
         options={'HIDDEN', 'SKIP_SAVE'},
+        translation_context='WMProps',
         name="Select",
         description="Selection options",
     )
@@ -43,6 +44,7 @@ class WMProps(PropertyGroup):
         ),
         default='NONE',
         options={'HIDDEN', 'SKIP_SAVE'},
+        translation_context='WMProps',
         name="Seams",
         description="Mark seam options",
     )
@@ -56,6 +58,7 @@ class WMProps(PropertyGroup):
         ),
         default="NONE",
         options={'HIDDEN', 'SKIP_SAVE'},
+        translation_context='WMProps',
         name="Sharp",
         description="Mark sharp options",
     )
@@ -64,6 +67,7 @@ class WMProps(PropertyGroup):
         min=0,
         soft_max=100,
         options={'HIDDEN', 'SKIP_SAVE'},
+        translation_context='WMProps',
         name="Deselected",
         description="Number of deselected elements in the repetitive sequence",
     )
@@ -73,6 +77,7 @@ class WMProps(PropertyGroup):
         soft_max=100,
         default=1,
         options={'HIDDEN', 'SKIP_SAVE'},
+        translation_context='WMProps',
         name="Selected",
         description="Number of selected elements in the repetitive sequence",
     )
@@ -81,6 +86,7 @@ class WMProps(PropertyGroup):
         soft_min=-100,
         soft_max=100,
         options={'HIDDEN', 'SKIP_SAVE'},
+        translation_context='WMProps',
         name="Offset",
         description="Offset from the starting point",
     )
@@ -88,6 +94,7 @@ class WMProps(PropertyGroup):
     use_topology_distance: BoolProperty(
         default=False,
         options={'HIDDEN', 'SKIP_SAVE'},
+        translation_context='WMProps',
         name="Use Topology Distance",
         description=("Algorithm for calculating the shortest path for all subsequent created paths"
                      "(Select means find the minimum number of steps, ignoring spatial distance)"),
@@ -120,6 +127,7 @@ class WMProps(PropertyGroup):
 
 class MESH_MT_select_path_presets(Menu):
     bl_label = "Operator Presets"
+    bl_translation_context = 'MESH_MT_select_path_presets'
     preset_subdir = os.path.join("path_tool", "wm")
     preset_operator = "script.execute_preset"
     draw = Menu.draw_preset
@@ -129,6 +137,7 @@ class MESH_OT_select_path_preset_add(AddPresetBase, Operator):
     """Add \"Select Path\" preset"""
     bl_idname = "mesh.select_path_preset_add"
     bl_label = "Add Preset"
+    bl_translation_context = 'MESH_OT_select_path_preset_add'
     preset_menu = MESH_MT_select_path_presets.__name__
     preset_defines = [
         "props = bpy.context.window_manager.select_path"
