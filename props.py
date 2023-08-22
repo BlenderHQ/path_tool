@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 
+import bpy
 from bpy.types import (
     PropertyGroup,
     UILayout,
@@ -11,7 +12,6 @@ from bpy.types import (
 
 from bpy.props import (
     BoolProperty,
-    IntProperty,
     EnumProperty,
 )
 from bl_operators.presets import AddPresetBase
@@ -79,14 +79,19 @@ class WMProps(PropertyGroup):
             operator=MESH_OT_select_path_preset_add.bl_idname
         )
 
-        layout.row().prop(self, "mark_select", text="Select", icon_only=True, expand=True)
-        layout.row().prop(self, "mark_seam", text="Seam", icon_only=True, expand=True)
-        layout.row().prop(self, "mark_sharp", text="Sharp", icon_only=True, expand=True)
+        # Такий метод відображення необхідний оскільки стандартний, який також використовується в круговому меню,
+        # розтягує опції переліку в ширину.
+        lay = layout
+        if bpy.context.region.type in {'WINDOW', 'UI'}:
+            lay = layout.column()
 
-        # TODO: Add native operator stepping options.
-        # layout.prop(self, "skip")
-        # layout.prop(self, "nth")
-        # layout.prop(self, "offset")
+        def _intern_draw_enum_prop(identifier: str, text: str):
+            row = lay.row()
+            row.prop(self, identifier, text=text, icon_only=True, expand=True, text_ctxt='WMProps')
+
+        _intern_draw_enum_prop("mark_select", "Select")
+        _intern_draw_enum_prop("mark_seam", "Seam")
+        _intern_draw_enum_prop("mark_sharp", "Sharp")
 
     def ui_draw_func_runtime(self, layout: UILayout) -> None:
         row = layout.row(align=True)

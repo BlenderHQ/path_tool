@@ -54,7 +54,11 @@ There are also some interesting points - different Paths can interact. If the co
 ### Version 3.6.2
 
 * Fixed an issue with flipped normals in the viewport. #5
+
+* Fixed different distance between Select, Seam, Sharp options in tool settings and radial menu.
+
 * Brought back module reload support.
+
 * Added localization support, with initial `uk_UA` translations.
 
 <details><summary>
