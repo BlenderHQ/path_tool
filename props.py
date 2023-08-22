@@ -63,34 +63,6 @@ class WMProps(PropertyGroup):
         description="Mark sharp options",
     )
 
-    skip: IntProperty(
-        min=0,
-        soft_max=100,
-        options={'HIDDEN', 'SKIP_SAVE'},
-        translation_context='WMProps',
-        name="Deselected",
-        description="Number of deselected elements in the repetitive sequence",
-    )
-
-    nth: IntProperty(
-        min=1,
-        soft_max=100,
-        default=1,
-        options={'HIDDEN', 'SKIP_SAVE'},
-        translation_context='WMProps',
-        name="Selected",
-        description="Number of selected elements in the repetitive sequence",
-    )
-
-    offset: IntProperty(
-        soft_min=-100,
-        soft_max=100,
-        options={'HIDDEN', 'SKIP_SAVE'},
-        translation_context='WMProps',
-        name="Offset",
-        description="Offset from the starting point",
-    )
-
     use_topology_distance: BoolProperty(
         default=False,
         options={'HIDDEN', 'SKIP_SAVE'},
