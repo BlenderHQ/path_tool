@@ -44,6 +44,7 @@ from bpy.app.handlers import persistent
 from . import pref
 from . import main
 from . import props
+from . import localization
 
 from .lib import bhqab
 
@@ -236,6 +237,8 @@ def register():
     WindowManager.select_path = PointerProperty(type=props.WMProps)
     bpy.utils.register_tool(PathToolMesh, after={"builtin.select_lasso"}, separator=False, group=False)
 
+    bpy.app.translations.register(__package__, localization.LANGS)
+
     for handler, func in _handlers:
         if func not in handler:
             handler.append(func)
@@ -245,6 +248,8 @@ def unregister():
     for handler, func in _handlers:
         if func not in handler:
             handler.remove(func)
+
+    bpy.app.translations.unregister(__package__)
 
     bpy.utils.unregister_tool(PathToolMesh)
     del WindowManager.select_path
