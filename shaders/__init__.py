@@ -128,6 +128,6 @@ def get(name: str) -> None | GPUShader:
 
 
 def register():
-    _SHADERS["cp_vert"] = _create_shader_cp_vert()
-    _SHADERS["cp_face"] = _create_shader_cp_face()
-    _SHADERS["path"] = _create_shader_path()
+    _SHADERS['cp_vert'] = _create_shader_cp_vert()
+    _SHADERS['cp_face'] = _create_shader_cp_face()
+    _SHADERS['path'] = _create_shader_path()
