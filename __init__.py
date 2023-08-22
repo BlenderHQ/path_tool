@@ -28,6 +28,9 @@ bl_info = {
 
 import os
 
+DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+INFO_DIR = os.path.join(DATA_DIR, "info")
+
 if "bpy" in locals():
     from importlib import reload
 
@@ -69,7 +72,7 @@ class PathToolMesh(WorkSpaceTool):
     bl_context_mode = 'EDIT_MESH'
     bl_options = {}
     bl_description = "Select items using editable paths"
-    bl_icon = os.path.join(os.path.dirname(__file__), "data", "ops.mesh.path_tool")
+    bl_icon = os.path.join(DATA_DIR, "ops.mesh.path_tool")
     bl_keymap = (
         (
             main.MESH_OT_select_path.bl_idname,
@@ -217,7 +220,7 @@ class PathToolMesh(WorkSpaceTool):
 @persistent
 def load_post(_unused):
     bhqab.utils_ui.copy_default_presets_from(
-        src_root=os.path.join(os.path.dirname(__file__), "data", "presets")
+        src_root=os.path.join(DATA_DIR, "presets")
     )
 
 

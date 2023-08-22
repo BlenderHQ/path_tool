@@ -112,6 +112,7 @@ class DrawFramework:
         return EnumProperty(
             items=tuple(((_.name, _.name, _.description) for _ in cls.__aa_methods_registry__)),
             options={'HIDDEN', 'SKIP_SAVE'},
+            translation_context='BHQAB_Preferences',
             name="AA Method",
             description="Anti-aliasing method to be used",
         )

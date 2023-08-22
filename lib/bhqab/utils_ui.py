@@ -15,7 +15,6 @@ from bpy.types import (
     Event,
     ID,
     Menu,
-    Operator,
     PropertyGroup,
     STATUSBAR_HT_header,
     UILayout,
@@ -33,6 +32,8 @@ from mathutils import Vector
 import blf
 import rna_keymap_ui
 from bl_ui import space_statusbar
+from bpy.app.translations import pgettext
+
 # ifdef DEBUG
 from bpy_extras.io_utils import ExportHelper
 # endif // !DEBUG
@@ -153,7 +154,7 @@ def eval_text_pixel_dimensions(*, fontid: int = 0, text: str = "") -> Vector:
     return ret
 
 
-def draw_wrapped_text(context: Context, layout: UILayout, *, text: str) -> None:
+def draw_wrapped_text(context: Context, layout: UILayout, *, text: str, text_ctxt: None | str = None) -> None:
     """
     Відображує текстовий блок, з автоматичний перенесенням рядків відповідно до ширини поточного регіону.
 
@@ -167,7 +168,7 @@ def draw_wrapped_text(context: Context, layout: UILayout, *, text: str) -> None:
     col = layout.column(align=True)
 
     if context.region.type == 'WINDOW':
-        win_padding = 25
+        win_padding = 30
     elif context.region.type == 'UI':
         win_padding = 52
     else:
@@ -175,6 +176,8 @@ def draw_wrapped_text(context: Context, layout: UILayout, *, text: str) -> None:
 
     wrap_width = context.region.width - win_padding
     space_width = eval_text_pixel_dimensions(text=' ').x
+
+    text = pgettext(text, text_ctxt)
 
     for line in text.split('\n'):
         num_characters = len(line)
@@ -638,3 +641,54 @@ def template_disclosure_enum_flag(layout: UILayout, *, item: ID, prop_enum_flag:
     row.prop_enum(item, prop_enum_flag, flag, icon=icon)
 
     return ret
+
+
+def update_localization(*, module: str, langs: dict):
+    """
+    Метод оновлення реєстрації локалізації в реальному часі.
+
+    :param module: Назва модулю аддона.
+    :type module: str
+    :param langs: Словник.
+    :type langs: dict
+    """
+    try:
+        bpy.app.translations.unregister(module)
+    except RuntimeError:
+        pass
+    else:
+        bpy.app.translations.register(module, langs)
+
+
+def request_localization_from_file(*, module: str, langs: dict, msgctxt: str, src: str, dst: dict[str, str]):
+    """
+    Метод оновлення локалізації аддону з файлів. Може бути корисним наприклад для README.txt файлів. 
+
+    :param module: Назва модулю аддона.
+    :type module: str
+    :param langs: Словник.
+    :type langs: dict
+    :param msgctxt: Контекст перекладу.
+    :type msgctxt: str
+    :param src: Шлях до файлу що містить оригінальні дані.
+    :type src: str
+    :param dst: Словник у форматі: Назва локалізації - шлях до файлу перекладу.
+    :type dst: dict[str, str]
+    :return: Текст оригіналу.
+    :rtype: str
+    """
+    for lang, translations in langs.items():
+        if lang in dst:
+            for item in translations.keys():
+                if item[0] == msgctxt:
+                    return item[1]
+
+    src_data = ""
+    with open(src, 'r', encoding='utf-8') as src_file:
+        src_data = src_file.read()
+        for dst_locale, dst_filename in dst.items():
+            with open(dst_filename, 'r', encoding='utf-8') as dst_file:
+                langs[dst_locale][(msgctxt, src_data)] = dst_file.read()
+
+    update_localization(module=module, langs=langs)
+    return src_data

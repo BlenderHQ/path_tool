@@ -37,8 +37,10 @@ from bmesh.types import (
 import gpu
 from gpu.types import GPUBatch
 from gpu_extras.batch import batch_for_shader
+from bpy.app.translations import pgettext
 
 from .lib import bhqab
+from . import DATA_DIR
 
 from . import __package__ as addon_pkg
 
@@ -311,7 +313,7 @@ CONTEXT_ACTION_ITEMS = (
     (
         InteractEvent.CLOSE_PATH.name,
         "Close Path",
-        "Connect between the beginning and end of the active path",
+        "Connect the start and end of the active path",
         'NONE',  # 'MESH_CIRCLE',
         InteractEvent.CLOSE_PATH.value
     ),
@@ -327,7 +329,7 @@ CONTEXT_ACTION_ITEMS = (
     (
         InteractEvent.APPLY_PATHS.name,
         "Apply",  # 5 chars
-        "Apply the created mesh paths according to the selected options",
+        "Apply changes to the grid according to the selected options",
         'NONE',  # 'EVENT_RETURN',
         InteractEvent.APPLY_PATHS.value
     ),
@@ -351,8 +353,8 @@ CONTEXT_ACTION_ITEMS = (
     (
         InteractEvent.TOPOLOGY_DISTANCE.name,
         "Topology",
-        ("Algorithm for calculating the path: simple or using a mesh topology"
-         "(Find the minimum number of steps, ignoring spatial distance)"),
+        "Algorithm for determining the shortest path without taking into account the spatial distance, only the number "
+        "of steps",
         'NONE',  # 'DRIVER_DISTANCE',
         InteractEvent.TOPOLOGY_DISTANCE.value
     ),
@@ -367,27 +369,27 @@ ACTION_ITEMS = CONTEXT_ACTION_ITEMS + (
     ),
     (
         InteractEvent.ADD_CP.name,
-        "Add new control point", "", 'NONE',
+        "Add New Control Point", "", 'NONE',
         InteractEvent.ADD_CP.value
     ),
     (
         InteractEvent.ADD_NEW_PATH.name,
-        "Add new path", "", 'NONE',
+        "Add New Path", "", 'NONE',
         InteractEvent.ADD_NEW_PATH.value
     ),
     (
         InteractEvent.REMOVE_CP.name,
-        "Remove control point", "", 'NONE',
+        "Remove Control Point", "", 'NONE',
         InteractEvent.REMOVE_CP.value
     ),
     (
         InteractEvent.DRAG_CP.name,
-        "Drag control point", "", 'NONE',
+        "Drag Control Point", "", 'NONE',
         InteractEvent.DRAG_CP.value
     ),
     (
         InteractEvent.RELEASE_PATH.name,
-        "Release path", "", 'NONE',
+        "Release Path", "", 'NONE',
         InteractEvent.RELEASE_PATH.value
     ),
     (
@@ -400,11 +402,13 @@ ACTION_ITEMS = CONTEXT_ACTION_ITEMS + (
 
 class MESH_PT_select_path_context(Panel):
     bl_label = "Options"
+    bl_translation_context = 'MESH_PT_select_path_context'
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'WINDOW'
 
     def draw(cls, context: Context) -> None:
         layout = cls.layout
+        layout.ui_units_x = 15
         layout.use_property_split = True
         props: WMProps = context.window_manager.select_path
         props.ui_draw_func_runtime(layout)
@@ -443,6 +447,7 @@ class MESH_OT_select_path(Operator):
     bl_idname = "mesh.select_path"
     bl_label = "Select Path"
     bl_options = {'REGISTER', 'UNDO', 'INTERNAL'}
+    bl_translation_context = 'MESH_OT_select_path'
 
     __slots__ = ()
 
@@ -450,6 +455,7 @@ class MESH_OT_select_path(Operator):
         items=CONTEXT_ACTION_ITEMS,
         default=set(),
         options={'ENUM_FLAG', 'HIDDEN', 'SKIP_SAVE'},
+        translation_context='MESH_OT_select_path',
     )
 
     action: EnumProperty(
@@ -647,6 +653,7 @@ class MESH_OT_select_path(Operator):
 
     def _redo(self, context: Context) -> None:
         cls = self.__class__
+        msgctxt = cls.__qualname__
 
         if len(cls.redo_history) > 0:
             step = cls.redo_history.pop()
@@ -656,7 +663,7 @@ class MESH_OT_select_path(Operator):
             cls.path_arr = list(undo_step_path_seq)
             context.area.tag_redraw()
         else:
-            self.report({'WARNING'}, message="Can not redo anymore")
+            self.report({'WARNING'}, message=pgettext("Can not redo anymore", msgctxt))
 
     @classmethod
     def _register_undo_step(cls) -> None:
@@ -749,6 +756,8 @@ class MESH_OT_select_path(Operator):
 
     def _remove_path_doubles(self, context: Context, path: Path) -> None:
         cls = self.__class__
+        msgctxt = cls.__qualname__
+
         for i, control_element in enumerate(path.control_elements):
             if path.control_elements.count(control_element) > 1:
                 for j, other_control_element in enumerate(path.control_elements):
@@ -760,11 +769,12 @@ class MESH_OT_select_path(Operator):
                                 path.flag |= PathFlag.CLOSED
                                 cls._update_fills_by_element_index(context, path, 0)
 
-                                message = "Closed path"
                                 if path == cls.active_path:
                                     cls._just_closed_path = True
-                                    message = "Closed active path"
-                                self.report(type={'INFO'}, message=message)
+                                    text = pgettext("Closed active path", msgctxt)
+                                else:
+                                    text = pgettext("Closed path", msgctxt)
+                                self.report(type={'INFO'}, message=text)
                             else:
                                 cls._update_fills_by_element_index(context, path, 0)
                         # Adjacent control elements
@@ -772,12 +782,13 @@ class MESH_OT_select_path(Operator):
                             path.pop_control_element(j)
                             batch, _ = cls._gpu_gen_batch_control_elements(path == cls.active_path, path)
                             path.batch_control_elements = batch
-                            self.report(type={'INFO'}, message="Merged adjacent control elements")
+                            self.report(type={'INFO'}, message=pgettext("Merged adjacent control elements", msgctxt))
                         # else:
                         #     # Maybe, undo here?
 
     def _join_adjacent_to_active_path(self) -> None:
         cls = self.__class__
+        msgctxt = cls.__qualname__
 
         if cls.active_path.flag ^ PathFlag.CLOSED:
             l_path = cls.active_path
@@ -854,7 +865,7 @@ class MESH_OT_select_path(Operator):
 
                         batch, cls.active_index = cls._gpu_gen_batch_control_elements(True, cls.active_path)
                         cls.active_path.batch_control_elements = batch
-                        self.report(type={'INFO'}, message="Joined two paths")
+                        self.report(type={'INFO'}, message=pgettext("Joined two paths", msgctxt))
                         return
 
     @classmethod
@@ -1005,6 +1016,7 @@ class MESH_OT_select_path(Operator):
                                   interact_event: InteractEvent) -> None:
 
         cls = self.__class__
+        msgctxt = cls.__qualname__
 
         props: WMProps = context.window_manager.select_path
 
@@ -1082,7 +1094,7 @@ class MESH_OT_select_path(Operator):
             cls.set_active_path(new_path)
             cls._just_closed_path = False
             self._interact_control_element(context, elem, ob, InteractEvent.ADD_CP)
-            self.report(type={'INFO'}, message="Created new path")
+            self.report(type={'INFO'}, message=pgettext("Created new path", msgctxt))
             # return
 
         elif elem and interact_event is InteractEvent.REMOVE_CP:
@@ -1298,7 +1310,7 @@ class MESH_OT_select_path(Operator):
         ]
 
         cls.gpu_shaders = bhqab.utils_gpu.shaders.eval_shaders_dict(
-            dir_path=os.path.join(os.path.dirname(__file__), "data", "shaders")
+            dir_path=os.path.join(DATA_DIR, "shaders")
         )
         cls.gpu_draw_framework = bhqab.utils_gpu.draw_framework.DrawFramework(num=1)
 

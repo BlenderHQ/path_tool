@@ -90,6 +90,7 @@ class SMAA(_common.AABase):
             ),
             default=_common.AAPreset.HIGH.name,
             options={'HIDDEN', 'SKIP_SAVE'},
+            translation_context='BHQAB_Preferences',
             name="Preset",
             description="Sub-pixel morphological anti-aliasing quality preset"
         )

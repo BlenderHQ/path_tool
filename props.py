@@ -8,6 +8,8 @@ from bpy.types import (
     UILayout,
     Menu,
     Operator,
+    Context,
+    OperatorProperties,
 )
 
 from bpy.props import (
@@ -15,6 +17,7 @@ from bpy.props import (
     EnumProperty,
 )
 from bl_operators.presets import AddPresetBase
+from bpy.app.translations import pgettext
 
 from . import __package__ as addon_pkg
 from .lib import bhqab
@@ -45,7 +48,7 @@ class WMProps(PropertyGroup):
         default='NONE',
         options={'HIDDEN', 'SKIP_SAVE'},
         translation_context='WMProps',
-        name="Seams",
+        name="Seam",
         description="Mark seam options",
     )
 
@@ -68,8 +71,11 @@ class WMProps(PropertyGroup):
         options={'HIDDEN', 'SKIP_SAVE'},
         translation_context='WMProps',
         name="Use Topology Distance",
-        description=("Algorithm for calculating the shortest path for all subsequent created paths"
-                     "(Select means find the minimum number of steps, ignoring spatial distance)"),
+        description=(
+            "Use the algorithm for determining the shortest path without taking into account the spatial distance, "
+            "only the number of steps. Newly created paths will use the value of the option, but this can be adjusted "
+            "individually for each of them"
+        ),
     )
 
     def ui_draw_func(self, layout: UILayout) -> None:
@@ -87,7 +93,7 @@ class WMProps(PropertyGroup):
 
         def _intern_draw_enum_prop(identifier: str, text: str):
             row = lay.row()
-            row.prop(self, identifier, text=text, icon_only=True, expand=True, text_ctxt='WMProps')
+            row.prop(self, identifier, text=text, icon_only=True, expand=True, text_ctxt='WMProps', translate=True)
 
         _intern_draw_enum_prop("mark_select", "Select")
         _intern_draw_enum_prop("mark_seam", "Seam")
@@ -95,16 +101,15 @@ class WMProps(PropertyGroup):
 
     def ui_draw_func_runtime(self, layout: UILayout) -> None:
         row = layout.row(align=True)
-        row.label(text="Tool Settings")
+        row.label(text="Tool Settings", text_ctxt='WMProps')
 
-        row.operator("preferences.addon_show", icon='TOOL_SETTINGS', emboss=False).module = addon_pkg
+        row.operator("preferences.addon_show", icon='TOOL_SETTINGS', emboss=False, text_ctxt="PT").module = addon_pkg
         self.ui_draw_func(layout)
         layout.prop(self, "use_topology_distance")
 
 
 class MESH_MT_select_path_presets(Menu):
-    bl_label = "Operator Presets"
-    bl_translation_context = 'MESH_MT_select_path_presets'
+    bl_label = "Operator Preset"
     preset_subdir = os.path.join("path_tool", "wm")
     preset_operator = "script.execute_preset"
     draw = Menu.draw_preset
@@ -113,7 +118,7 @@ class MESH_MT_select_path_presets(Menu):
 class MESH_OT_select_path_preset_add(AddPresetBase, Operator):
     """Add \"Select Path\" preset"""
     bl_idname = "mesh.select_path_preset_add"
-    bl_label = "Add Preset"
+    bl_label = ""
     bl_translation_context = 'MESH_OT_select_path_preset_add'
     preset_menu = MESH_MT_select_path_presets.__name__
     preset_defines = [
@@ -127,3 +132,12 @@ class MESH_OT_select_path_preset_add(AddPresetBase, Operator):
         "props.use_topology_distance",
     ]
     preset_subdir = os.path.join("path_tool", "wm")
+
+    @classmethod
+    def description(cls, _context: Context, properties: OperatorProperties) -> str:
+        msgctxt = cls.__qualname__
+        print(msgctxt)
+        if properties.remove_active:
+            return pgettext("Remove preset", msgctxt)
+        else:
+            return pgettext("Add preset", msgctxt)

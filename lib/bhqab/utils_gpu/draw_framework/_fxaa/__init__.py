@@ -70,6 +70,7 @@ class FXAA(_common.AABase):
             ),
             default=_common.AAPreset.HIGH.name,
             options={'HIDDEN', 'SKIP_SAVE'},
+            translation_context='BHQAB_Preferences',
             name="Preset",
             description="Fast approximate anti-aliasing quality preset"
         )
@@ -82,9 +83,10 @@ class FXAA(_common.AABase):
         :rtype: `FloatProperty`_
         """
         return FloatProperty(
-            options={'HIDDEN', 'SKIP_SAVE'},
             min=0, max=1, default=1.0, step=0.001,
             subtype='PERCENTAGE',
+            options={'HIDDEN', 'SKIP_SAVE'},
+            translation_context='BHQAB_Preferences',
             name="Quality",
             description="FXAA preset quality tuning"
         )

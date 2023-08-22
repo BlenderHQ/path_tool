@@ -9,6 +9,7 @@ from bpy.types import (
     Menu,
     Operator,
     UILayout,
+    OperatorProperties,
 )
 from bpy.props import (
     BoolProperty,
@@ -19,15 +20,19 @@ from bpy.props import (
 
 import rna_keymap_ui
 from bl_operators.presets import AddPresetBase
+from bpy.app.translations import pgettext
 
 from . import main
 from . import __package__ as addon_pkg
 from .lib import bhqab
+from . import INFO_DIR
+from . import localization
 
 PREF_TEXTS = dict()
 
 
-class Properties:
+class Preferences(AddonPreferences):
+    bl_idname = __package__
 
     tab: EnumProperty(
         items=(
@@ -38,6 +43,7 @@ class Properties:
         ),
         default='APPEARANCE',
         options={'HIDDEN', 'SKIP_SAVE'},
+        translation_context='Preferences',
         name="Tab",
         description="User preferences tab to be displayed",
     )
@@ -50,6 +56,7 @@ class Properties:
         ),
         default={'LINKS'},
         options={'ENUM_FLAG', 'HIDDEN', 'SKIP_SAVE'},
+        translation_context='Preferences',
     )
 
     color_control_element: FloatVectorProperty(
@@ -59,6 +66,7 @@ class Properties:
         min=0.0,
         max=1.0,
         options={'HIDDEN', 'SKIP_SAVE'},
+        translation_context='Preferences',
         name="Control Element",
         description="Control element color",
     )
@@ -70,6 +78,7 @@ class Properties:
         min=0.0,
         max=1.0,
         options={'HIDDEN', 'SKIP_SAVE'},
+        translation_context='Preferences',
         name="Active Control Element",
         description="Color of active control element",
     )
@@ -81,6 +90,7 @@ class Properties:
         min=0.0,
         max=1.0,
         options={'HIDDEN', 'SKIP_SAVE'},
+        translation_context='Preferences',
         name="Path",
         description="Regular path color",
     )
@@ -92,6 +102,7 @@ class Properties:
         min=0.0,
         max=1.0,
         options={'HIDDEN', 'SKIP_SAVE'},
+        translation_context='Preferences',
         name="Topology Path",
         description="Color of paths which uses topology calculation method",
     )
@@ -103,6 +114,7 @@ class Properties:
         min=0.0,
         max=1.0,
         options={'HIDDEN', 'SKIP_SAVE'},
+        translation_context='Preferences',
         name="Active Path",
         description="Active path color",
     )
@@ -114,6 +126,7 @@ class Properties:
         min=0.0,
         max=1.0,
         options={'HIDDEN', 'SKIP_SAVE'},
+        translation_context='Preferences',
         name="Active Topology Path",
         description="Color of active path which uses topology calculation method",
     )
@@ -125,8 +138,9 @@ class Properties:
         soft_max=20,
         subtype='FACTOR',
         options={'HIDDEN', 'SKIP_SAVE'},
+        translation_context='Preferences',
         name="Vertex Size",
-        description="",
+        description="The size of the vertex that represents the control element",
     )
 
     line_width: IntProperty(
@@ -137,37 +151,25 @@ class Properties:
         soft_max=6,
         subtype='PIXEL',
         options={'HIDDEN', 'SKIP_SAVE'},
-        name="Edge Width",
-        description="",
+        translation_context='Preferences',
+        name="Line Thickness",
+        description="The thickness of the lines that mark the segments of the path",
+    )
+
+    auto_tweak_options: BoolProperty(
+        default=False,
+        options={'HIDDEN', 'SKIP_SAVE'},
+        translation_context='Preferences',
+        name="Auto Tweak Options",
+        description=(
+            "Adjust operator options. If no mesh element is initially selected, the selection option will be changed "
+            "to \"Extend\". If all elements are selected, it will be changed to \"Do nothing\"")
     )
 
     aa_method: bhqab.utils_gpu.draw_framework.DrawFramework.prop_aa_method
     fxaa_preset: bhqab.utils_gpu.draw_framework.FXAA.prop_preset
     fxaa_value: bhqab.utils_gpu.draw_framework.FXAA.prop_value
     smaa_preset: bhqab.utils_gpu.draw_framework.SMAA.prop_preset
-
-    auto_tweak_options: BoolProperty(
-        default=False,
-        name="Auto Tweak Options",
-        options={'HIDDEN', 'SKIP_SAVE'},
-        description=(
-            "Adjust operator options. If no mesh element is initially selected, the selection option will be changed "
-            "to \"Extend\". If all elements are selected, it will be changed to \"Do nothing\"")
-    )
-
-
-class Preferences(AddonPreferences, Properties):
-    bl_idname = __package__
-
-    __slots__ = (
-        "tab",
-        "color_control_element",
-        "color_active_control_element",
-        "color_path",
-        "color_active_path",
-        "point_size",
-        "line_width",
-    )
 
     def draw(self, context: Context) -> None:
         layout: UILayout = self.layout
@@ -235,33 +237,36 @@ class Preferences(AddonPreferences, Properties):
                         for item in main.ACTION_ITEMS:
                             key, name, _desc, icon, _val = item
                             if prop == key:
-                                row = layout.row()
-                                row.label(text=name, icon=icon)
+                                row = layout.row(align=True)
+                                srow = row.row()
+                                srow.ui_units_x = 10
+                                srow.alignment = 'RIGHT'
+                                srow.label(text=name, icon=icon, text_ctxt='MESH_OT_select_path')
                                 rna_keymap_ui.draw_kmi([], kc, km, kmi, row, 0)
 
             case 'INFO':
-                base_dir = os.path.join(os.path.dirname(__file__), "data", "info")
-
                 for flag in ('README', 'LICENSE'):
                     if bhqab.utils_ui.template_disclosure_enum_flag(
                             layout, item=self, prop_enum_flag="info_tab", flag=flag):
-                        if flag not in PREF_TEXTS:
-                            with open(os.path.join(base_dir, f"{flag}.txt"), 'r') as file:
-                                PREF_TEXTS[flag] = file.read()
-                        if flag in PREF_TEXTS:
-                            text = PREF_TEXTS[flag]
-                        else:
-                            text = "Looks like your addon installation is corrupted."
 
-                        bhqab.utils_ui.draw_wrapped_text(context, layout, text=text)
+                        text = bhqab.utils_ui.request_localization_from_file(
+                            module=__package__,
+                            langs=localization.LANGS,
+                            msgctxt=flag,
+                            src=os.path.join(INFO_DIR, f'{flag}.txt'),
+                            dst={
+                                "uk_UA": os.path.join(INFO_DIR, f'{flag}_uk_UA.txt'),
+                            }
+                        )
+                        bhqab.utils_ui.draw_wrapped_text(context, layout, text=text, text_ctxt=flag)
 
                 if bhqab.utils_ui.template_disclosure_enum_flag(
                         layout, item=self, prop_enum_flag="info_tab", flag='LINKS'):
 
-                    props = layout.operator("wm.url_open", text="Release Notes")
+                    props = layout.operator("wm.url_open", text="Release Notes", text_ctxt='Preferences')
                     props.url = "https://github.com/BlenderHQ/path_tool#release-notes"
 
-                    props = layout.operator("wm.url_open", text="BlenderHQ on GitHub")
+                    props = layout.operator("wm.url_open", text="BlenderHQ on GitHub", text_ctxt='Preferences')
                     props.url = "https://github.com/BlenderHQ"
 
 
@@ -269,12 +274,13 @@ class PREFERENCES_MT_path_tool_appearance_preset(Menu):
     bl_label = "Appearance Preset"
     preset_subdir = os.path.join("path_tool", "preferences", "appearance")
     preset_operator = "script.execute_preset"
+    bl_translation_context = 'PREFERENCES_MT_path_tool_appearance_preset'
     draw = Menu.draw_preset
 
 
 class PREFERENCES_OT_path_tool_appearance_preset(AddPresetBase, Operator):
     bl_idname = "preferences.path_tool_appearance_preset"
-    bl_label = "Add Preset"
+    bl_label = ""
     preset_menu = PREFERENCES_MT_path_tool_appearance_preset.__name__
     preset_defines = [
         f"addon_pref = bpy.context.preferences.addons[\"{addon_pkg}\"].preferences"
@@ -290,3 +296,12 @@ class PREFERENCES_OT_path_tool_appearance_preset(AddPresetBase, Operator):
         "addon_pref.line_width",
     ]
     preset_subdir = os.path.join("path_tool", "preferences", "appearance")
+
+    @classmethod
+    def description(cls, _context: Context, properties: OperatorProperties) -> str:
+        msgctxt = cls.__qualname__
+        print(msgctxt)
+        if properties.remove_active:
+            return pgettext("Remove preset", msgctxt)
+        else:
+            return pgettext("Add preset", msgctxt)
