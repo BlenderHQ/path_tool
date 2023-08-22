@@ -28,7 +28,12 @@ import re
 
 from typing import Iterable
 
-from . import ubo
+if "ubo" in locals():
+    from importlib import reload
+
+    reload(ubo)
+else:
+    from . import ubo
 
 library_names = (
     "colorspace",
@@ -53,10 +58,12 @@ def get_libraries_dict() -> dict[str, str]:
         base_dir = os.path.dirname(__file__)
 
         for name in library_names:
-            with open(os.path.join(base_dir, f"{name}.glsl"), 'r', encoding='utf-8') as file:
-                _libs[name] = file.read()
+            fp = os.path.join(base_dir, f"{name}.glsl")
+            if os.path.isfile(fp):
+                with open(fp, 'r', encoding='utf-8') as file:
+                    _libs[name] = file.read()
 
-        for name in library_names:
+        for name in _libs.keys():
             _libs[name] = process_shader_requirements(data=_libs[name])
 
     return _libs
