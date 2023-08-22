@@ -53,7 +53,9 @@ There are also some interesting points - different Paths can interact. If the co
 
 ### Version 3.6.2
 
-* Fixed an issue with flipped normals in the viewport #5
+* Fixed an issue with flipped normals in the viewport. #5
+* Brought back module reload support.
+* Added localization support, with initial `uk_UA` translations.
 
 <details><summary>
 <b>Version 3.4.1</b>
