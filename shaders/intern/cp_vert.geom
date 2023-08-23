@@ -1,12 +1,11 @@
 #ifndef USE_GPU_SHADER_CREATE_INFO
 
-layout(binding = 0, std140) uniform _u_Params { CommonParams u_Params; };
+layout(binding = 0, std140) uniform u_Params { CommonParams _u_Params; };
 
 uniform mat4 ModelViewProjectionMatrix;
 uniform vec4 u_ViewportMetrics;
 
 out flat int g_IsActive;
-out vec2 g_CenterScreen;
 
 #endif
 
@@ -30,12 +29,10 @@ const vec2 _DiskR1Coord[] = vec2[](
 void main() {
   vec4 _Center = vec4(gl_in[0].gl_Position.xyz / gl_in[0].gl_Position.w, 1.0f);
 
-  g_CenterScreen = 2.0 * (_Center.xy * u_ViewportMetrics.xy) - 1.0;
-
-  g_IsActive = (gl_PrimitiveIDIn < u_Params.index_active) ? 0 : 1;
+  g_IsActive = (gl_PrimitiveIDIn < _u_Params.index_active) ? 0 : 1;
 
   for (int i = 0; i < 12; ++i) {
-    gl_Position = _Center + vec4(_DiskR1Coord[i].xy * u_ViewportMetrics.xy * u_Params.point_size, 0.0f, 0.0f);
+    gl_Position = _Center + vec4(_DiskR1Coord[i].xy * u_ViewportMetrics.xy * _u_Params.point_size, 0.0f, 0.0f);
     EmitVertex();
   }
 

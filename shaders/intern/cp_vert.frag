@@ -2,13 +2,12 @@
 
 #ifndef USE_GPU_SHADER_CREATE_INFO
 
-layout(binding = 0, std140) uniform _u_Params { CommonParams u_Params; };
+layout(binding = 0, std140) uniform u_Params { CommonParams _u_Params; };
 uniform vec4 u_ViewportMetrics;
 
 uniform sampler2D u_DepthMap;
 
 in flat int g_IsActive;
-in vec2 g_CenterScreen;
 
 out vec4 f_Color;
 
@@ -19,6 +18,5 @@ void main() {
     discard;
   }
 
-  f_Color = ((g_IsActive == 0) ? u_Params.color_cp : u_Params.color_active_cp);
-  f_Color.a = distance(g_CenterScreen, gl_FragCoord.xy);
+  f_Color = ((g_IsActive == 0) ? _u_Params.color_cp : _u_Params.color_active_cp);
 }

@@ -1020,12 +1020,10 @@ class MESH_OT_select_path(Operator):
                             batch.draw(shader_path)
 
                     shader_ce.bind()
-
                     if path.batch_control_elements:
-                        shader_path.uniform_block("u_Params", cls.gpu_common_ubo.ubo)
+                        shader_ce.uniform_block("u_Params", cls.gpu_common_ubo.ubo)
                         shader_ce.uniform_sampler("u_DepthMap", depth_map)
                         shader_ce.uniform_float("u_ViewportMetrics", viewport_metrics)
-
                         path.batch_control_elements.draw(shader_ce)
 
         cls.gpu_draw_framework.draw(texture=fb_framework.get_color_texture())
