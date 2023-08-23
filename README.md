@@ -71,7 +71,7 @@ There are also several interesting points - different paths can interact. If you
 
 * Added localization support, with initial `uk_UA` translations. Users can create their own translations in other languages ​​using fields from this dictionary.
 
-* Now, while working with paths, the addon's UI will become inactive, as access to it is not possible at this time and this should be reflected in the UI.
+* Now, while working with paths, the addon's UI will become inactive, as access to it is not possible at this time and this should be reflected in the UI. This also applies to keymap preferences.
 </details>
 
 

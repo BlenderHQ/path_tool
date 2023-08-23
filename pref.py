@@ -28,6 +28,10 @@ from bl_operators.presets import AddPresetBase
 from bpy.app.translations import pgettext
 import rna_keymap_ui
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from . props import WMProps
+
 PREF_TEXTS = dict()
 
 
@@ -229,7 +233,13 @@ class Preferences(AddonPreferences):
                     col.prop(context.preferences.inputs, "use_zoom_to_mouse")
 
             case 'KEYMAP':
-                kc = context.window_manager.keyconfigs.user
+                wm = context.window_manager
+                wm_props: WMProps = wm.select_path
+
+                col = layout.column()
+                col.enabled = not wm_props.is_runtime
+
+                kc = wm.keyconfigs.user
                 km: KeyMap = kc.keymaps.get(main.TOOL_KM_NAME)
                 if km:
                     for kmi in km.keymap_items:
@@ -237,7 +247,7 @@ class Preferences(AddonPreferences):
                         for item in main.ACTION_ITEMS:
                             key, name, _desc, icon, _val = item
                             if prop == key:
-                                row = layout.row(align=True)
+                                row = col.row(align=True)
                                 srow = row.row()
                                 srow.ui_units_x = 10
                                 srow.alignment = 'RIGHT'

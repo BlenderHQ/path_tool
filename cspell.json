@@ -4,6 +4,11 @@
     "dictionaryDefinitions": [],
     "dictionaries": [],
     "words": [
+        "аннотаціях",
+        "ҐАРАНТІЇ",
+        "дитерингу",
+        "ориґінальна",
+        "Перевала",
         "AREATEX",
         "astype",
         "attrname",
@@ -24,6 +29,7 @@
         "INBETWEEN",
         "ivpe",
         "keyconfigs",
+        "keymap",
         "keymaps",
         "Kuzmin",
         "LEFTMOUSE",
@@ -58,12 +64,7 @@
         "WHEELDOWNMOUSE",
         "WHEELINMOUSE",
         "WHEELOUTMOUSE",
-        "WHEELUPMOUSE",
-        "аннотаціях",
-        "ҐАРАНТІЇ",
-        "дитерингу",
-        "ориґінальна",
-        "Перевала",
+        "WHEELUPMOUSE"
     ],
     "ignoreWords": [],
     "import": []
