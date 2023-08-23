@@ -10,8 +10,6 @@ from gpu.types import (
     GPUUniformBuf,
 )
 
-from mathutils import Matrix
-
 __all__ = (
     "glsl_bool",
     "glsl_int",
