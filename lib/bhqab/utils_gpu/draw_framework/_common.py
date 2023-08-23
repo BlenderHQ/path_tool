@@ -7,6 +7,13 @@ from enum import (
     IntEnum,
 )
 
+if "bpy" in locals():
+    from importlib import reload
+
+    reload(utils_wm)
+else:
+    from ... import utils_wm
+
 import bpy
 from bpy.types import (
     AddonPreferences,
@@ -23,18 +30,15 @@ from mathutils import (
 import gpu
 from gpu.types import (
     GPUBatch,
+    GPUBatch,
     GPUFrameBuffer,
+    GPUIndexBuf,
     GPUOffScreen,
-    GPUShader,
     GPUTexture,
     GPUVertBuf,
     GPUVertFormat,
-    GPUBatch,
-    GPUIndexBuf,
 )
 from gpu_extras.batch import batch_for_shader
-
-from ... import utils_wm
 
 __all__ = (
     "FrameBufferFramework",

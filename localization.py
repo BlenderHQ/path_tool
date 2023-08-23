@@ -25,7 +25,7 @@ LANGS = {
         ('*', (
             "How to use the addon, relative links and licensing information"
         )): (
-            "Як користуватися аддоном, корисні посилання та інформація про ліцензію"
+            "Як користуватися додатком, корисні посилання та інформація про ліцензію"
         ),
 
         ('Preferences', "Release Notes"): "Про Випуск",
@@ -181,14 +181,14 @@ LANGS = {
         ('MESH_PT_select_path_context', "Options"): "Параметри",
         ('WMProps', "Tool Settings"): "Параметри Інструменту",
 
-        # Пресети.
-        ('*', "Load a preset"): "Обрати пресет",
-        ('*', "Appearance Preset"): "Пресети Відображення",
-        ('PREFERENCES_OT_path_tool_appearance_preset', "Add preset"): "Створити пресет",
-        ('PREFERENCES_OT_path_tool_appearance_preset', "Remove preset"): "Усунути пресет",
-        ('*', "Operator Preset"): "Пресети Оператора",
-        ('MESH_OT_select_path_preset_add', "Add preset"): "Створити пресет",
-        ('MESH_OT_select_path_preset_add', "Remove preset"): "Усунути пресет",
+        # Попередні Налаштування.
+        ('*', "Load a preset"): "Обрати попереднє налаштування",
+        ('*', "Appearance Preset"): "Шаблон Відображення",
+        ('PREFERENCES_OT_path_tool_appearance_preset', "Add preset"): "Створити шаблон відображення",
+        ('PREFERENCES_OT_path_tool_appearance_preset', "Remove preset"): "Усунути шаблон відображення",
+        ('*', "Operator Preset"): "Шаблон Оператора",
+        ('MESH_OT_select_path_preset_add', "Add preset"): "Створити шаблон оператора",
+        ('MESH_OT_select_path_preset_add', "Remove preset"): "Усунути шаблон оператора",
 
 
         # BHQAB_Preferences.
@@ -218,10 +218,10 @@ LANGS = {
         ),
 
         ('*', "Do not use fast approximate anti-aliasing"): "Не використовувати швидке спрощене згладжування",
-        ('*', "Default medium dither"): "Середній рівень дизерингу",
-        ('*', "Less dither, faster"): "Зменшений рівень дизерингу, швидша обробка",
-        ('*', "Less dither, more expensive"): "Зменшений рівень дизерингу, використовує більше ресурсів",
-        ('*', "No dither, very expensive"): "Без дизерингу, використовує найбільшу кількість ресурсів",
+        ('*', "Default medium dither"): "Середній рівень дитерингу",
+        ('*', "Less dither, faster"): "Зменшений рівень дитерингу, швидша обробка",
+        ('*', "Less dither, more expensive"): "Зменшений рівень дитерингу, використовує більше ресурсів",
+        ('*', "No dither, very expensive"): "Без дитерингу, використовує найбільшу кількість ресурсів",
 
         ('*', "Do not use sub-pixel morphological anti-aliasing"): (
             "Не використовувати субпіксельне морфологічне згладжування"

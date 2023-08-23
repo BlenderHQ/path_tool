@@ -11,9 +11,9 @@ else:
 
 import bpy
 from bpy.types import (
+    AddonPreferences,
     Context,
     UILayout,
-    AddonPreferences,
 )
 from bpy.props import (
     EnumProperty,
@@ -22,9 +22,9 @@ from bpy.props import (
 import gpu
 from gpu.types import (
     GPUShader,
-    GPUTexture,
     GPUShaderCreateInfo,
     GPUStageInterfaceInfo,
+    GPUTexture,
 )
 
 

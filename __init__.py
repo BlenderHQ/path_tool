@@ -28,6 +28,7 @@ bl_info = {
 
 import os
 
+ADDON_PKG = __package__
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 INFO_DIR = os.path.join(DATA_DIR, "info")
 
@@ -252,7 +253,7 @@ def register():
     WindowManager.select_path = PointerProperty(type=props.WMProps)
     bpy.utils.register_tool(PathToolMesh, after={"builtin.select_lasso"}, separator=False, group=False)
 
-    bpy.app.translations.register(__package__, localization.LANGS)
+    bpy.app.translations.register(ADDON_PKG, localization.LANGS)
 
     for handler, func in _handlers:
         if func not in handler:
@@ -264,7 +265,7 @@ def unregister():
         if func not in handler:
             handler.remove(func)
 
-    bpy.app.translations.unregister(__package__)
+    bpy.app.translations.unregister(ADDON_PKG)
 
     bpy.utils.unregister_tool(PathToolMesh)
     del WindowManager.select_path

@@ -9,6 +9,8 @@ else:
     from . import draw_framework
     from . import shaders
 
+import bpy
+
 __all__ = (
     "draw_framework",
     "shaders",

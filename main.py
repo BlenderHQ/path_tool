@@ -1,9 +1,24 @@
 from __future__ import annotations
 
-import os
 from typing import Literal
 import collections
-from enum import auto, IntFlag
+from enum import (
+    auto,
+    IntFlag,
+)
+
+from . import ADDON_PKG
+
+if "bpy" in locals():
+    from importlib import reload
+
+    reload(bhqab)
+    reload(bhqglsl)
+    reload(shaders)
+else:
+    from .lib import bhqab
+    from .lib import bhqglsl
+    from . import shaders
 
 import bpy
 from bpy.types import (
@@ -22,10 +37,10 @@ from bpy.types import (
     UIPieMenu,
     Window,
 )
-
 from bpy.props import (
     EnumProperty,
 )
+from bpy.app.translations import pgettext
 
 import bmesh
 from bmesh.types import (
@@ -35,15 +50,10 @@ from bmesh.types import (
     BMVert,
 )
 import gpu
-from gpu.types import GPUBatch
+from gpu.types import (
+    GPUBatch,
+)
 from gpu_extras.batch import batch_for_shader
-from bpy.app.translations import pgettext
-
-from .lib import bhqab
-from .lib import bhqglsl
-from . import shaders
-
-from . import __package__ as addon_pkg
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -552,7 +562,7 @@ class MESH_OT_select_path(Operator):
         wm = context.window_manager
         props: WMProps = wm.select_path
 
-        addon_pref: Preferences = context.preferences.addons[addon_pkg].preferences
+        addon_pref: Preferences = context.preferences.addons[ADDON_PKG].preferences
         if addon_pref.auto_tweak_options:
             num_elements_total = 0
             if cls.prior_mesh_elements == "edges":
@@ -947,7 +957,7 @@ class MESH_OT_select_path(Operator):
 
     @classmethod
     def _gpu_draw_callback(cls: MESH_OT_select_path) -> None:
-        addon_pref: Preferences = bpy.context.preferences.addons[addon_pkg].preferences
+        addon_pref: Preferences = bpy.context.preferences.addons[ADDON_PKG].preferences
 
         draw_list: list[Path] = [_ for _ in cls.path_arr if _ != cls.active_path]
         draw_list.append(cls.active_path)
@@ -1362,7 +1372,7 @@ class MESH_OT_select_path(Operator):
 
         wm = context.window_manager
         wm_props: WMProps = wm.select_path
-        addon_pref: Preferences = context.preferences.addons[addon_pkg].preferences
+        addon_pref: Preferences = context.preferences.addons[ADDON_PKG].preferences
         ev = cls._pack_event(event)
 
         interact_event = None

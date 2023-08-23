@@ -5,9 +5,9 @@ from typing import (
     Generator,
     Iterable,
 )
+import importlib
 import random
 import string
-import importlib
 
 import bpy
 from bpy.types import (
@@ -28,15 +28,12 @@ from bpy.props import (
     IntProperty,
     StringProperty,
 )
+
 from mathutils import Vector
 import blf
 import rna_keymap_ui
 from bl_ui import space_statusbar
 from bpy.app.translations import pgettext
-
-# ifdef DEBUG
-from bpy_extras.io_utils import ExportHelper
-# endif // !DEBUG
 
 __all__ = (
     "supported_image_extensions",
@@ -568,7 +565,7 @@ class progress(metaclass=_progress_meta):
 
 def copy_default_presets_from(*, src_root: str):
     """
-    Створює копії файлів шаблонів з директорії аддону до директорії де Blender зберігає шаблони.
+    Створює копії файлів шаблонів з директорії додатку до директорії де Blender зберігає шаблони.
 
     :param src_root: Директорія що містить файли шаблонів.
     :type src_root: str
@@ -647,7 +644,7 @@ def update_localization(*, module: str, langs: dict):
     """
     Метод оновлення реєстрації локалізації в реальному часі.
 
-    :param module: Назва модулю аддона.
+    :param module: Назва модулю додатку.
     :type module: str
     :param langs: Словник.
     :type langs: dict
@@ -662,9 +659,9 @@ def update_localization(*, module: str, langs: dict):
 
 def request_localization_from_file(*, module: str, langs: dict, msgctxt: str, src: str, dst: dict[str, str]):
     """
-    Метод оновлення локалізації аддону з файлів. Може бути корисним наприклад для README.txt файлів. 
+    Метод оновлення локалізації додатку з файлів. Може бути корисним наприклад для README.txt файлів.
 
-    :param module: Назва модулю аддона.
+    :param module: Назва модулю додатку.
     :type module: str
     :param langs: Словник.
     :type langs: dict

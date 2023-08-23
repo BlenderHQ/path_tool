@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import os
 
+from . import ADDON_PKG
+from .lib import bhqab
+
 import bpy
 from bpy.types import (
-    PropertyGroup,
-    UILayout,
+    Context,
     Menu,
     Operator,
-    Context,
     OperatorProperties,
+    PropertyGroup,
+    UILayout,
 )
 
 from bpy.props import (
@@ -18,9 +21,6 @@ from bpy.props import (
 )
 from bl_operators.presets import AddPresetBase
 from bpy.app.translations import pgettext
-
-from . import __package__ as addon_pkg
-from .lib import bhqab
 
 
 class WMProps(PropertyGroup):
@@ -107,7 +107,7 @@ class WMProps(PropertyGroup):
         row = layout.row(align=True)
         row.label(text="Tool Settings", text_ctxt='WMProps')
 
-        row.operator("preferences.addon_show", icon='TOOL_SETTINGS', emboss=False, text_ctxt="PT").module = addon_pkg
+        row.operator("preferences.addon_show", icon='TOOL_SETTINGS', emboss=False, text_ctxt="PT").module = ADDON_PKG
         self.ui_draw_func(layout)
         layout.prop(self, "use_topology_distance")
 
@@ -140,7 +140,7 @@ class MESH_OT_select_path_preset_add(AddPresetBase, Operator):
     @classmethod
     def description(cls, _context: Context, properties: OperatorProperties) -> str:
         msgctxt = cls.__qualname__
-        
+
         if properties.remove_active:
             return pgettext("Remove preset", msgctxt)
         else:

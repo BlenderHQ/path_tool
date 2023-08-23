@@ -2,14 +2,20 @@ from __future__ import annotations
 
 import os
 
+from . import ADDON_PKG
+from . import INFO_DIR
+from . import localization
+from . import main
+from .lib import bhqab
+
 from bpy.types import (
     AddonPreferences,
     Context,
     KeyMap,
     Menu,
     Operator,
-    UILayout,
     OperatorProperties,
+    UILayout,
 )
 from bpy.props import (
     BoolProperty,
@@ -18,15 +24,9 @@ from bpy.props import (
     IntProperty,
 )
 
-import rna_keymap_ui
 from bl_operators.presets import AddPresetBase
 from bpy.app.translations import pgettext
-
-from . import main
-from . import __package__ as addon_pkg
-from .lib import bhqab
-from . import INFO_DIR
-from . import localization
+import rna_keymap_ui
 
 PREF_TEXTS = dict()
 
@@ -250,7 +250,7 @@ class Preferences(AddonPreferences):
                             layout, item=self, prop_enum_flag="info_tab", flag=flag):
 
                         text = bhqab.utils_ui.request_localization_from_file(
-                            module=__package__,
+                            module=ADDON_PKG,
                             langs=localization.LANGS,
                             msgctxt=flag,
                             src=os.path.join(INFO_DIR, f'{flag}.txt'),
@@ -283,7 +283,7 @@ class PREFERENCES_OT_path_tool_appearance_preset(AddPresetBase, Operator):
     bl_label = ""
     preset_menu = PREFERENCES_MT_path_tool_appearance_preset.__name__
     preset_defines = [
-        f"addon_pref = bpy.context.preferences.addons[\"{addon_pkg}\"].preferences"
+        f"addon_pref = bpy.context.preferences.addons[\"{ADDON_PKG}\"].preferences"
     ]
     preset_values = [
         "addon_pref.color_control_element",

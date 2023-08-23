@@ -1,8 +1,8 @@
 import os
-import re
 
 import bpy
 from gpu.types import GPUShader
+
 
 def eval_shaders_dict(
         *,
