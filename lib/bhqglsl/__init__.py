@@ -54,6 +54,12 @@ _libs: dict[str, str] = dict()
 
 
 def get_libraries_dict() -> dict[str, str]:
+    """
+    Читає, обробляє, кешує і повертає текст бібліотек шейдерів.
+
+    :return: Словник у форматі {назва_бібліотеки: код}
+    :rtype: dict[str, str]
+    """
     if not _libs:
         base_dir = os.path.dirname(__file__)
 
@@ -70,6 +76,18 @@ def get_libraries_dict() -> dict[str, str]:
 
 
 def read_shader_files(*, directory: str, filenames: Iterable[str], process_requirements: bool = True) -> list[str]:
+    """
+    Читає, обробляє і повертає код шейдерів.
+
+    :param directory: Директорія з якої необхідно прочитати файли.
+    :type directory: str
+    :param filenames: Назви файлів у тому порядку в якому їх буде повернено.
+    :type filenames: Iterable[str]
+    :param process_requirements: Чи обробляти директиву `#pragma BHQGLSL_REQUIRE`, за замовчуванням True
+    :type process_requirements: bool, опційно
+    :return: Код шейдерів.
+    :rtype: list[str]
+    """
     ret = list()
     for name in filenames:
         with open(os.path.join(directory, name), 'r', encoding='utf-8') as file:
@@ -81,6 +99,14 @@ def read_shader_files(*, directory: str, filenames: Iterable[str], process_requi
 
 
 def process_shader_requirements(*, data: str) -> str:
+    """
+    Обробляє директиву `#pragma BHQGLSL_REQUIRE` з попередньо кешованими бібліотеками.
+
+    :param data: Код для обробки.
+    :type data: str
+    :return: Оброблений код шейдерів.
+    :rtype: str
+    """
     libs = get_libraries_dict()
 
     requirements = {item for match in re.findall(pragma_pattern, data) for item in re.split(r',\s*', match)}

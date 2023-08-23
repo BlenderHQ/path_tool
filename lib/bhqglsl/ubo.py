@@ -63,6 +63,9 @@ _glsl_types_representation = {
 
 
 class StructUBO(ctypes.Structure):
+    """
+    Базовий клас для створення структур буферів змінних. 
+    """
     #: Розмір vec4 (4 рази по 4 байти = 16 байтів)
     _pack_ = 16
 
@@ -83,6 +86,24 @@ class StructUBO(ctypes.Structure):
 
 
 class UBO(Generic[T]):
+    """
+    Шаблон для створення буферів змінних.
+
+    Використання в аннотаціях:
+
+    ```py
+    common_ubo: None | bhqglsl.ubo.UBO[shaders.CommonParams] = None
+    ```
+
+    Ініціалізація:
+
+    ```py
+    common_ubo = bhqglsl.ubo.UBO(ubo_type=shaders.CommonParams)
+    ```
+
+    :param Generic: Дочірній клас :class:`StructUBO`
+    :type Generic: :class:`StructUBO`
+    """
     ubo: GPUUniformBuf
     data: T
 
