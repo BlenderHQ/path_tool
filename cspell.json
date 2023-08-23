@@ -4,10 +4,6 @@
     "dictionaryDefinitions": [],
     "dictionaries": [],
     "words": [
-        "ҐАРАНТІЇ",
-        "дитерингу",
-        "ориґінальна",
-        "Перевала",
         "AREATEX",
         "astype",
         "attrname",
@@ -62,7 +58,11 @@
         "WHEELDOWNMOUSE",
         "WHEELINMOUSE",
         "WHEELOUTMOUSE",
-        "WHEELUPMOUSE"
+        "WHEELUPMOUSE",
+        "ҐАРАНТІЇ",
+        "дитерингу",
+        "ориґінальна",
+        "Перевала",
     ],
     "ignoreWords": [],
     "import": []
