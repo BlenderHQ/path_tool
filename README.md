@@ -18,43 +18,50 @@ This addon is designed taking into account many points concerning the actual use
 
 ## How To Use the Addon
 
-After installing the addon, next to the standard tools for selecting mesh elements ("Tweak", "Select Box", ...) will appear "Select Path" tool.
-
-Keep in mind that working with multiple mesh objects in edit mode is supported, let's move on to the basics.
-
-Again (we will not mention this later, just keep in mind that this is done for the same purpose), taking into account the user experience, the selection of mesh elements is carried out in two modes of the operator:
-
-* Selection of **edges**:
-
-    * Work in this mode will start if there are no faces in the selection tool mode. In this case, the selection mode will be switched to edge only when the first control element is selected.
-
-    * Mesh vertices act as control points to build a path between them
-
-* Selection of **faces**:
+After installing the add-on, the "Select Path" tool will appear next to the standard mesh element selection tools ("Tweak", "Select Box", ...). Next, you can start working with one or more objects in mesh editing mode.
     
-    * Work in this mode will be started if faces are present in the selection tool mode. In this case, the selection mode will be switched to only the faces when the first control element is selected.
+Again (we won't mention this later, just keep in mind that this is done for the same purpose), considering the user experience, mesh element selection is done in two modes:
 
-    * The faces of the mesh in this case act as control points to build a path between them
+* Selection of edges:
 
-The vertex selection mode is skipped because it completely overlaps the edge selection mode.
+    * Work in this mode will start only if there are no faces in the selection mode. In this case, the selection mode will be changed to edges as soon as the first control element is selected.
 
-So, you have chosen the tool, you have decided in what mode you will edit the selection, you have created the first control element.
+    * Mesh vertices are control points.
 
-When you click on the next mesh element, a new control element will be added and a short path will be built between them. The newly created control will become active. For simplicity of the story - a set of control elements and the paths between them will be called simply "Path". So, we have the first Path. In the work sometimes it is necessary to swap the active element from end to beginning, for this you have an option in the pie menu or shortcut displayed in the status bar. You can move the control elements of the path and it will be rebuilt. If you need to close the gap between the first and last Path's control, you also can use the appropriate option in the Pie menu or shortcut displayed in the status bar.
+* Selection of faces:
 
-Work with several Path's is also supported. To create a new Path, you can use the shortcut displayed in the status bar. When you do this, a new control element independent of the first Path will be created and the work will continue in the already familiar way.
+    * Work in this will start if there are faces in the selection mode. In this case, the selection mode will be changed only on the face, as soon as the first control element is selected.
 
-There are also some interesting points - different Paths can interact. If the control at the beginning or end of one Path is moved to the beginning or end of another Path, these Paths will merge into one. If the control is not finite then the paths will not be merged. Instead, all the control elements of all the paths that are on the same element of the mesh, in the same place, can be moved together, they seem to stick together
+    * Mesh edges in this case are control points.
 
+Vertex selection mode makes no sense because it is completely overridden by edge selection mode.
+
+So, you have chosen a tool, decided in which mode you will edit the selection, created the first control element.
+
+When you click on the next mesh element, a new path control element will be created and the shortest path will be built between it and the previous one. The newly created control element will become active.
+
+Next, we will call the set of control elements and segments between them simply "Path".
+
+So, we have the first path.
+At work, it is sometimes necessary to replace the active element from the end to the beginning, for this there is an option in the circular menu or a keyboard shortcut. You can move the control element and the corresponding path segments will be rebuilt. If you need to close the gap between the first and last control element, you can also use the corresponding option in the circular menu or keyboard shortcut.
+
+Multi-path work is also supported. You can use a keyboard shortcut to create a new path. When you do this, a new control element will be created, independent of the previous path, and work will continue in a familiar way.
+
+There are also several interesting points - different paths can interact. If you move a control at the beginning or end of one path to the beginning or end of another path, these paths will merge into one. If one of the control elements is not an endpoint, then the paths will not be joined. Instead, the controls will stick together and can be moved at the same time.
+    
 ---
 
 ## Release Notes
 
+<details open><summary>
 <b>Version 3.6.2</b>
+</summary>
 
 * Fixed an issue with flipped normals in the viewport. #5
 
 * Updated the shader system to the new Blender development design standards (maintenance update).
+
+* Fixed an issue with control point opacity in edge mode.
 
 * Increased accuracy of depth and color to 32-bit float - this reduces polygon depth fighting in the viewport.
 
@@ -65,10 +72,13 @@ There are also some interesting points - different Paths can interact. If the co
 * Added localization support, with initial `uk_UA` translations. Users can create their own translations in other languages ​​using fields from this dictionary.
 
 * Now, while working with paths, the addon's UI will become inactive, as access to it is not possible at this time and this should be reflected in the UI.
+</details>
+
 
 <details><summary>
 <b>Version 3.4.1</b>
 </summary>
+
 * Added "Auto Tweak Options" preferences option. This used to be the operator's default behavior for ease of use, but is now optional and disabled by default. If no mesh element is initially selected, the selection option will be changed to "Extend". If all elements are selected, it will be changed to "Do nothing". The option is in the addon preferences under `Behavior > Auto Tweak Options`.
 
 * Main operator has been fixed in a situation where you do undo and redo and then cancel the operator, after which start a new instance of the operator again
@@ -82,6 +92,7 @@ There are also some interesting points - different Paths can interact. If the co
 <details><summary>
 <b>Version 3.4.0</b>
 </summary>
+
 * Fixed selection for meshes with glued geometry. The problem was how the standard `bpy.ops.mesh.select_linked` operator works, which selects part of the mesh according to normals. The simplest example to reproduce is two pyramids glued together with their upper faces cut off.
 
 * Brought back transparency options for drawing paths and their controls.
@@ -91,6 +102,7 @@ There are also some interesting points - different Paths can interact. If the co
 <details><summary>
 <b>Version 3.3.0</b>
 </summary>
+
 * Fixed possible Blender crashes when changing the anti-aliasing method. The reason was how Blender calculates VAO.
 
 * Fixed incomplete selection of mesh elements when working with edges. The reason was the absence of one of the mesh update calls.
