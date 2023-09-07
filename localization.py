@@ -51,6 +51,8 @@ LANGS = {
         )): (
             "Колір активного шляху що використовує топологічний метод обрахування"
         ),
+        ('Preferences', "Path Behind Mesh"): "Шлях За Сіткою",
+        ('*', "The color of the path displayed behind the mesh"): "Колір шляху відображеного за сіткою об'єкту",
         ('Preferences', "Vertex Size"): "Розмір Вершин",
         ('*', (
             "The size of the vertex that represents the control element"
@@ -127,6 +129,10 @@ LANGS = {
             "кількості кроків. Новоутворені шляхи будуть використовувати значення опції, але це можна корегувати "
             "індивідуально для кожного з них"
         ),
+
+        # Шлях за сіткою об'єкту
+        ('WMProps', "Show Path Behind"): "Показувати Шлях за Сіткою",
+        ('*', "Whether to show the path behind the mesh"): "Чи показувати шлях що знаходиться за сіткою об'єкту",
 
         # Основний оператор.
         ('MESH_OT_select_path', "Select Path"): "Виділення Шляху",

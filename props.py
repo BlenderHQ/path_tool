@@ -82,6 +82,14 @@ class WMProps(PropertyGroup):
         ),
     )
 
+    show_path_behind: BoolProperty(
+        default=True,
+        options={'HIDDEN', 'SKIP_SAVE'},
+        translation_context="WMProps",
+        name="Show Path Behind",
+        description="Whether to show the path behind the mesh"
+    )
+
     def ui_draw_func(self, layout: UILayout) -> None:
         bhqab.utils_ui.template_preset(
             layout,
@@ -109,7 +117,9 @@ class WMProps(PropertyGroup):
 
         row.operator("preferences.addon_show", icon='TOOL_SETTINGS', emboss=False, text_ctxt="PT").module = ADDON_PKG
         self.ui_draw_func(layout)
+
         layout.prop(self, "use_topology_distance")
+        layout.prop(self, "show_path_behind")
 
 
 class MESH_MT_select_path_presets(Menu):

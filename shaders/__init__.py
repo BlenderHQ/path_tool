@@ -34,8 +34,10 @@ class CommonParams(bhqglsl.ubo.StructUBO):
     color_active_cp: glsl_vec4
     color_path: glsl_vec4
     color_active_path: glsl_vec4
+    color_path_behind: glsl_vec4
     index_active: glsl_int
     point_size: glsl_float
+    show_path_behind: glsl_bool
 
     _fields_ = (
         ("model_matrix", glsl_mat4),
@@ -43,9 +45,11 @@ class CommonParams(bhqglsl.ubo.StructUBO):
         ("color_active_cp", glsl_vec4),
         ("color_path", glsl_vec4),
         ("color_active_path", glsl_vec4),
+        ("color_path_behind", glsl_vec4),
         ("index_active", glsl_int),
         ("point_size", glsl_float),
-        ("_pad0", glsl_vec2),
+        ("show_path_behind", glsl_bool),
+        ("_pad0", glsl_float),
     )
 
 

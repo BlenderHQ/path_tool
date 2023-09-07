@@ -135,6 +135,18 @@ class Preferences(AddonPreferences):
         description="Color of active path which uses topology calculation method",
     )
 
+    color_path_behind: FloatVectorProperty(
+        default=(0.883791, 0.883791, 0.883791, 0.8),
+        subtype='COLOR',
+        size=4,
+        min=0.0,
+        max=1.0,
+        options={'HIDDEN', 'SKIP_SAVE'},
+        translation_context='Preferences',
+        name="Path Behind Mesh",
+        description="The color of the path displayed behind the mesh",
+    )
+
     point_size: IntProperty(
         default=3,
         min=0,
@@ -201,6 +213,8 @@ class Preferences(AddonPreferences):
                 col.separator()
                 col.prop(self, "color_path_topology")
                 col.prop(self, "color_active_path_topology")
+                col.separator()
+                col.prop(self, "color_path_behind")
                 col.separator()
                 col.prop(self, "point_size")
                 col.prop(self, "line_width")

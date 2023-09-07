@@ -957,7 +957,10 @@ class MESH_OT_select_path(Operator):
 
     @classmethod
     def _gpu_draw_callback(cls: MESH_OT_select_path) -> None:
-        addon_pref: Preferences = bpy.context.preferences.addons[ADDON_PKG].preferences
+        context = bpy.context
+        addon_pref: Preferences = context.preferences.addons[ADDON_PKG].preferences
+        wm = context.window_manager
+        wm_props: WMProps = wm.select_path
 
         draw_list: list[Path] = [_ for _ in cls.path_arr if _ != cls.active_path]
         draw_list.append(cls.active_path)
@@ -1005,6 +1008,8 @@ class MESH_OT_select_path(Operator):
                     params.color_path = color_path[:]
                     params.color_cp = color_ce[:]
                     params.color_active_cp = color_active_ce[:]
+                    params.color_path_behind = addon_pref.color_path_behind[:]
+                    params.show_path_behind = wm_props.show_path_behind
                     params.index_active = active_ce_index
                     if cls.prior_ts_msm[1]:
                         params.point_size = (addon_pref.point_size + 6.0)
