@@ -59,6 +59,20 @@ There are also several interesting points - different paths can interact. If you
 ## Release Notes
 
 <details open><summary>
+<b>Version 4.0.0</b>
+</summary>
+
+* The addon release system has been updated.
+
+* Added an option to display the path behind the object.
+
+* Added cosmetic changes to the user interface.
+
+* Added a new system for checking and installing updates.
+
+</details>
+
+<details><summary>
 <b>Version 3.6.2</b>
 </summary>
 
