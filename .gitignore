@@ -7,11 +7,12 @@ __pycache__/
 
 *.blend[1,2,3,4,5,6,7,8,9]
 
-lib/bhqglsl/colorspace.glsl
-lib/bhqglsl/dithering.glsl
-lib/bhqglsl/fxaa_lib.glsl
-lib/bhqglsl/lens_distortion.glsl
-lib/bhqglsl/mask_vertex_stage.glsl
-lib/bhqglsl/sampler_map.glsl
-lib/bhqglsl/space.glsl
-lib/bhqglsl/tiles.glsl
+lib/bhqglsl/*.glsl
+!lib/bhqglsl/constants.glsl
+!lib/bhqglsl/mask_fragment_stage.glsl
+
+lib/bhqupd/cache/*
+
+manual_map.py
+
+!.gitkeep

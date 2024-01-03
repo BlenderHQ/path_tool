@@ -1,5 +1,10 @@
 # Path Tool
 
+View in
+[🇺🇸](./README.md),
+[🇺🇦](./README_uk.md)
+.
+
 - [Path Tool](#path-tool)
   - [About](#about)
   - [How To Use the Addon](#how-to-use-the-addon)
@@ -8,11 +13,11 @@
 
 ## About
 
-An add-on for Blender that complements the standard shortcut operator with new features.
+Add-on for Blender that complements the standard shortest path selection operator.
 
-The standard operator works great, but in terms of user experience, it could be better. Of course, most Blender operators work on the principle of "here and now", but for real work tasks this operator is used, including for marking UV seams, highlighting faces for sharp shading, highlighting a line along the mesh object to divide it into parts, etc. The bottom line is that in terms of user experience, we first select some mesh elements, then perform some operation with them.
+The standard operator works great, but could be better in terms of user experience. Of course, most Blender operators work on a "here and now" basis, but for real work tasks, including marking UV seams, edges that should be sharp, selecting a line along the mesh of an object to divide it into parts, etc., it's not enough.
 
-This addon is designed taking into account many points concerning the actual use of it in work tasks. The initial idea is quite simple - the operation of selecting the shortest path should be similar to working with the "Knife" tool.
+This add-on is designed with most of the key uses in work tasks in mind. The initial idea is quite simple - selecting the shortest path should be similar to working with the "Knife" tool.
 
 ![Path Tool](https://github.com/BlenderHQ/path_tool/assets/16822993/c3d6947e-31bf-4da5-84ab-73f3952e8c40)
 
@@ -48,7 +53,7 @@ At work, it is sometimes necessary to replace the active element from the end to
 Multi-path work is also supported. You can use a keyboard shortcut to create a new path. When you do this, a new control element will be created, independent of the previous path, and work will continue in a familiar way.
 
 There are also several interesting points - different paths can interact. If you move a control at the beginning or end of one path to the beginning or end of another path, these paths will merge into one. If one of the control elements is not an endpoint, then the paths will not be joined. Instead, the controls will stick together and can be moved at the same time.
-    
+
 ---
 
 ## Release Notes
@@ -140,7 +145,7 @@ There are also several interesting points - different paths can interact. If you
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue)](https://www.gnu.org/licenses/gpl-3.0)
 
-Copyright © 2020-2023 Vlad Kuzmin (ssh4), Ivan Perevala (ivpe).
+Copyright © 2020 Vladlen Kuzmin (ssh4), Ivan Perevala (ivpe).
 
 <details><summary>
 GNU GPL v3 License.
@@ -148,7 +153,7 @@ GNU GPL v3 License.
 
 ```
 Path Tool addon.
-Copyright (C) 2020-2023 Vlad Kuzmin (ssh4), Ivan Perevala (ivpe)
+Copyright (C) 2020 Vladlen Kuzmin (ssh4), Ivan Perevala (ivpe)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

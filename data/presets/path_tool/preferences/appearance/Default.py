@@ -1,12 +1,10 @@
 import bpy
-
-addon_pref = bpy.context.preferences.addons["path_tool"].preferences
-
-addon_pref.color_control_element = (0.8, 0.8, 0.8, 0.8)
-addon_pref.color_active_control_element = (0.039087, 0.331906, 0.940392, 0.8)
-addon_pref.color_path = (0.593397, 0.708376, 0.634955, 0.8)
-addon_pref.color_path_topology = (1.0, 0.952328, 0.652213, 0.8)
-addon_pref.color_active_path = (0.304987, 0.708376, 0.450786, 0.8)
-addon_pref.color_active_path_topology = (1.0, 0.883791, 0.152213, 0.8)
-addon_pref.point_size = 3
-addon_pref.line_width = 3
+addon_pref=bpy.context.preferences.addons['path_tool'].preferences
+addon_pref.color_control_element=.8,.8,.8,.8
+addon_pref.color_active_control_element=.039087,.331906,.940392,.8
+addon_pref.color_path=.593397,.708376,.634955,.8
+addon_pref.color_path_topology=1.,.952328,.652213,.8
+addon_pref.color_active_path=.304987,.708376,.450786,.8
+addon_pref.color_active_path_topology=1.,.883791,.152213,.8
+addon_pref.point_size=3
+addon_pref.line_width=3
