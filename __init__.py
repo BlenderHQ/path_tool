@@ -2,7 +2,7 @@ _D='LEFTMOUSE'
 _C=True
 _B='action'
 _A='PRESS'
-bl_info={'name':'Path Tool 4.0.0','author':'Vladlen Kuzmin (ssh4), Ivan Perevala (ivpe)','version':(4,0,0),'blender':(4,0,0),'location':'Toolbar','description':'Tool for selecting and marking up mesh object elements','category':'Mesh','support':'COMMUNITY','doc_url':'https://github.com/BlenderHQ/path-tool'}
+bl_info={'name':'Path Tool 4.0.1','author':'Vladlen Kuzmin (ssh4), Ivan Perevala (ivpe)','version':(4,0,1),'blender':(4,0,0),'location':'Toolbar','description':'Tool for selecting and marking up mesh object elements','category':'Mesh','support':'COMMUNITY','doc_url':'https://github.com/BlenderHQ/path-tool'}
 import os
 from.lib import bhqab
 ADDON_PKG=bhqab.utils_ui.get_addon_package_name()

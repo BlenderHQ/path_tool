@@ -40,6 +40,15 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:from.props import WMProps;from.pref import Preferences
 _REGION_VIEW_3D_N_PANEL_TABS_WIDTH_PX=21
 TOOL_KM_NAME=_N
+def _get_addon_preferences(context:Context):
+	'''Safely get addon preferences, handling versioned folder names.'''
+	addons=context.preferences.addons
+	# Try exact match first
+	if ADDON_PKG in addons:return addons[ADDON_PKG].preferences
+	# Try to find by prefix (handles path_tool-4_0_1 style names)
+	for name in addons.keys():
+		if name.startswith('path_tool'):return addons[name].preferences
+	return None
 def eval_view3d_n_panel_width(context:Context)->int:return _REGION_VIEW_3D_N_PANEL_TABS_WIDTH_PX*context.preferences.view.ui_scale
 class InteractEvent(IntFlag):NONE=auto();ADD_CP=auto();ADD_NEW_PATH=auto();REMOVE_CP=auto();DRAG_CP=auto();CLOSE_PATH=auto();CHANGE_DIRECTION=auto();TOPOLOGY_DISTANCE=auto();RELEASE_PATH=auto();UNDO=auto();REDO=auto();APPLY_PATHS=auto();CANCEL=auto();PIE=auto()
 class PathFlag(IntFlag):CLOSED=auto();REVERSED=auto();TOPOLOGY=auto()
@@ -55,9 +64,12 @@ class Path:
 		for(i,batch)in enumerate(self.batch_seq_fills):
 			if batch:batch_seq_fills_formatted.append(A%i);continue
 			batch_seq_fills_formatted.append(batch)
-		[A%i for i in range(len(self.batch_seq_fills))];return'\nPath [id:%d]:\n    ce: %s\n    fe: %s\n    fb: %s'%(id(self),str([n.index for n in self.control_elements]),str([len(n)for n in self.fill_elements]),str(batch_seq_fills_formatted))
+		ce_indices=[n.index if n.is_valid else -1 for n in self.control_elements]
+		return'\nPath [id:%d]:\n    ce: %s\n    fe: %s\n    fb: %s'%(id(self),str(ce_indices),str([len(n)for n in self.fill_elements]),str(batch_seq_fills_formatted))
 	def copy(self)->Path:new_path=Path();new_path.control_elements=self.control_elements.copy();new_path.fill_elements=self.fill_elements.copy();new_path.batch_seq_fills=self.batch_seq_fills.copy();new_path.batch_control_elements=self.batch_control_elements;new_path.island_index=self.island_index;new_path.ob=self.ob;new_path.flag=self.flag;return new_path
-	def reverse(self)->Path:self.control_elements.reverse();close_path_fill=self.fill_elements.pop(-1);close_path_batch=self.batch_seq_fills.pop(-1);self.fill_elements.reverse();self.batch_seq_fills.reverse();self.fill_elements.append(close_path_fill);self.batch_seq_fills.append(close_path_batch);self.flag^=PathFlag.REVERSED;return self
+	def reverse(self)->Path:
+		if len(self.control_elements)<2:return self
+		self.control_elements.reverse();close_path_fill=self.fill_elements.pop(-1);close_path_batch=self.batch_seq_fills.pop(-1);self.fill_elements.reverse();self.batch_seq_fills.reverse();self.fill_elements.append(close_path_fill);self.batch_seq_fills.append(close_path_batch);self.flag^=PathFlag.REVERSED;return self
 	def is_in_control_elements(self,elem:BMVert|BMFace)->_A|int:
 		if elem in self.control_elements:return self.control_elements.index(elem)
 	def is_in_fill_elements(self,elem:BMVert|BMFace)->_A|int:
@@ -82,12 +94,15 @@ class Path:
 	def get_pairs_items(self,elem_index):
 		r_pairs=list();num_ce=len(self.control_elements)
 		if num_ce<2:return r_pairs
+		if elem_index<0:elem_index=0
 		if elem_index>num_ce-1:elem_index=num_ce-1
 		elem=self.control_elements[elem_index]
-		if elem_index==0:r_pairs=[[elem,self.control_elements[1],0]]
-		elif elem_index==len(self.control_elements)-1:r_pairs=[[elem,self.control_elements[elem_index-1],elem_index-1]]
-		elif len(self.control_elements)>2:r_pairs=[[elem,self.control_elements[elem_index-1],elem_index-1],[elem,self.control_elements[elem_index+1],elem_index]]
-		if self.flag&PathFlag.CLOSED and num_ce>2 and elem_index in(0,num_ce-1):r_pairs.extend([[self.control_elements[0],self.control_elements[-1],-1]])
+		# Pair with previous element
+		if elem_index>0:r_pairs.append([elem,self.control_elements[elem_index-1],elem_index-1])
+		# Pair with next element
+		if elem_index<num_ce-1:r_pairs.append([elem,self.control_elements[elem_index+1],elem_index])
+		# Closed path connection
+		if self.flag&PathFlag.CLOSED and num_ce>2 and elem_index in(0,num_ce-1):r_pairs.append([self.control_elements[0],self.control_elements[-1],-1])
 		return r_pairs
 CONTEXT_ACTION_ITEMS=(InteractEvent.CHANGE_DIRECTION.name,'Direction','Change the direction of the active path.\nThe active element of the path will be the final element from the opposite end of the path, from it will be formed a section to the next control element that you create.',_D,InteractEvent.CHANGE_DIRECTION.value),(InteractEvent.CLOSE_PATH.name,'Close Path','Connect the start and end of the active path',_D,InteractEvent.CLOSE_PATH.value),(InteractEvent.CANCEL.name,'Cancel','Cancel editing paths',_D,InteractEvent.CANCEL.value),(InteractEvent.APPLY_PATHS.name,'Apply','Apply changes to the grid according to the selected options',_D,InteractEvent.APPLY_PATHS.value),(InteractEvent.UNDO.name,'Undo','Take a step back',_D,InteractEvent.UNDO.value),(InteractEvent.REDO.name,'Redo','Redo previous undo',_D,InteractEvent.REDO.value),(InteractEvent.TOPOLOGY_DISTANCE.name,'Topology','Algorithm for determining the shortest path without taking into account the spatial distance, only the number of steps',_D,InteractEvent.TOPOLOGY_DISTANCE.value)
 ACTION_ITEMS=CONTEXT_ACTION_ITEMS+((InteractEvent.NONE.name,_O,'',_D,InteractEvent.NONE.value),(InteractEvent.ADD_CP.name,'Add New Control Point','',_D,InteractEvent.ADD_CP.value),(InteractEvent.ADD_NEW_PATH.name,'Add New Path','',_D,InteractEvent.ADD_NEW_PATH.value),(InteractEvent.REMOVE_CP.name,'Remove Control Point','',_D,InteractEvent.REMOVE_CP.value),(InteractEvent.DRAG_CP.name,'Drag Control Point','',_D,InteractEvent.DRAG_CP.value),(InteractEvent.RELEASE_PATH.name,'Release Path','',_D,InteractEvent.RELEASE_PATH.value),(InteractEvent.PIE.name,'Open Pie Menu','',_D,InteractEvent.PIE.value))
@@ -117,8 +132,8 @@ class MESH_OT_select_path(Operator):
 		cls.bm_arr=tuple(ret)
 	@classmethod
 	def _invoke_tweak_options(cls,context:Context):
-		wm=context.window_manager;props:WMProps=wm.select_path;addon_pref:Preferences=context.preferences.addons[ADDON_PKG].preferences
-		if addon_pref.auto_tweak_options:
+		wm=context.window_manager;props:WMProps=wm.select_path;addon_pref=_get_addon_preferences(context)
+		if addon_pref is not _A and addon_pref.auto_tweak_options:
 			num_elements_total=0
 			if cls.prior_mesh_elements==_G:
 				for(_,bm)in cls.bm_arr:num_elements_total+=len(bm.edges)
@@ -127,15 +142,16 @@ class MESH_OT_select_path(Operator):
 			if num_elements_total==len(cls.initial_select)and props.mark_select==_M:props.mark_select=_D
 			elif num_elements_total>len(cls.initial_select)and props.mark_select==_D:props.mark_select=_M
 	@classmethod
-	@property
-	def active_path(cls)->Path:
-		if len(cls.path_arr)-1>cls._active_path_index:return cls.path_arr[cls._active_path_index]
+	def _get_active_path(cls)->Path|None:
+		if not cls.path_arr:return None
+		if cls._active_path_index<len(cls.path_arr):return cls.path_arr[cls._active_path_index]
 		return cls.path_arr[-1]
 	@classmethod
 	def set_active_path(cls,value:Path)->_A:cls._active_path_index=cls.path_arr.index(value)
 	@staticmethod
 	def _set_selection_state(elem_seq:tuple[BMVert|BMEdge|BMFace],state:bool=_C)->_A:
-		for elem in elem_seq:elem.select=state
+		for elem in elem_seq:
+			if elem is not _A and elem.is_valid:elem.select=state
 	@staticmethod
 	def _get_interactive_ui_under_mouse(context:Context,event:Event)->_A|tuple[Area,Region,RegionView3D]:
 		mx,my=event.mouse_x,event.mouse_y
@@ -186,22 +202,41 @@ class MESH_OT_select_path(Operator):
 	def _update_mesh(*,bm:BMesh,mesh:Mesh)->_A:bm.select_flush_mode();bmesh.update_edit_mesh(mesh=mesh,loop_triangles=_B,destructive=_B)
 	@classmethod
 	def _update_meshes(cls)->_A:
-		for(ob,bm)in cls.bm_arr:cls._update_mesh(bm=bm,mesh=ob.data)
+		for(ob,bm)in cls.bm_arr:
+			try:
+				if ob is not _A and bm is not _A and bm.is_valid:cls._update_mesh(bm=bm,mesh=ob.data)
+			except ReferenceError:pass
+	@classmethod
+	def _find_fallback_path_verts(cls,elem_0:BMVert,elem_1:BMVert)->tuple[BMEdge,...]:
+		'''Find path between vertices when shortest_path_select fails (border cases).'''
+		if not elem_0.is_valid or not elem_1.is_valid:return tuple()
+		# Direct edge connection
+		for edge in elem_0.link_edges:
+			if edge.is_valid and edge.other_vert(elem_0)==elem_1:return(edge,)
+		# Two-hop path through shared vertex
+		for edge_0 in elem_0.link_edges:
+			if not edge_0.is_valid:continue
+			mid_vert=edge_0.other_vert(elem_0)
+			if mid_vert is _A or not mid_vert.is_valid:continue
+			for edge_1 in mid_vert.link_edges:
+				if edge_1.is_valid and edge_1!=edge_0 and edge_1.other_vert(mid_vert)==elem_1:return(edge_0,edge_1)
+		return tuple()
 	@classmethod
 	def _update_fills_by_element_index(cls,context:Context,path:Path,elem_index:int)->_A:
 		ts=context.tool_settings;pairs_items=path.get_pairs_items(elem_index)
 		for(elem_0,elem_1,fill_index)in pairs_items:
 			ts.mesh_select_mode=cls.select_ts_msm;bpy.ops.mesh.select_all(action=_H);cls._set_selection_state((elem_0,elem_1),_C);bpy.ops.mesh.shortest_path_select(use_topology_distance=bool(path.flag&PathFlag.TOPOLOGY));cls._set_selection_state((elem_0,elem_1),_B);fill_seq=cls._get_selected_elements(cls.prior_mesh_elements);bpy.ops.mesh.select_all(action=_H)
-			if not fill_seq and isinstance(elem_0,BMVert):
-				for edge in elem_0.link_edges:
-					edge:BMEdge
-					if edge.other_vert(elem_0)==elem_1:fill_seq=tuple((edge,))
+			# Fallback for border vertices when shortest_path_select fails
+			if not fill_seq and isinstance(elem_0,BMVert)and isinstance(elem_1,BMVert):fill_seq=cls._find_fallback_path_verts(elem_0,elem_1)
 			ts.mesh_select_mode=cls.prior_ts_msm;path.fill_elements[fill_index]=fill_seq;batch=_A;shader=shaders.get(_S)
-			if cls.prior_ts_msm[1]:
-				coord=[]
-				for edge in fill_seq:coord.extend([vert.co for vert in edge.verts])
-				batch=batch_for_shader(shader,'LINES',dict(P=coord))
-			elif cls.prior_ts_msm[2]:batch,_=cls._gpu_gen_batch_faces_seq(fill_seq,_B,shader)
+			# Only create batch if we have valid fill data
+			if fill_seq:
+				if cls.prior_ts_msm[1]:
+					coord=[]
+					for edge in fill_seq:
+						if edge.is_valid:coord.extend([vert.co for vert in edge.verts])
+					if coord:batch=batch_for_shader(shader,'LINES',dict(P=coord))
+				elif cls.prior_ts_msm[2]:batch,_=cls._gpu_gen_batch_faces_seq(fill_seq,_B,shader)
 			path.batch_seq_fills[fill_index]=batch
 	def _remove_path_doubles(self,context:Context,path:Path)->_A:
 		cls=self.__class__;msgctxt=cls.__qualname__
@@ -213,24 +248,44 @@ class MESH_OT_select_path(Operator):
 							path.pop_control_element(-1)
 							if path.flag^PathFlag.CLOSED:
 								path.flag|=PathFlag.CLOSED;cls._update_fills_by_element_index(context,path,0)
-								if path==cls.active_path:cls._just_closed_path=_C;text=pgettext('Closed active path',msgctxt)
+								if path==cls._get_active_path():cls._just_closed_path=_C;text=pgettext('Closed active path',msgctxt)
 								else:text=pgettext('Closed path',msgctxt)
 								self.report(type={_J},message=text)
 							else:cls._update_fills_by_element_index(context,path,0)
-						elif i in(j-1,j+1):path.pop_control_element(j);batch,_=cls._gpu_gen_batch_control_elements(path==cls.active_path,path);path.batch_control_elements=batch;self.report(type={_J},message=pgettext('Merged adjacent control elements',msgctxt))
+						elif i in(j-1,j+1):path.pop_control_element(j);batch,_=cls._gpu_gen_batch_control_elements(path==cls._get_active_path(),path);path.batch_control_elements=batch;self.report(type={_J},message=pgettext('Merged adjacent control elements',msgctxt))
 	def _join_adjacent_to_active_path(self)->_A:
-		cls=self.__class__;msgctxt=cls.__qualname__
-		if cls.active_path.flag^PathFlag.CLOSED:
-			l_path=cls.active_path
-			for(i,r_path)in enumerate(cls.path_arr):
-				if i!=cls._active_path_index and l_path.island_index==r_path.island_index and r_path.flag^PathFlag.CLOSED:
-					is_joined=_C
-					if l_path.control_elements[-1]==r_path.control_elements[0]:l_path.control_elements.pop(-1);l_path.fill_elements.pop(-1);l_path.batch_seq_fills.pop(-1);l_path.control_elements.extend(r_path.control_elements);l_path.fill_elements.extend(r_path.fill_elements);l_path.batch_seq_fills.extend(r_path.batch_seq_fills)
-					elif l_path.control_elements[0]==r_path.control_elements[-1]:l_path.control_elements.pop(0);r_path.fill_elements.pop(-1);r_path.batch_seq_fills.pop(-1);r_path.control_elements.extend(l_path.control_elements);r_path.fill_elements.extend(l_path.fill_elements);r_path.batch_seq_fills.extend(l_path.batch_seq_fills);l_path.control_elements=r_path.control_elements;l_path.fill_elements=r_path.fill_elements;l_path.batch_seq_fills=r_path.batch_seq_fills
-					elif l_path.control_elements[0]==r_path.control_elements[0]:l_path.control_elements.pop(0);r_path.control_elements.reverse();r_path.fill_elements.reverse();r_path.batch_seq_fills.reverse();r_path.fill_elements.pop(0);r_path.batch_seq_fills.pop(0);r_path.control_elements.extend(l_path.control_elements);r_path.fill_elements.extend(l_path.fill_elements);r_path.batch_seq_fills.extend(l_path.batch_seq_fills);l_path.control_elements=r_path.control_elements;l_path.fill_elements=r_path.fill_elements;l_path.batch_seq_fills=r_path.batch_seq_fills
-					elif l_path.control_elements[-1]==r_path.control_elements[-1]:r_path.reverse();l_path.control_elements.pop(-1);l_path.fill_elements.pop(-1);l_path.batch_seq_fills.pop(-1);l_path.control_elements.extend(r_path.control_elements);l_path.fill_elements.extend(r_path.fill_elements);l_path.batch_seq_fills.extend(r_path.batch_seq_fills)
-					else:is_joined=_B
-					if is_joined:cls.path_arr.remove(r_path);cls._active_path_index=cls.path_arr.index(cls.active_path);batch,cls.active_index=cls._gpu_gen_batch_control_elements(_C,cls.active_path);cls.active_path.batch_control_elements=batch;self.report(type={_J},message=pgettext('Joined two paths',msgctxt));return
+		cls=self.__class__;msgctxt=cls.__qualname__;active=cls._get_active_path()
+		if active is _A or not active.control_elements:return
+		if active.flag&PathFlag.CLOSED:return
+		l_path=active
+		for(i,r_path)in enumerate(cls.path_arr):
+			if i!=cls._active_path_index and l_path.island_index==r_path.island_index and not(r_path.flag&PathFlag.CLOSED):
+				if not r_path.control_elements:continue
+				is_joined=_C
+				if l_path.control_elements[-1]==r_path.control_elements[0]:
+					if l_path.control_elements:l_path.control_elements.pop(-1)
+					if l_path.fill_elements:l_path.fill_elements.pop(-1)
+					if l_path.batch_seq_fills:l_path.batch_seq_fills.pop(-1)
+					l_path.control_elements.extend(r_path.control_elements);l_path.fill_elements.extend(r_path.fill_elements);l_path.batch_seq_fills.extend(r_path.batch_seq_fills)
+				elif l_path.control_elements[0]==r_path.control_elements[-1]:
+					if l_path.control_elements:l_path.control_elements.pop(0)
+					if r_path.fill_elements:r_path.fill_elements.pop(-1)
+					if r_path.batch_seq_fills:r_path.batch_seq_fills.pop(-1)
+					r_path.control_elements.extend(l_path.control_elements);r_path.fill_elements.extend(l_path.fill_elements);r_path.batch_seq_fills.extend(l_path.batch_seq_fills);l_path.control_elements=r_path.control_elements;l_path.fill_elements=r_path.fill_elements;l_path.batch_seq_fills=r_path.batch_seq_fills
+				elif l_path.control_elements[0]==r_path.control_elements[0]:
+					if l_path.control_elements:l_path.control_elements.pop(0)
+					r_path.control_elements.reverse();r_path.fill_elements.reverse();r_path.batch_seq_fills.reverse()
+					if r_path.fill_elements:r_path.fill_elements.pop(0)
+					if r_path.batch_seq_fills:r_path.batch_seq_fills.pop(0)
+					r_path.control_elements.extend(l_path.control_elements);r_path.fill_elements.extend(l_path.fill_elements);r_path.batch_seq_fills.extend(l_path.batch_seq_fills);l_path.control_elements=r_path.control_elements;l_path.fill_elements=r_path.fill_elements;l_path.batch_seq_fills=r_path.batch_seq_fills
+				elif l_path.control_elements[-1]==r_path.control_elements[-1]:
+					r_path.reverse()
+					if l_path.control_elements:l_path.control_elements.pop(-1)
+					if l_path.fill_elements:l_path.fill_elements.pop(-1)
+					if l_path.batch_seq_fills:l_path.batch_seq_fills.pop(-1)
+					l_path.control_elements.extend(r_path.control_elements);l_path.fill_elements.extend(r_path.fill_elements);l_path.batch_seq_fills.extend(r_path.batch_seq_fills)
+				else:is_joined=_B
+				if is_joined:cls.path_arr.remove(r_path);cls._active_path_index=cls.path_arr.index(cls._get_active_path());batch,cls.active_index=cls._gpu_gen_batch_control_elements(_C,cls._get_active_path());cls._get_active_path().batch_control_elements=batch;self.report(type={_J},message=pgettext('Joined two paths',msgctxt));return
 	@classmethod
 	def _get_selected_elements(cls,mesh_elements:str)->tuple[BMVert|BMEdge|BMFace]:
 		ret=tuple()
@@ -239,19 +294,31 @@ class MESH_OT_select_path(Operator):
 	def _ui_draw_popup_menu_pie(self,popup:UIPieMenu,context:Context)->_A:pie=popup.layout.menu_pie();pie.prop_tabs_enum(self,'context_action');pie.popover(MESH_PT_select_path_context.__name__)
 	@staticmethod
 	def _gpu_gen_batch_faces_seq(fill_seq,is_active,shader):
+		if not fill_seq:return _A,0
 		tmp_bm=bmesh.new()
-		for face in fill_seq:tmp_bm.faces.new((tmp_bm.verts.new(v.co,v)for v in face.verts),face)
-		tmp_bm.verts.index_update();tmp_bm.faces.ensure_lookup_table();tmp_loops=tmp_bm.calc_loop_triangles();r_batch=batch_for_shader(shader,'TRIS',dict(P=tuple(v.co for v in tmp_bm.verts)),indices=tuple((loop.vert.index for loop in tri)for tri in tmp_loops));r_active_face_tri_start_index=_A
-		if is_active:r_active_face_tri_start_index=len(tmp_loops);tmp_bm=bmesh.new();face=fill_seq[-1];tmp_bm.faces.new((tmp_bm.verts.new(v.co,v)for v in face.verts),face);r_active_face_tri_start_index-=len(tmp_bm.calc_loop_triangles())
-		return r_batch,r_active_face_tri_start_index
+		for face in fill_seq:
+			if face.is_valid:tmp_bm.faces.new((tmp_bm.verts.new(v.co,v)for v in face.verts),face)
+		if not tmp_bm.verts:tmp_bm.free();return _A,0
+		tmp_bm.verts.index_update();tmp_bm.faces.ensure_lookup_table();tmp_loops=tmp_bm.calc_loop_triangles()
+		if not tmp_loops:tmp_bm.free();return _A,0
+		r_batch=batch_for_shader(shader,'TRIS',dict(P=tuple(v.co for v in tmp_bm.verts)),indices=tuple((loop.vert.index for loop in tri)for tri in tmp_loops));r_active_face_tri_start_index=_A
+		if is_active and fill_seq:
+			r_active_face_tri_start_index=len(tmp_loops);tmp_bm2=bmesh.new();face=fill_seq[-1]
+			if face.is_valid:tmp_bm2.faces.new((tmp_bm2.verts.new(v.co,v)for v in face.verts),face);r_active_face_tri_start_index-=len(tmp_bm2.calc_loop_triangles())
+			tmp_bm2.free()
+		tmp_bm.free();return r_batch,r_active_face_tri_start_index
 	@classmethod
 	def _gpu_gen_batch_control_elements(cls,is_active,path):
 		shader=shaders.get(_T)
 		if cls.prior_ts_msm[2]:shader=shaders.get(_U)
 		r_batch=_A;r_active_elem_start_index=0
+		if not path.control_elements:return r_batch,r_active_elem_start_index
 		if cls.prior_ts_msm[1]:
-			r_batch=batch_for_shader(shader,'POINTS',dict(P=tuple(v.co for v in path.control_elements)))
-			if is_active:r_active_elem_start_index=len(path.control_elements)-1
+			valid_verts=[(v.co,i)for i,v in enumerate(path.control_elements)if v.is_valid]
+			if valid_verts:
+				coords,indices=zip(*valid_verts)
+				r_batch=batch_for_shader(shader,'POINTS',{'P':coords,'v_Index':indices})
+			if is_active and path.control_elements:r_active_elem_start_index=len(path.control_elements)-1
 		elif cls.prior_ts_msm[2]:r_batch,r_active_elem_start_index=cls._gpu_gen_batch_faces_seq(path.control_elements,is_active,shader)
 		return r_batch,r_active_elem_start_index
 	@classmethod
@@ -263,17 +330,29 @@ class MESH_OT_select_path(Operator):
 		if not cls.gpu_common_ubo:cls.gpu_common_ubo=bhqglsl.ubo.UBO(ubo_type=shaders.CommonParams)
 	@classmethod
 	def _gpu_draw_callback(cls:MESH_OT_select_path)->_A:
-		D='u_ViewportMetrics';C='u_DepthMap';B='u_Params';A=.0;context=bpy.context;addon_pref:Preferences=context.preferences.addons[ADDON_PKG].preferences;wm=context.window_manager;wm_props:WMProps=wm.select_path;draw_list:list[Path]=[_ for _ in cls.path_arr if _!=cls.active_path];draw_list.append(cls.active_path);shader_ce=shaders.get(_T);shader_path=shaders.get(_S)
+		D='u_ViewportMetrics';C='u_DepthMap';B='u_Params';A=.0
+		# Early exit if not properly initialized
+		if cls.gpu_draw_framework is _A or not cls.path_arr:return
+		active_path=cls._get_active_path()
+		if active_path is _A:return
+		context=bpy.context;addon_pref=_get_addon_preferences(context)
+		if addon_pref is _A:return
+		wm=context.window_manager;wm_props:WMProps=wm.select_path;draw_list:list[Path]=[_ for _ in cls.path_arr if _!=active_path];draw_list.append(active_path);shader_ce=shaders.get(_T);shader_path=shaders.get(_S)
 		if cls.prior_ts_msm[2]:shader_ce=shaders.get(_U);shader_path=shaders.get('path_face')
-		depth_map=bhqab.utils_gpu.get_depth_map();fb_framework=cls.gpu_draw_framework.get(index=0);fb=fb_framework.get()
+		depth_map=bhqab.utils_gpu.get_depth_map();fb_framework=cls.gpu_draw_framework.get(index=0)
+		if fb_framework is _A:return
+		fb=fb_framework.get()
 		with fb.bind():
 			fb.clear(color=(A,A,A,A));viewport_metrics=bhqab.utils_gpu.get_viewport_metrics()
 			with gpu.matrix.push_pop():
 				gpu.state.line_width_set(addon_pref.line_width);gpu.state.blend_set('ALPHA');gpu.state.face_culling_set(_D)
 				for path in draw_list:
+					if path is _A or path.ob is _A:continue
+					try:_=path.ob.matrix_world
+					except ReferenceError:continue
 					active_ce_index=0;color_ce=addon_pref.color_control_element;color_active_ce=color_ce;color_path=addon_pref.color_path
 					if path.flag&PathFlag.TOPOLOGY:color_path=addon_pref.color_path_topology
-					if path==cls.active_path:
+					if path==active_path:
 						active_ce_index=cls.active_index;color_active_ce=addon_pref.color_active_control_element;color_path=addon_pref.color_active_path
 						if path.flag&PathFlag.TOPOLOGY:color_path=addon_pref.color_active_path_topology
 					params=cls.gpu_common_ubo.data;params.model_matrix=tuple(_[:]for _ in path.ob.matrix_world.col);params.color_path=color_path[:];params.color_cp=color_ce[:];params.color_active_cp=color_active_ce[:];params.color_path_behind=addon_pref.color_path_behind[:];params.show_path_behind=wm_props.show_path_behind;params.index_active=active_ce_index
@@ -290,13 +369,13 @@ class MESH_OT_select_path(Operator):
 		elif interact_event is InteractEvent.REDO:self._redo(context)
 		elif elem and interact_event is InteractEvent.ADD_CP:
 			if not cls.path_arr:return self._interact_control_element(context,elem,ob,InteractEvent.ADD_NEW_PATH)
-			new_elem_index=_A;elem_index=cls.active_path.is_in_control_elements(elem)
+			new_elem_index=_A;elem_index=cls._get_active_path().is_in_control_elements(elem)
 			if elem_index is _A:
-				new_elem_index=len(cls.active_path.control_elements);fill_index=cls.active_path.is_in_fill_elements(elem)
+				new_elem_index=len(cls._get_active_path().control_elements);fill_index=cls._get_active_path().is_in_fill_elements(elem)
 				if fill_index is _A:
 					is_found_in_other_path=_B
 					for path in cls.path_arr:
-						if path==cls.active_path:continue
+						if path==cls._get_active_path():continue
 						other_elem_index=path.is_in_control_elements(elem)
 						if other_elem_index is _A:
 							other_fill_index=path.is_in_fill_elements(elem)
@@ -304,48 +383,48 @@ class MESH_OT_select_path(Operator):
 						else:is_found_in_other_path=_C
 						if is_found_in_other_path:cls.set_active_path(path);cls._just_closed_path=_B;self._interact_control_element(context,elem,ob,InteractEvent.ADD_CP);return
 				else:new_elem_index=fill_index+1;cls._just_closed_path=_B
-			elif len(cls.active_path.control_elements)==1:batch,cls.active_index=cls._gpu_gen_batch_control_elements(_C,cls.active_path);cls.active_path.batch_control_elements=batch
+			elif len(cls._get_active_path().control_elements)==1:batch,cls.active_index=cls._gpu_gen_batch_control_elements(_C,cls._get_active_path());cls._get_active_path().batch_control_elements=batch
 			if elem_index is not _A:cls.drag_elem_indices=[path.is_in_control_elements(elem)for path in cls.path_arr];cls._just_closed_path=_B
 			cls._drag_elem=elem
 			if cls._just_closed_path:return self._interact_control_element(context,elem,ob,InteractEvent.ADD_NEW_PATH)
 			if new_elem_index is not _A:
 				linked_island_index=cls._get_linked_island_index(context,elem)
-				if cls.active_path.island_index!=linked_island_index:return self._interact_control_element(context,elem,ob,InteractEvent.ADD_NEW_PATH)
-				cls.active_path.insert_control_element(new_elem_index,elem);cls._update_fills_by_element_index(context,cls.active_path,new_elem_index);batch,cls.active_index=cls._gpu_gen_batch_control_elements(_C,cls.active_path);cls.active_path.batch_control_elements=batch;cls.drag_elem_indices=[path.is_in_control_elements(elem)for path in cls.path_arr]
+				if cls._get_active_path().island_index!=linked_island_index:return self._interact_control_element(context,elem,ob,InteractEvent.ADD_NEW_PATH)
+				cls._get_active_path().insert_control_element(new_elem_index,elem);cls._update_fills_by_element_index(context,cls._get_active_path(),new_elem_index);batch,cls.active_index=cls._gpu_gen_batch_control_elements(_C,cls._get_active_path());cls._get_active_path().batch_control_elements=batch;cls.drag_elem_indices=[path.is_in_control_elements(elem)for path in cls.path_arr]
 		elif elem and interact_event is InteractEvent.ADD_NEW_PATH:
 			linked_island_index=cls._get_linked_island_index(context,elem);new_path=Path(elem,linked_island_index,ob)
 			if props.use_topology_distance:new_path.flag|=PathFlag.TOPOLOGY
 			cls.path_arr.append(new_path);cls.set_active_path(new_path);cls._just_closed_path=_B;self._interact_control_element(context,elem,ob,InteractEvent.ADD_CP);self.report(type={_J},message=pgettext('Created new path',msgctxt))
 		elif elem and interact_event is InteractEvent.REMOVE_CP:
-			cls._just_closed_path=_B;elem_index=cls.active_path.is_in_control_elements(elem)
+			cls._just_closed_path=_B;elem_index=cls._get_active_path().is_in_control_elements(elem)
 			if elem_index is _A:
 				for path in cls.path_arr:
 					other_elem_index=path.is_in_control_elements(elem)
 					if other_elem_index is not _A:cls.set_active_path(path);self._interact_control_element(context,elem,ob,InteractEvent.REMOVE_CP);return
 			else:
-				cls.active_path.pop_control_element(elem_index)
-				if not len(cls.active_path.control_elements):
-					cls.path_arr.remove(cls.active_path)
+				cls._get_active_path().pop_control_element(elem_index)
+				if not len(cls._get_active_path().control_elements):
+					cls.path_arr.remove(cls._get_active_path())
 					if len(cls.path_arr):cls.set_active_path(cls.path_arr[-1])
-				else:cls._update_fills_by_element_index(context,cls.active_path,elem_index);batch,cls.active_index=cls._gpu_gen_batch_control_elements(_C,cls.active_path);cls.active_path.batch_control_elements=batch
+				else:cls._update_fills_by_element_index(context,cls._get_active_path(),elem_index);batch,cls.active_index=cls._gpu_gen_batch_control_elements(_C,cls._get_active_path());cls._get_active_path().batch_control_elements=batch
 		elif elem and interact_event is InteractEvent.DRAG_CP:
 			if not cls._drag_elem or len(cls.drag_elem_indices)!=len(cls.path_arr):return
 			cls._just_closed_path=_B;linked_island_index=cls._get_linked_island_index(context,elem)
-			if cls.active_path.island_index==linked_island_index:
+			if cls._get_active_path().island_index==linked_island_index:
 				cls._drag_elem=elem
 				for(i,path)in enumerate(cls.path_arr):
 					j=cls.drag_elem_indices[i]
-					if j is not _A:path.control_elements[j]=elem;cls._update_fills_by_element_index(context,path,j);path.batch_control_elements,cls.active_index=cls._gpu_gen_batch_control_elements(path==cls.active_path,path)
-		elif interact_event is InteractEvent.CHANGE_DIRECTION:cls.active_path.reverse();batch,cls.active_index=cls._gpu_gen_batch_control_elements(_C,cls.active_path);cls.active_path.batch_control_elements=batch;cls._just_closed_path=_B
+					if j is not _A:path.control_elements[j]=elem;cls._update_fills_by_element_index(context,path,j);path.batch_control_elements,cls.active_index=cls._gpu_gen_batch_control_elements(path==cls._get_active_path(),path)
+		elif interact_event is InteractEvent.CHANGE_DIRECTION:cls._get_active_path().reverse();batch,cls.active_index=cls._gpu_gen_batch_control_elements(_C,cls._get_active_path());cls._get_active_path().batch_control_elements=batch;cls._just_closed_path=_B
 		elif interact_event is InteractEvent.CLOSE_PATH:
-			cls.active_path.flag^=PathFlag.CLOSED
-			if cls.active_path.flag&PathFlag.CLOSED:
-				cls._update_fills_by_element_index(context,cls.active_path,0)
-				if len(cls.active_path.control_elements)>2:cls._just_closed_path=_C
-			else:cls.active_path.fill_elements[-1]=[];cls.active_path.batch_seq_fills[-1]=_A;cls._just_closed_path=_B;self._join_adjacent_to_active_path()
+			cls._get_active_path().flag^=PathFlag.CLOSED
+			if cls._get_active_path().flag&PathFlag.CLOSED:
+				cls._update_fills_by_element_index(context,cls._get_active_path(),0)
+				if len(cls._get_active_path().control_elements)>2:cls._just_closed_path=_C
+			else:cls._get_active_path().fill_elements[-1]=[];cls._get_active_path().batch_seq_fills[-1]=_A;cls._just_closed_path=_B;self._join_adjacent_to_active_path()
 		elif interact_event is InteractEvent.TOPOLOGY_DISTANCE:
-			cls.active_path.flag^=PathFlag.TOPOLOGY
-			for j in range(0,len(cls.active_path.control_elements),2):cls._update_fills_by_element_index(context,cls.active_path,j)
+			cls._get_active_path().flag^=PathFlag.TOPOLOGY
+			for j in range(0,len(cls._get_active_path().control_elements),2):cls._update_fills_by_element_index(context,cls._get_active_path(),j)
 		elif interact_event is InteractEvent.RELEASE_PATH:
 			cls.drag_elem_indices.clear();cls._drag_elem=_A
 			for path in cls.path_arr:self._remove_path_doubles(context,path)
@@ -387,7 +466,15 @@ class MESH_OT_select_path(Operator):
 		if not elem:cls._cancel_all_instances(context);return{_L}
 		cls.gpu_handles=[SpaceView3D.draw_handler_add(self._gpu_draw_callback,tuple(),_F,'POST_VIEW')];shaders.register();cls._gpu_update_common_ubo(context);cls.gpu_draw_framework=bhqab.utils_gpu.DrawFramework(num=1);self._interact_control_element(context,elem,ob,InteractEvent.ADD_NEW_PATH);wm.modal_handler_add(self);return self.modal(context,event)
 	@classmethod
-	def _cancel_all_instances(cls,context:Context)->_A:wm_props:WMProps=context.window_manager.select_path;cls.windows.clear();ts=context.tool_settings;ts.mesh_select_mode=cls.initial_ts_msm;cls._set_selection_state(cls.initial_select,_C);cls._update_meshes();cls._gpu_remove_handles();wm_props.is_runtime=_B
+	def _cancel_all_instances(cls,context:Context)->_A:
+		wm_props:WMProps=context.window_manager.select_path;cls.windows.clear()
+		ts=context.tool_settings
+		# Restore initial state if it was set
+		if hasattr(cls,'initial_ts_msm')and cls.initial_ts_msm:ts.mesh_select_mode=cls.initial_ts_msm
+		if hasattr(cls,'initial_select')and cls.initial_select:
+			try:cls._set_selection_state(cls.initial_select,_C)
+			except ReferenceError:pass
+		cls._update_meshes();cls._gpu_remove_handles();cls.gpu_draw_framework=_A;wm_props.is_runtime=_B
 	def cancel(self,context:Context):
 		cls=self.__class__
 		if context.window in cls.windows:cls.windows.remove(context.window)
@@ -395,7 +482,7 @@ class MESH_OT_select_path(Operator):
 	def modal(self,context:Context,event:Event):
 		cls=self.__class__
 		if not cls.windows:return{_L}
-		wm=context.window_manager;wm_props:WMProps=wm.select_path;addon_pref:Preferences=context.preferences.addons[ADDON_PKG].preferences;ev=cls._pack_event(event);interact_event=_A;kc=context.window_manager.keyconfigs.user;km:KeyMap=kc.keymaps.get(TOOL_KM_NAME);kmi:_A|KeyMapItem=km.keymap_items.match_event(event)
+		wm=context.window_manager;wm_props:WMProps=wm.select_path;addon_pref:Preferences=_get_addon_preferences(context);ev=cls._pack_event(event);interact_event=_A;kc=context.window_manager.keyconfigs.user;km:KeyMap=kc.keymaps.get(TOOL_KM_NAME);kmi:_A|KeyMapItem=km.keymap_items.match_event(event)
 		if InteractEvent.CANCEL.name in self.context_action or kmi and InteractEvent.CANCEL.name==kmi.properties.action:cls._cancel_all_instances(context);return{_L}
 		elif InteractEvent.APPLY_PATHS.name in self.context_action or kmi and InteractEvent.APPLY_PATHS.name==kmi.properties.action:cls.windows.clear();cls._eval_final_element_indices_arrays();cls._gpu_remove_handles();return self.execute(context)
 		elif cls._get_interactive_ui_under_mouse(context,event)is _A:return{_K}
@@ -414,10 +501,13 @@ class MESH_OT_select_path(Operator):
 		if kmi and InteractEvent.PIE.name==kmi.properties.action:cls.is_interaction=_B;context.window_manager.popup_menu_pie(event=event,draw_func=self._ui_draw_popup_menu_pie,title='Path Tool',icon=_D);return{_K}
 		elif interact_event is not _A:elem,ob=cls._get_element_by_mouse(context,event);self._interact_control_element(context,elem,ob,interact_event);cls._set_selection_state(cls.initial_select,_C);cls._update_meshes()
 		if not len(cls.path_arr):cls._cancel_all_instances(context);return{_L}
-		self.context_action=set();cls.gpu_draw_framework.aa_method=addon_pref.aa_method
-		if addon_pref.aa_method=='FXAA':cls.gpu_draw_framework.aa.preset=addon_pref.fxaa_preset;cls.gpu_draw_framework.aa.value=addon_pref.fxaa_value
-		elif addon_pref.aa_method=='SMAA':cls.gpu_draw_framework.aa.preset=addon_pref.smaa_preset
-		cls.gpu_draw_framework.modal_eval(context,color_format='RGBA32F',depth_format='DEPTH_COMPONENT32F',percentage=100);wm_props.is_runtime=_C;return{_K}
+		self.context_action=set()
+		if addon_pref is not _A and cls.gpu_draw_framework is not _A:
+			cls.gpu_draw_framework.aa_method=addon_pref.aa_method
+			if addon_pref.aa_method=='FXAA':cls.gpu_draw_framework.aa.preset=addon_pref.fxaa_preset;cls.gpu_draw_framework.aa.value=addon_pref.fxaa_value
+			elif addon_pref.aa_method=='SMAA':cls.gpu_draw_framework.aa.preset=addon_pref.smaa_preset
+			cls.gpu_draw_framework.modal_eval(context,color_format='RGBA32F',depth_format='DEPTH_COMPONENT32F',percentage=100)
+		wm_props.is_runtime=_C;return{_K}
 	@classmethod
 	def _eval_final_element_indices_arrays(cls)->_A:
 		cls.exec_select_arr=dict();cls.exec_markup_arr=dict()

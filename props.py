@@ -28,6 +28,13 @@ from bl_operators.presets import AddPresetBase
 from bpy.app.translations import pgettext
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:from.pref import Preferences
+def _get_addon_preferences(context:Context):
+	'''Safely get addon preferences, handling versioned folder names.'''
+	addons=context.preferences.addons
+	if ADDON_PKG in addons:return addons[ADDON_PKG].preferences
+	for name in addons.keys():
+		if name.startswith('path_tool'):return addons[name].preferences
+	return None
 class WMProps(PropertyGroup):
 	is_runtime:BoolProperty(options={_H});mark_select:EnumProperty(items=((_I,'Extend','Extend existing selection','SELECT_EXTEND',1),(_B,_C,_C,'X',2),('SUBTRACT','Subtract','Subtract existing selection','SELECT_SUBTRACT',3),('INVERT','Invert','Inverts existing selection','SELECT_DIFFERENCE',4)),default=_I,options={_D},translation_context=_A,name=_J,description='Selection options');mark_seam:EnumProperty(items=(('MARK','Mark','Mark seam path elements',_K,1),(_B,_C,_C,'X',2),('CLEAR','Clear','Clear seam path elements',_L,3),(_M,_N,'Toggle seams on path elements',_O,4)),default=_B,options={_D},translation_context=_A,name='Seam',description='Mark seam options');mark_sharp:EnumProperty(items=(('MARK','Mark','Mark sharp path elements',_K,1),(_B,_C,_C,'X',2),('CLEAR','Clear','Clear sharp path elements',_L,3),(_M,_N,'Toggle sharpness on path',_O,4)),default=_B,options={_D},translation_context=_A,name='Sharp',description='Mark sharp options');use_topology_distance:BoolProperty(default=_F,options={_D},translation_context=_A,name='Use Topology Distance',description='Use the algorithm for determining the shortest path without taking into account the spatial distance, only the number of steps. Newly created paths will use the value of the option, but this can be adjusted individually for each of them');show_path_behind:BoolProperty(default=_E,options={_D},translation_context=_A,name='Show Path Behind',description='Whether to show the path behind the mesh')
 	def ui_draw_func(self,layout:UILayout)->None:
@@ -51,7 +58,8 @@ class MESH_OT_select_path_preset_add(AddPresetBase,Operator):
 class PREFERENCES_OT_select_path_pref_show(Operator):
 	bl_idname='mesh.select_path_pref_show';bl_label='Show Preferences';bl_description='Path Tool user preferences';bl_translation_context='CPP_OT_pref_show';bl_options={'REGISTER'};shortcut:EnumProperty(items=((_B,'',''),(_G,'','')),default=_B,options={_H,_D})
 	def execute(self,context:Context):
-		addon_pref:Preferences=context.preferences.addons[ADDON_PKG].preferences
-		match self.shortcut:
-			case'UPDATES':addon_pref.tab='INFO';addon_pref.info_tab={_G}
+		addon_pref=_get_addon_preferences(context)
+		if addon_pref is not None:
+			match self.shortcut:
+				case'UPDATES':addon_pref.tab='INFO';addon_pref.info_tab={_G}
 		return bpy.ops.preferences.addon_show('EXEC_DEFAULT',module=ADDON_PKG)
